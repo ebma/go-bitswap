@@ -9,6 +9,7 @@ func main() {
 }
 
 var testcases = map[string]interface{}{
+	"bitswap":  run.InitializedTestCaseFn(BitswapSpeedTest),
 	"output":   run.InitializedTestCaseFn(ExampleOutput),
 	"failure":  run.InitializedTestCaseFn(ExampleFailure),
 	"panic":    run.InitializedTestCaseFn(ExamplePanic),
