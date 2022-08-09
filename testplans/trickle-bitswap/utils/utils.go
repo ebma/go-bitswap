@@ -15,7 +15,7 @@ import (
 type NodeConfig struct {
 	Addrs    []string
 	AddrInfo *peer.AddrInfo
-	PrivKey  ci.PrivKey
+	PrivKey  []byte
 }
 
 func getFreePort() string {
@@ -46,6 +46,10 @@ func GenerateAddrInfo(ip string) (*NodeConfig, error) {
 	if err != nil {
 		panic(err)
 	}
+	privKeyB, err := ci.MarshalPrivateKey(priv)
+	if err != nil {
+		panic(err)
+	}
 
 	addrs := []string{
 		fmt.Sprintf("/ip4/%s/tcp/%s", ip, port),
@@ -63,5 +67,5 @@ func GenerateAddrInfo(ip string) (*NodeConfig, error) {
 		multiAddrs = append(multiAddrs, maddr)
 	}
 
-	return &NodeConfig{addrs, &peer.AddrInfo{ID: pid, Addrs: multiAddrs}, priv}, nil
+	return &NodeConfig{addrs, &peer.AddrInfo{ID: pid, Addrs: multiAddrs}, privKeyB}, nil
 }

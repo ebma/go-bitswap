@@ -9,12 +9,6 @@ func main() {
 }
 
 var testcases = map[string]interface{}{
-	"bitswap":  run.InitializedTestCaseFn(BitswapSpeedTest),
-	"output":   run.InitializedTestCaseFn(ExampleOutput),
-	"failure":  run.InitializedTestCaseFn(ExampleFailure),
-	"panic":    run.InitializedTestCaseFn(ExamplePanic),
-	"params":   run.InitializedTestCaseFn(ExampleParams),
-	"sync":     run.InitializedTestCaseFn(ExampleSync),
-	"metrics":  run.InitializedTestCaseFn(ExampleMetrics),
-	"artifact": run.InitializedTestCaseFn(ExampleArtifact),
+	"bitswap-speedtest": run.InitializedTestCaseFn(BitswapSpeedTest),
+	"bitswap-transfer":  run.InitializedTestCaseFn(BitswapTransferTest),
 }

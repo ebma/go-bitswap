@@ -11,7 +11,7 @@ import (
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	ds "github.com/ipfs/go-datastore"
-	delayed "github.com/ipfs/go-datastore/delayed"
+	"github.com/ipfs/go-datastore/delayed"
 	ds_sync "github.com/ipfs/go-datastore/sync"
 	badgerds "github.com/ipfs/go-ds-badger2"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
@@ -104,7 +104,7 @@ func ClearBlockstore(ctx context.Context, bstore blockstore.Blockstore) error {
 	for k := range ks {
 		c := k
 		g.Go(func() error {
-			return bstore.DeleteBlock(c)
+			return bstore.DeleteBlock(ctx, c)
 		})
 	}
 	return g.Wait()
