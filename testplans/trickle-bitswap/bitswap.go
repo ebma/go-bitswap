@@ -11,7 +11,6 @@ import (
 	exchange "github.com/ipfs/go-ipfs-exchange-interface"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
 	"math/rand"
 	"time"
@@ -60,13 +59,11 @@ func BitswapSpeedTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error {
 	seq := client.MustSignalEntry(ctx, networkState)
 	runenv.RecordMessage("network configured, my sequence ID is %d", seq)
 
-	port :=
+	nConfig, err := GenerateAddrInfo(initCtx.NetClient.MustGetDataNetworkIP().String())
+	runenv.RecordMessage("network config: %s", nConfig)
 
-	listen, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/3333", initCtx.NetClient.MustGetDataNetworkIP().String()))
-	if err != nil {
-		return err
-	}
-	h, err := libp2p.New(libp2p.ListenAddrs(listen))
+	//listen, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/3333", initCtx.NetClient.MustGetDataNetworkIP().String()))
+	h, err := libp2p.New(libp2p.ListenAddrs(nConfig.AddrInfo.Addrs...))
 	if err != nil {
 		return err
 	}
