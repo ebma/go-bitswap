@@ -9,6 +9,7 @@ import (
 	"github.com/ipfs/go-datastore"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	exchange "github.com/ipfs/go-ipfs-exchange-interface"
+	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
@@ -59,7 +60,7 @@ func BitswapSpeedTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error {
 	seq := client.MustSignalEntry(ctx, networkState)
 	runenv.RecordMessage("network configured, my sequence ID is %d", seq)
 
-	nConfig, err := GenerateAddrInfo(initCtx.NetClient.MustGetDataNetworkIP().String())
+	nConfig, err := utils.GenerateAddrInfo(initCtx.NetClient.MustGetDataNetworkIP().String())
 	runenv.RecordMessage("network config: %s", nConfig)
 
 	//listen, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/3333", initCtx.NetClient.MustGetDataNetworkIP().String()))
@@ -111,7 +112,8 @@ func runProvide(ctx context.Context, runenv *runtime.RunEnv, h host.Host, bstore
 		//	return err
 		//}
 		mh := blk.Multihash()
-		runenv.RecordMessage("publishing block %s", mh.String())
+		cID := cid.NewCidV1(cid.DagCBOR, mh)
+		runenv.RecordMessage("publishing block %s with CID %s", mh.String(), cID)
 		tgc.MustPublish(ctx, blockTopic, &mh)
 	}
 	tgc.MustSignalAndWait(ctx, readyDLState, runenv.TestInstanceCount)
@@ -156,7 +158,8 @@ func runRequest(ctx context.Context, runenv *runtime.RunEnv, h host.Host, bstore
 		mh := <-blkmhs
 		runenv.RecordMessage("downloading block %s", mh.String())
 		dlBegin := time.Now()
-		blk, err := ex.GetBlock(ctx, cid.NewCidV0(*mh))
+		//blk, err := ex.GetBlock(ctx, cid.NewCidV0(*mh))
+		blk, err := ex.GetBlock(ctx, cid.NewCidV1(cid.DagCBOR, *mh))
 		if err != nil {
 			return fmt.Errorf("could not download get block %s: %w", mh.String(), err)
 		}
