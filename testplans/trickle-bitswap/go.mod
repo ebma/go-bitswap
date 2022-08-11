@@ -1,6 +1,6 @@
 module github.com/ipfs/testground/plans/trickle-bitswap
 
-go 1.17
+go 1.18
 
 require (
 	github.com/dgraph-io/badger/v2 v2.2007.4
