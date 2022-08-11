@@ -1,0 +1,1 @@
+failed to WebSocket dial: failed to send handshake request: Get "http://testground-sync-service:5050": dial tcp: lookup testground-sync-service: No address associated with hostname
