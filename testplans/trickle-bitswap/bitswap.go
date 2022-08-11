@@ -72,7 +72,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 		return err
 	}
 	t, err := initializeBitswapTest(ctx, runenv, testvars, baseT)
-	runenv.RecordMessage("created node %s with addrs", t.seq)
+	runenv.RecordMessage("created node %s with addrs", t.peerInfos)
 	//transferNode := t.node
 	//signalAndWaitForAll := t.signalAndWaitForAll
 	//
