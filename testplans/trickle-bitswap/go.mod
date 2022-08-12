@@ -32,6 +32,10 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
 
+// replace upstream dependency with local copy
+replace github.com/ipfs/go-bitswap v0.8.0 => /home/marcel/Documents/Studies/thesis/trickle-bitswap/go-bitswap
+//replace github.com/ipfs/go-bitswap v0.8.0 => github.com/ebma/go-bitswap v0.8.0
+
 require (
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a // indirect
 	github.com/avast/retry-go v2.6.0+incompatible // indirect
