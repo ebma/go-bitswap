@@ -1,11 +1,11 @@
 #!/bin/bash
 
-RUNNER="local:docker"
-BUILDER="docker:go"
+#RUNNER="local:docker"
+#BUILDER="docker:go"
 # RUNNER="cluster:k8s"
 # BUILDER="docker:go"
-# RUNNER="local:exec"
-# BUILDER="exec:go"
+RUNNER="local:exec"
+BUILDER="exec:go"
 
 echo "Cleaning previous results..."
 
@@ -24,7 +24,8 @@ BANDWIDTH=150
 PARALLEL_GEN=100
 TESTCASE=bitswap-transfer
 INPUT_DATA=files
-DATA_DIR=../extra/test-datasets
+#DATA_DIR=../extra/test-datasets # This would be for the docker:go runner
+DATA_DIR=/home/marcel/Documents/Studies/thesis/trickle-bitswap/go-bitswap/testplans/trickle-bitswap/test-datasets # This is for the local runner
 TCP_ENABLED=false
 MAX_CONNECTION_RATE=100
 
