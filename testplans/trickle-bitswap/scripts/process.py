@@ -386,7 +386,10 @@ def plot_bw_overhead(byFileSize, byTopology):
             # Computing averages
             # Remove the division if you want to see total values 
             arr_control_rcvd.append(round(control_rcvd/data_rcvd_n/1e6,3))
-            arr_block_data_rcvd.append(round(block_data_rcvd/block_data_rcvd_n/1e6,3))
+            if block_data_rcvd_n != 0:
+                arr_block_data_rcvd.append(round(block_data_rcvd/block_data_rcvd_n/1e6,3))
+            else:
+                arr_block_data_rcvd.append(0)
             arr_dup_data_rcvd.append(round(dup_data_rcvd/dup_data_rcvd_n/1e6,3))
             arr_overhead.append(round(overhead/overhead_n,3))
             control_rcvd = data_rcvd = block_data_rcvd = dup_data_rcvd = overhead = 0
