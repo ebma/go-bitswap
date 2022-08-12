@@ -1,8 +1,9 @@
-package utils
+package test
 
 import (
 	"context"
 	"fmt"
+	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils/dialer"
 	"math"
 	"net"
@@ -23,7 +24,7 @@ import (
 )
 
 type TestPermutation struct {
-	File      TestFile
+	File      utils.TestFile
 	Bandwidth int
 	Latency   time.Duration
 	JitterPct int
@@ -53,13 +54,13 @@ type TestVars struct {
 type TestData struct {
 	client              *sync.DefaultClient
 	nwClient            *network.Client
-	nConfig             *NodeConfig
-	peerInfos           []PeerInfo
+	nConfig             *utils.NodeConfig
+	peerInfos           []utils.PeerInfo
 	dialFn              dialer.Dialer
 	signalAndWaitForAll func(state string) error
 	seq                 int64
 	grpseq              int64
-	nodetp              NodeType
+	nodetp              utils.NodeType
 	tpindex             int
 	seedIndex           int64
 }
@@ -115,34 +116,34 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 		tv.DiskStore = runenv.BooleanParam("disk_store")
 	}
 
-	//bandwidths, err := ParseIntArray(runenv.StringParam("bandwidth_mb"))
-	//if err != nil {
-	//	return nil, err
-	//}
-	//latencies, err := ParseIntArray(runenv.StringParam("latency_ms"))
-	//if err != nil {
-	//	return nil, err
-	//}
-	//jitters, err := ParseIntArray(runenv.StringParam("jitter_pct"))
-	//if err != nil {
-	//	return nil, err
-	//}
-	//testFiles, err := GetFileList(runenv)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//runenv.RecordMessage("Got file list: %v", testFiles)
-	//
-	//for _, f := range testFiles {
-	//	for _, b := range bandwidths {
-	//		for _, l := range latencies {
-	//			latency := time.Duration(l) * time.Millisecond
-	//			for _, j := range jitters {
-	//				tv.Permutations = append(tv.Permutations, TestPermutation{File: f, Bandwidth: int(b), Latency: latency, JitterPct: int(j)})
-	//			}
-	//		}
-	//	}
-	//}
+	bandwidths, err := utils.ParseIntArray(runenv.StringParam("bandwidth_mb"))
+	if err != nil {
+		return nil, err
+	}
+	latencies, err := utils.ParseIntArray(runenv.StringParam("latency_ms"))
+	if err != nil {
+		return nil, err
+	}
+	jitters, err := utils.ParseIntArray(runenv.StringParam("jitter_pct"))
+	if err != nil {
+		return nil, err
+	}
+	testFiles, err := utils.GetFileList(runenv)
+	if err != nil {
+		return nil, err
+	}
+	runenv.RecordMessage("Got file list: %v", testFiles)
+
+	for _, f := range testFiles {
+		for _, b := range bandwidths {
+			for _, l := range latencies {
+				latency := time.Duration(l) * time.Millisecond
+				for _, j := range jitters {
+					tv.Permutations = append(tv.Permutations, TestPermutation{File: f, Bandwidth: int(b), Latency: latency, JitterPct: int(j)})
+				}
+			}
+		}
+	}
 
 	return tv, nil
 }
@@ -151,7 +152,7 @@ func InitializeTest(ctx context.Context, runenv *runtime.RunEnv, testvars *TestV
 	client := sync.MustBoundClient(ctx, runenv)
 	nwClient := network.NewClient(client, runenv)
 
-	nConfig, err := GenerateAddrInfo(nwClient.MustGetDataNetworkIP().String())
+	nConfig, err := utils.GenerateAddrInfo(nwClient.MustGetDataNetworkIP().String())
 	if err != nil {
 		runenv.RecordMessage("Error generating node config")
 		return nil, err
@@ -170,9 +171,9 @@ func InitializeTest(ctx context.Context, runenv *runtime.RunEnv, testvars *TestV
 		return nil, err
 	}
 
-	peerInfos := sync.NewTopic("peerInfos", &PeerInfo{})
+	peerInfos := sync.NewTopic("peerInfos", &utils.PeerInfo{})
 	// Publish peer info for dialing
-	_, err = client.Publish(ctx, peerInfos, &PeerInfo{Addr: *nConfig.AddrInfo, Nodetp: nodetp})
+	_, err = client.Publish(ctx, peerInfos, &utils.PeerInfo{Addr: *nConfig.AddrInfo, Nodetp: nodetp})
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +184,7 @@ func InitializeTest(ctx context.Context, runenv *runtime.RunEnv, testvars *TestV
 	}
 
 	var seedIndex int64
-	if nodetp == Seed {
+	if nodetp == utils.Seed {
 		if runenv.TestGroupID == "" {
 			// If we're not running in group mode, calculate the seed index as
 			// the sequence number minus the other types of node (leech / passive).
@@ -203,7 +204,7 @@ func InitializeTest(ctx context.Context, runenv *runtime.RunEnv, testvars *TestV
 	runenv.RecordMessage("Seed index %v for: %v", &nConfig.AddrInfo.ID, seedIndex)
 
 	// Get addresses of all peers
-	peerCh := make(chan *PeerInfo)
+	peerCh := make(chan *utils.PeerInfo)
 	sctx, cancelSub := context.WithCancel(ctx)
 	if _, err := client.Subscribe(sctx, peerInfos, peerCh); err != nil {
 		cancelSub()
@@ -265,13 +266,13 @@ func (t *TestData) readFile(ctx context.Context, fIndex int, runenv *runtime.Run
 	return rootCid, nil
 }
 
-func (t *TestData) runTCPServer(ctx context.Context, fIndex int, runNum int, f TestFile, runenv *runtime.RunEnv, testvars *TestVars) error {
+func (t *TestData) runTCPServer(ctx context.Context, fIndex int, runNum int, f utils.TestFile, runenv *runtime.RunEnv, testvars *TestVars) error {
 	// TCP variables
 	tcpAddrTopic := getTCPAddrTopic(fIndex, runNum)
 	runenv.RecordMessage("Starting TCP server in seed")
 
 	// Start TCP server for file
-	tcpServer, err := SpawnTCPServer(ctx, t.nwClient.MustGetDataNetworkIP().String(), f)
+	tcpServer, err := utils.SpawnTCPServer(ctx, t.nwClient.MustGetDataNetworkIP().String(), f)
 	if err != nil {
 		return fmt.Errorf("Failed to start tcpServer in seed %w", err)
 	}
@@ -317,7 +318,7 @@ func (t *TestData) runTCPFetch(ctx context.Context, fIndex int, runNum int, rune
 	defer connection.Close()
 
 	start := time.Now()
-	FetchFileTCP(connection, runenv)
+	utils.FetchFileTCP(connection, runenv)
 	tcpFetch := time.Since(start).Nanoseconds()
 	runenv.RecordMessage("Fetched TCP file after %d (ns)", tcpFetch)
 
@@ -327,14 +328,14 @@ func (t *TestData) runTCPFetch(ctx context.Context, fIndex int, runNum int, rune
 
 type NodeTestData struct {
 	*TestData
-	node Node
+	node utils.Node
 	host *host.Host
 }
 
 func (t *NodeTestData) stillAlive(runenv *runtime.RunEnv, v *TestVars) {
 	// starting liveness process for long-lasting experiments.
 	if v.LlEnabled {
-		go func(n Node, runenv *runtime.RunEnv) {
+		go func(n utils.Node, runenv *runtime.RunEnv) {
 			for {
 				n.EmitKeepAlive(runenv)
 				time.Sleep(15 * time.Second)
@@ -343,7 +344,7 @@ func (t *NodeTestData) stillAlive(runenv *runtime.RunEnv, v *TestVars) {
 	}
 }
 
-func (t *NodeTestData) addPublishFile(ctx context.Context, fIndex int, f TestFile, runenv *runtime.RunEnv, testvars *TestVars) (cid.Cid, error) {
+func (t *NodeTestData) addPublishFile(ctx context.Context, fIndex int, f utils.TestFile, runenv *runtime.RunEnv, testvars *TestVars) (cid.Cid, error) {
 	rate := float64(testvars.SeederRate) / 100
 	seeders := runenv.TestInstanceCount - (testvars.LeechCount + testvars.PassiveCount)
 	toSeed := int(math.Ceil(float64(seeders) * rate))
@@ -374,7 +375,7 @@ func (t *NodeTestData) cleanupRun(ctx context.Context, rootCid cid.Cid, runenv *
 	}
 	runenv.RecordMessage("Closed Connections")
 
-	if t.nodetp == Leech || t.nodetp == Passive {
+	if t.nodetp == utils.Leech || t.nodetp == utils.Passive {
 		// Clearing datastore
 		// Also clean passive nodes so they don't store blocks from
 		// previous runs.
@@ -386,7 +387,7 @@ func (t *NodeTestData) cleanupRun(ctx context.Context, rootCid cid.Cid, runenv *
 }
 
 func (t *NodeTestData) cleanupFile(ctx context.Context, rootCid cid.Cid) error {
-	if t.nodetp == Seed {
+	if t.nodetp == utils.Seed {
 		// Between every file close the seed Node.
 		// ipfsNode.Close()
 		// runenv.RecordMessage("Closed Seed Node")
@@ -409,7 +410,7 @@ func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, runNum int, transport
 	maxConnectionRate int) error {
 
 	recorder := newMetricsRecorder(runenv, runNum, t.seq, t.grpseq, transport, permutation.Latency, permutation.Bandwidth, int(permutation.File.Size()), t.nodetp, t.tpindex, maxConnectionRate)
-	if t.nodetp == Leech {
+	if t.nodetp == utils.Leech {
 		recorder.Record("time_to_fetch", float64(timeToFetch))
 		recorder.Record("leech_fails", float64(leechFails))
 		recorder.Record("tcp_fetch", float64(tcpFetch))
@@ -418,7 +419,7 @@ func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, runNum int, transport
 	return t.node.EmitMetrics(recorder)
 }
 
-func generateAndAdd(ctx context.Context, runenv *runtime.RunEnv, node Node, f TestFile) (*cid.Cid, error) {
+func generateAndAdd(ctx context.Context, runenv *runtime.RunEnv, node utils.Node, f utils.TestFile) (*cid.Cid, error) {
 	// Generate the file
 	inputData := runenv.StringParam("input_data")
 	runenv.RecordMessage("Starting to generate file for inputData: %s and file %v", inputData, f)
@@ -438,7 +439,7 @@ func generateAndAdd(ctx context.Context, runenv *runtime.RunEnv, node Node, f Te
 	return &cid, err
 }
 
-func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.DefaultClient, addrInfo *peer.AddrInfo, seq int64) (int64, NodeType, int, error) {
+func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.DefaultClient, addrInfo *peer.AddrInfo, seq int64) (int64, utils.NodeType, int, error) {
 	leechCount := runenv.IntParam("leech_count")
 	passiveCount := runenv.IntParam("passive_count")
 
@@ -456,7 +457,7 @@ func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.Default
 		}
 	}
 
-	var nodetp NodeType
+	var nodetp utils.NodeType
 	var tpindex int
 	grpseq := seq
 	seqstr := fmt.Sprintf("- seq %d / %d", seq, runenv.TestInstanceCount)
@@ -476,13 +477,13 @@ func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.Default
 	// Note: seq starts at 1 (not 0)
 	switch {
 	case grpseq <= int64(leechCount):
-		nodetp = Leech
+		nodetp = utils.Leech
 		tpindex = int(grpseq) - 1
 	case grpseq > int64(leechCount+passiveCount):
-		nodetp = Seed
+		nodetp = utils.Seed
 		tpindex = int(grpseq) - 1 - (leechCount + passiveCount)
 	default:
-		nodetp = Passive
+		nodetp = utils.Passive
 		tpindex = int(grpseq) - 1 - leechCount
 	}
 
@@ -577,8 +578,8 @@ type metricsRecorder struct {
 }
 
 func newMetricsRecorder(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
-	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp NodeType, tpindex int,
-	maxConnectionRate int) MetricsRecorder {
+	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
+	maxConnectionRate int) utils.MetricsRecorder {
 
 	latencyMS := latency.Milliseconds()
 	instance := runenv.TestInstanceCount
