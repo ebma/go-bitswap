@@ -1,4 +1,4 @@
-package main
+package test
 
 import (
 	"context"
@@ -20,52 +20,14 @@ import (
 	"github.com/testground/sdk-go/sync"
 )
 
-// TestVars testing variables
-type TestVars struct {
-	ExchangeInterface string
-	Timeout           time.Duration
-	RunTimeout        time.Duration
-	LeechCount        int
-	PassiveCount      int
-	RequestStagger    time.Duration
-	RunCount          int
-	MaxConnectionRate int
-	TCPEnabled        bool
-	SeederRate        int
-	DHTEnabled        bool
-	ProvidingEnabled  bool
-	LlEnabled         bool
-	Dialer            string
-	NumWaves          int
-	DiskStore         bool
-}
-
-type TestData struct {
-	client              *sync.DefaultClient
-	nwClient            *network.Client
-	nConfig             *utils.NodeConfig
-	peerInfos           []utils.PeerInfo
-	dialFn              dialer.Dialer
-	signalAndWaitForAll func(state string) error
-	seq                 int64
-	grpseq              int64
-	nodetp              utils.NodeType
-	tpindex             int
-	seedIndex           int64
-}
-
-type NodeTestData struct {
-	*TestData
-	node utils.Node
-	host *host.Host
-}
-
 // Launch bitswap nodes and connect them to each other.
 func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error {
-	testvars, err := GetEnvVars(runenv)
+	testvars, err := getEnvVars(runenv)
 	if err != nil {
 		return err
 	}
+
+	nodeType := "Leech"
 
 	/// --- Set up
 	ctx, cancel := context.WithTimeout(context.Background(), testvars.Timeout)
@@ -350,65 +312,6 @@ func initializeBitswapTest(ctx context.Context, runenv *runtime.RunEnv, testvars
 	}
 
 	return &NodeTestData{baseT, bsnode, &h}, nil
-}
-
-func getNodeSetSeq(ctx context.Context, client *sync.DefaultClient, addrInfo *peer.AddrInfo, setID string) (int64, error) {
-	topic := sync.NewTopic("nodes"+setID, &peer.AddrInfo{})
-
-	return client.Publish(ctx, topic, addrInfo)
-}
-
-func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.DefaultClient, addrInfo *peer.AddrInfo, seq int64) (int64, utils.NodeType, int, error) {
-	leechCount := runenv.IntParam("leech_count")
-	passiveCount := runenv.IntParam("passive_count")
-
-	grpCountOverride := false
-	if runenv.TestGroupID != "" {
-		grpLchLabel := runenv.TestGroupID + "_leech_count"
-		if runenv.IsParamSet(grpLchLabel) {
-			leechCount = runenv.IntParam(grpLchLabel)
-			grpCountOverride = true
-		}
-		grpPsvLabel := runenv.TestGroupID + "_passive_count"
-		if runenv.IsParamSet(grpPsvLabel) {
-			passiveCount = runenv.IntParam(grpPsvLabel)
-			grpCountOverride = true
-		}
-	}
-
-	var nodetp utils.NodeType
-	var tpindex int
-	grpseq := seq
-	seqstr := fmt.Sprintf("- seq %d / %d", seq, runenv.TestInstanceCount)
-	grpPrefix := ""
-	if grpCountOverride {
-		grpPrefix = runenv.TestGroupID + " "
-
-		var err error
-		grpseq, err = getNodeSetSeq(ctx, client, addrInfo, runenv.TestGroupID)
-		if err != nil {
-			return grpseq, nodetp, tpindex, err
-		}
-
-		seqstr = fmt.Sprintf("%s (%d / %d of %s)", seqstr, grpseq, runenv.TestGroupInstanceCount, runenv.TestGroupID)
-	}
-
-	// Note: seq starts at 1 (not 0)
-	switch {
-	case grpseq <= int64(leechCount):
-		nodetp = utils.Leech
-		tpindex = int(grpseq) - 1
-	case grpseq > int64(leechCount+passiveCount):
-		nodetp = utils.Seed
-		tpindex = int(grpseq) - 1 - (leechCount + passiveCount)
-	default:
-		nodetp = utils.Passive
-		tpindex = int(grpseq) - 1 - leechCount
-	}
-
-	runenv.RecordMessage("I am %s %d %s", grpPrefix+nodetp.String(), tpindex, seqstr)
-
-	return grpseq, nodetp, tpindex, nil
 }
 
 func makeHost(baseT *TestData) (host.Host, error) {

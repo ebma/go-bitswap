@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/ipfs/testground/plans/trickle-bitswap/test"
 	"github.com/testground/sdk-go/run"
 )
 
@@ -9,6 +10,6 @@ func main() {
 }
 
 var testcases = map[string]interface{}{
-	"bitswap-speedtest": run.InitializedTestCaseFn(BitswapSpeedTest),
-	"bitswap-transfer":  run.InitializedTestCaseFn(BitswapTransferTest),
+	"bitswap-speedtest": run.InitializedTestCaseFn(test.BitswapSpeedTest),
+	"bitswap-transfer":  run.InitializedTestCaseFn(test.BitswapTransferTest),
 }
