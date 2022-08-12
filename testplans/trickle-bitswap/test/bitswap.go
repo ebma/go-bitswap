@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/ipfs/go-cid"
+	files "github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils/dialer"
 	"github.com/libp2p/go-libp2p"
@@ -10,6 +12,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/testground/sdk-go/network"
+	"strconv"
 	"time"
 
 	"github.com/testground/sdk-go/run"
@@ -59,7 +62,7 @@ type NodeTestData struct {
 
 // Launch bitswap nodes and connect them to each other.
 func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error {
-	testvars, err := getEnvVars(runenv)
+	testvars, err := GetEnvVars(runenv)
 	if err != nil {
 		return err
 	}
@@ -73,12 +76,167 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 	}
 	t, err := initializeBitswapTest(ctx, runenv, testvars, baseT)
 	runenv.RecordMessage("created node %s with addrs", t.peerInfos)
-	//transferNode := t.node
-	//signalAndWaitForAll := t.signalAndWaitForAll
-	//
-	//// Start still alive process if enabled
-	//t.stillAlive(runenv, testvars)
 
+	transferNode := t.node
+	signalAndWaitForAll := t.signalAndWaitForAll
+
+	// Start still alive process if enabled
+	t.stillAlive(runenv, testvars)
+
+	var tcpFetch int64
+
+	// For each test permutation found in the test
+	for pIndex, testParams := range testvars.Permutations {
+		// Set up network (with traffic shaping)
+		if err := utils.SetupNetwork(ctx, runenv, t.nwClient, t.nodetp, t.tpindex, testParams.Latency,
+			testParams.Bandwidth, testParams.JitterPct); err != nil {
+			return fmt.Errorf("Failed to set up network: %v", err)
+		}
+
+		// Accounts for every file that couldn't be found.
+		var leechFails int64
+		var rootCid cid.Cid
+
+		// Wait for all nodes to be ready to start the run
+		err = signalAndWaitForAll(fmt.Sprintf("start-file-%d", pIndex))
+		if err != nil {
+			return err
+		}
+
+		switch t.nodetp {
+		case utils.Seed:
+			rootCid, err = t.addPublishFile(ctx, pIndex, testParams.File, runenv, testvars)
+		case utils.Leech:
+			rootCid, err = t.readFile(ctx, pIndex, runenv, testvars)
+		}
+		if err != nil {
+			return err
+		}
+
+		runenv.RecordMessage("File injest complete...")
+		// Wait for all nodes to be ready to dial
+		err = signalAndWaitForAll(fmt.Sprintf("injest-complete-%d", pIndex))
+		if err != nil {
+			return err
+		}
+
+		if testvars.TCPEnabled {
+			runenv.RecordMessage("Running TCP test...")
+			switch t.nodetp {
+			case utils.Seed:
+				err = t.runTCPServer(ctx, pIndex, 0, testParams.File, runenv, testvars)
+			case utils.Leech:
+				tcpFetch, err = t.runTCPFetch(ctx, pIndex, 0, runenv, testvars)
+			}
+			if err != nil {
+				return err
+			}
+		}
+
+		runenv.RecordMessage("Starting %s Fetch...", nodeType)
+
+		for runNum := 1; runNum < testvars.RunCount+1; runNum++ {
+			// Reset the timeout for each run
+			ctx, cancel := context.WithTimeout(ctx, testvars.RunTimeout)
+			defer cancel()
+
+			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
+
+			// Wait for all nodes to be ready to start the run
+			err = signalAndWaitForAll("start-run-" + runID)
+			if err != nil {
+				return err
+			}
+
+			runenv.RecordMessage("Starting run %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
+
+			dialed, err := t.dialFn(ctx, transferNode.Host(), t.nodetp, t.peerInfos, testvars.MaxConnectionRate)
+			if err != nil {
+				return err
+			}
+			runenv.RecordMessage("%s Dialed %d other nodes:", t.nodetp.String(), len(dialed))
+
+			// Wait for all nodes to be connected
+			err = signalAndWaitForAll("connect-complete-" + runID)
+			if err != nil {
+				return err
+			}
+
+			/// --- Start test
+
+			var timeToFetch time.Duration
+			if t.nodetp == utils.Leech {
+				// For each wave
+				for waveNum := 0; waveNum < testvars.NumWaves; waveNum++ {
+					// Only leecheers for that wave entitled to leech.
+					if (t.tpindex % testvars.NumWaves) == waveNum {
+						runenv.RecordMessage("Starting wave %d", waveNum)
+						// Stagger the start of the first request from each leech
+						// Note: seq starts from 1 (not 0)
+						startDelay := time.Duration(t.seq-1) * testvars.RequestStagger
+
+						runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
+						runenv.RecordMessage("Leech fetching data after %s delay", startDelay)
+						start := time.Now()
+						// TODO: Here we may be able to define requesting pattern. ipfs.DAG()
+						// Right now using a path.
+						ctxFetch, cancel := context.WithTimeout(ctx, testvars.RunTimeout/2)
+						// Pin Add also traverse the whole DAG
+						// err := ipfsNode.API.Pin().Add(ctxFetch, fPath)
+						rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, t.peerInfos)
+						if err != nil {
+							runenv.RecordMessage("Error fetching data: %v", err)
+							leechFails++
+						} else {
+							runenv.RecordMessage("Fetch complete, proceeding")
+							err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(t.tpindex)+time.Now().String())
+							if err != nil {
+								cancel()
+								return err
+							}
+							timeToFetch = time.Since(start)
+							s, _ := rcvFile.Size()
+							runenv.RecordMessage("Leech fetch of %d complete (%d ns) for wave %d", s, timeToFetch, waveNum)
+						}
+						cancel()
+					}
+					if waveNum < testvars.NumWaves-1 {
+						runenv.RecordMessage("Waiting 5 seconds between waves for wave %d", waveNum)
+						time.Sleep(5 * time.Second)
+					}
+					_, err = t.client.SignalAndWait(ctx, sync.State(fmt.Sprintf("leech-wave-%d", waveNum)), testvars.LeechCount)
+				}
+			}
+
+			// Wait for all leeches to have downloaded the data from seeds
+			err = signalAndWaitForAll("transfer-complete-" + runID)
+			if err != nil {
+				return err
+			}
+
+			/// --- Report stats
+			err = t.emitMetrics(runenv, runNum, nodeType, testParams, timeToFetch, tcpFetch, leechFails, testvars.MaxConnectionRate)
+			if err != nil {
+				return err
+			}
+			runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
+
+			err = t.cleanupRun(ctx, rootCid, runenv)
+			if err != nil {
+				return err
+			}
+		}
+		err = t.cleanupFile(ctx, rootCid)
+		if err != nil {
+			return err
+		}
+	}
+	err = t.close()
+	if err != nil {
+		return err
+	}
+
+	runenv.RecordMessage("Ending testcase")
 	return nil
 }
 
@@ -251,89 +409,6 @@ func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.Default
 	runenv.RecordMessage("I am %s %d %s", grpPrefix+nodetp.String(), tpindex, seqstr)
 
 	return grpseq, nodetp, tpindex, nil
-}
-
-func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
-	tv := &TestVars{}
-	if runenv.IsParamSet("exchange_interface") {
-		tv.ExchangeInterface = runenv.StringParam("exchange_interface")
-	}
-	if runenv.IsParamSet("timeout_secs") {
-		tv.Timeout = time.Duration(runenv.IntParam("timeout_secs")) * time.Second
-	}
-	if runenv.IsParamSet("run_timeout_secs") {
-		tv.RunTimeout = time.Duration(runenv.IntParam("run_timeout_secs")) * time.Second
-	}
-	if runenv.IsParamSet("leech_count") {
-		tv.LeechCount = runenv.IntParam("leech_count")
-	}
-	if runenv.IsParamSet("passive_count") {
-		tv.PassiveCount = runenv.IntParam("passive_count")
-	}
-	if runenv.IsParamSet("request_stagger") {
-		tv.RequestStagger = time.Duration(runenv.IntParam("request_stagger")) * time.Millisecond
-	}
-	if runenv.IsParamSet("run_count") {
-		tv.RunCount = runenv.IntParam("run_count")
-	}
-	if runenv.IsParamSet("max_connection_rate") {
-		tv.MaxConnectionRate = runenv.IntParam("max_connection_rate")
-	}
-	if runenv.IsParamSet("enable_tcp") {
-		tv.TCPEnabled = runenv.BooleanParam("enable_tcp")
-	}
-	if runenv.IsParamSet("seeder_rate") {
-		tv.SeederRate = runenv.IntParam("seeder_rate")
-	}
-	if runenv.IsParamSet("enable_dht") {
-		tv.DHTEnabled = runenv.BooleanParam("enable_dht")
-	}
-	if runenv.IsParamSet("long_lasting") {
-		tv.LlEnabled = runenv.BooleanParam("long_lasting")
-	}
-	if runenv.IsParamSet("dialer") {
-		tv.Dialer = runenv.StringParam("dialer")
-	}
-	if runenv.IsParamSet("number_waves") {
-		tv.NumWaves = runenv.IntParam("number_waves")
-	}
-	if runenv.IsParamSet("enable_providing") {
-		tv.ProvidingEnabled = runenv.BooleanParam("enable_providing")
-	}
-	if runenv.IsParamSet("disk_store") {
-		tv.DiskStore = runenv.BooleanParam("disk_store")
-	}
-
-	//bandwidths, err := utils.ParseIntArray(runenv.StringParam("bandwidth_mb"))
-	//if err != nil {
-	//	return nil, err
-	//}
-	//latencies, err := utils.ParseIntArray(runenv.StringParam("latency_ms"))
-	//if err != nil {
-	//	return nil, err
-	//}
-	//jitters, err := utils.ParseIntArray(runenv.StringParam("jitter_pct"))
-	//if err != nil {
-	//	return nil, err
-	//}
-	//testFiles, err := utils.GetFileList(runenv)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//runenv.RecordMessage("Got file list: %v", testFiles)
-	//
-	//for _, f := range testFiles {
-	//	for _, b := range bandwidths {
-	//		for _, l := range latencies {
-	//			latency := time.Duration(l) * time.Millisecond
-	//			for _, j := range jitters {
-	//				tv.Permutations = append(tv.Permutations, TestPermutation{File: f, Bandwidth: int(b), Latency: latency, JitterPct: int(j)})
-	//			}
-	//		}
-	//	}
-	//}
-
-	return tv, nil
 }
 
 func makeHost(baseT *TestData) (host.Host, error) {
