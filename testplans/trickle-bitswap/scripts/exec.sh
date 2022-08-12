@@ -44,7 +44,7 @@ run() {
 }
 
 getstatus() {
-    STATUS=`testground status --task $1 | tail -n 2 | awk -F 'Status:' '{ print $2 }'`
+    STATUS=`testground status --task $1 | tail -n 4 | awk -F 'Status:' '{ print $2 }'`
     echo ${STATUS//[[:blank:]]/}
 }
 
