@@ -18,6 +18,7 @@ type Stat struct {
 	DupBlksReceived  uint64
 	DupDataReceived  uint64
 	MessagesReceived uint64
+	// TODO add more bitswap stats
 }
 
 // Stat returns aggregated statistics about bitswap operations

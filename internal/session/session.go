@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	rs "github.com/ipfs/go-bitswap/internal/relaysession"
 	"time"
 
 	"github.com/ipfs/go-bitswap/internal"
@@ -42,6 +43,7 @@ type PeerManager interface {
 	BroadcastWantHaves(context.Context, []cid.Cid)
 	// SendCancels tells the PeerManager to send cancels to all peers
 	SendCancels(context.Context, []cid.Cid)
+	BroadcastRelayWants(context.Context, *rs.RelayRegistry, []cid.Cid)
 }
 
 // SessionManager manages all the sessions
@@ -95,6 +97,7 @@ const (
 type op struct {
 	op   opType
 	keys []cid.Cid
+	from peer.ID
 }
 
 // Session holds state for an individual bitswap transfer operation.
@@ -132,6 +135,9 @@ type Session struct {
 	id    uint64
 
 	self peer.ID
+
+	relay         bool              // whether this session is a relay session (so blocks are not stored)
+	relayRegistry *rs.RelayRegistry // used to perform relay decisions
 }
 
 // New creates a new bitswap session whose lifetime is bounded by the
@@ -148,7 +154,9 @@ func New(
 	notif notifications.PubSub,
 	initialSearchDelay time.Duration,
 	periodicSearchDelay delay.D,
-	self peer.ID) *Session {
+	self peer.ID,
+	relay bool,
+	relayRegistry *rs.RelayRegistry) *Session {
 
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Session{
@@ -170,6 +178,8 @@ func New(
 		initialSearchDelay:  initialSearchDelay,
 		periodicSearchDelay: periodicSearchDelay,
 		self:                self,
+		relay:               relay,
+		relayRegistry:       relayRegistry,
 	}
 	s.sws = newSessionWantSender(id, pm, sprm, sm, bpm, s.onWantsSent, s.onPeersExhausted)
 
@@ -206,7 +216,7 @@ func (s *Session) ReceiveFrom(from peer.ID, ks []cid.Cid, haves []cid.Cid, dontH
 
 	// Inform the session that blocks have been received
 	select {
-	case s.incoming <- op{op: opReceive, keys: ks}:
+	case s.incoming <- op{op: opReceive, keys: ks, from: from}:
 	case <-s.ctx.Done():
 	}
 }
@@ -348,47 +358,53 @@ func (s *Session) run(ctx context.Context) {
 // all peers in the session have sent DONT_HAVE for a particular set of CIDs.
 // Send want-haves to all connected peers, and search for new peers with the CID.
 func (s *Session) broadcast(ctx context.Context, wants []cid.Cid) {
-	// If this broadcast is because of an idle timeout (we haven't received
-	// any blocks for a while) then broadcast all pending wants
-	if wants == nil {
-		wants = s.sw.PrepareBroadcast()
-	}
+	// Only direct session handle broadcast. Relay session follow requesters, they are reactive
+	if !s.relay {
+		// If this broadcast is because of an idle timeout (we haven't received
+		// any blocks for a while) then broadcast all pending wants
+		if wants == nil {
+			wants = s.sw.PrepareBroadcast()
+		}
 
-	// Broadcast a want-have for the live wants to everyone we're connected to
-	s.broadcastWantHaves(ctx, wants)
+		// Broadcast a want-have for the live wants to everyone we're connected to
+		s.broadcastWantHaves(ctx, wants)
 
-	// do not find providers on consecutive ticks
-	// -- just rely on periodic search widening
-	if len(wants) > 0 && (s.consecutiveTicks == 0) {
-		// Search for providers who have the first want in the list.
-		// Typically if the provider has the first block they will have
-		// the rest of the blocks also.
-		log.Debugw("FindMorePeers", "session", s.id, "cid", wants[0], "pending", len(wants))
-		s.findMorePeers(ctx, wants[0])
-	}
-	s.resetIdleTick()
+		// do not find providers on consecutive ticks
+		// -- just rely on periodic search widening
+		if len(wants) > 0 && (s.consecutiveTicks == 0) {
+			// Search for providers who have the first want in the list.
+			// Typically if the provider has the first block they will have
+			// the rest of the blocks also.
+			log.Debugw("FindMorePeers", "session", s.id, "cid", wants[0], "pending", len(wants))
+			s.findMorePeers(ctx, wants[0])
+		}
+		s.resetIdleTick()
 
-	// If we have live wants record a consecutive tick
-	if s.sw.HasLiveWants() {
-		s.consecutiveTicks++
+		// If we have live wants record a consecutive tick
+		if s.sw.HasLiveWants() {
+			s.consecutiveTicks++
+		}
 	}
 }
 
 // handlePeriodicSearch is called periodically to search for providers of a
 // randomly chosen CID in the sesssion.
 func (s *Session) handlePeriodicSearch(ctx context.Context) {
-	randomWant := s.sw.RandomLiveWant()
-	if !randomWant.Defined() {
-		return
+	// Periodic broadcast disabled in relay sessions
+	if s.relay {
+		randomWant := s.sw.RandomLiveWant()
+		if !randomWant.Defined() {
+			return
+		}
+
+		// TODO: come up with a better strategy for determining when to search
+		// for new providers for blocks.
+		s.findMorePeers(ctx, randomWant)
+
+		s.broadcastWantHaves(ctx, []cid.Cid{randomWant})
+
+		s.periodicSearchTimer.Reset(s.periodicSearchDelay.NextWaitTime())
 	}
-
-	// TODO: come up with a better strategy for determining when to search
-	// for new providers for blocks.
-	s.findMorePeers(ctx, randomWant)
-
-	s.broadcastWantHaves(ctx, []cid.Cid{randomWant})
-
-	s.periodicSearchTimer.Reset(s.periodicSearchDelay.NextWaitTime())
 }
 
 // findMorePeers attempts to find more peers for a session by searching for
@@ -453,18 +469,31 @@ func (s *Session) wantBlocks(ctx context.Context, newks []cid.Cid) {
 		s.sws.Add(newks)
 	}
 
-	// If we have discovered peers already, the sessionWantSender will
-	// send wants to them
-	if s.sprm.PeersDiscovered() {
-		return
-	}
+	if !s.relay {
+		// If we have discovered peers already, the sessionWantSender will
+		// send wants to them
+		if s.sprm.PeersDiscovered() {
+			return
+		}
 
-	// No peers discovered yet, broadcast some want-haves
-	ks := s.sw.GetNextWants()
-	if len(ks) > 0 {
-		log.Infow("No peers - broadcasting", "session", s.id, "want-count", len(ks))
-		s.broadcastWantHaves(ctx, ks)
+		// No peers discovered yet, broadcast some want-haves
+		ks := s.sw.GetNextWants()
+		if len(ks) > 0 {
+			log.Infow("No peers - broadcasting", "session", s.id, "want-count", len(ks))
+			s.broadcastWantHaves(ctx, ks)
+		}
+	} else {
+		ks := s.sw.GetNextWants()
+		if len(ks) > 0 {
+			log.Infow("Broadcasting relays", "session", s.id, "want-count", len(ks))
+			s.broadcastRelayWants(ctx, s.relayRegistry, ks)
+		}
 	}
+}
+
+func (s *Session) broadcastRelayWants(ctx context.Context, relayRegistry *rs.RelayRegistry, wants []cid.Cid) {
+	log.Debugw("broadcastWantHaves", "session", s.id, "cids", wants)
+	s.pm.BroadcastWantHaves(ctx, wants)
 }
 
 // Send want-haves to all connected peers

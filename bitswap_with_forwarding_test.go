@@ -41,7 +41,7 @@ func addBlockCustom(t *testing.T, ctx context.Context, exchange *bitswap.Bitswap
 func TestRelaySession(t *testing.T) {
 	logging.SetLogLevel("engine", "DEBUG")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
 	vnet := getVirtualNetwork()
@@ -61,10 +61,10 @@ func TestRelaySession(t *testing.T) {
 
 	// Force A to be connected to B and B to C. C will request blocks to A through B
 	// Break connection
-	//err := peerA.Adapter.DisconnectFrom(ctx, peerC.Peer)
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
+	err := peerA.Adapter.DisconnectFrom(ctx, peerC.Peer)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Provide 5 blocks on Peer A
 	blks := bgen.Blocks(5)

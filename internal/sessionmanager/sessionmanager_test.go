@@ -3,6 +3,7 @@ package sessionmanager
 import (
 	"context"
 	"fmt"
+	rs "github.com/ipfs/go-bitswap/internal/relaysession"
 	"sync"
 	"testing"
 	"time"
@@ -29,6 +30,7 @@ type fakeSession struct {
 	pm         *fakeSesPeerManager
 	sm         bssession.SessionManager
 	notif      notifications.PubSub
+	relay      bool
 }
 
 func (*fakeSession) GetBlock(context.Context, cid.Cid) (blocks.Block, error) {
@@ -65,10 +67,11 @@ type fakePeerManager struct {
 	cancels []cid.Cid
 }
 
-func (*fakePeerManager) RegisterSession(peer.ID, bspm.Session)                    {}
-func (*fakePeerManager) UnregisterSession(uint64)                                 {}
-func (*fakePeerManager) SendWants(context.Context, peer.ID, []cid.Cid, []cid.Cid) {}
-func (*fakePeerManager) BroadcastWantHaves(context.Context, []cid.Cid)            {}
+func (*fakePeerManager) RegisterSession(peer.ID, bspm.Session)                             {}
+func (*fakePeerManager) UnregisterSession(uint64)                                          {}
+func (*fakePeerManager) SendWants(context.Context, peer.ID, []cid.Cid, []cid.Cid)          {}
+func (*fakePeerManager) BroadcastWantHaves(context.Context, []cid.Cid)                     {}
+func (*fakePeerManager) BroadcastRelayWants(context.Context, *rs.RelayRegistry, []cid.Cid) {}
 func (fpm *fakePeerManager) SendCancels(ctx context.Context, cancels []cid.Cid) {
 	fpm.lk.Lock()
 	defer fpm.lk.Unlock()
@@ -90,12 +93,15 @@ func sessionFactory(ctx context.Context,
 	notif notifications.PubSub,
 	provSearchDelay time.Duration,
 	rebroadcastDelay delay.D,
-	self peer.ID) Session {
+	self peer.ID,
+	relay bool,
+	relayRegistry *rs.RelayRegistry) Session {
 	fs := &fakeSession{
 		id:    id,
 		pm:    sprm.(*fakeSesPeerManager),
 		sm:    sm,
 		notif: notif,
+		relay: relay,
 	}
 	go func() {
 		<-ctx.Done()
@@ -147,6 +153,46 @@ func TestReceiveFrom(t *testing.T) {
 	if len(firstSession.wantHaves) == 0 ||
 		len(secondSession.wantHaves) > 0 ||
 		len(thirdSession.wantHaves) == 0 {
+		t.Fatal("should have received want-haves but didn't")
+	}
+
+	if len(pm.cancelled()) != 1 {
+		t.Fatal("should have sent cancel for received blocks")
+	}
+}
+
+func TestReceiveFromRelaySession(t *testing.T) {
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	notif := notifications.New()
+	defer notif.Shutdown()
+	sim := bssim.New()
+	bpm := bsbpm.New()
+	pm := &fakePeerManager{}
+	sm := New(ctx, sessionFactory, sim, peerManagerFactory, bpm, pm, notif, "")
+
+	p := peer.ID(123)
+	block := blocks.NewBlock([]byte("block"))
+
+	sess1 := sm.StartRelaySession(ctx, time.Second, delay.Fixed(time.Minute),
+		rs.NewRelaySession(10).Registry)
+	firstSession := sess1.(*fakeSession)
+
+	sim.RecordSessionInterest(firstSession.ID(), []cid.Cid{block.Cid()})
+
+	sm.ReceiveFrom(ctx, p, []cid.Cid{block.Cid()}, []cid.Cid{}, []cid.Cid{})
+	if len(firstSession.ks) == 0 {
+		t.Fatal("should have received blocks but didn't")
+	}
+
+	sm.ReceiveFrom(ctx, p, []cid.Cid{}, []cid.Cid{block.Cid()}, []cid.Cid{})
+	if len(firstSession.wantBlocks) == 0 {
+		t.Fatal("should have received want-blocks but didn't")
+	}
+
+	sm.ReceiveFrom(ctx, p, []cid.Cid{}, []cid.Cid{}, []cid.Cid{block.Cid()})
+	if len(firstSession.wantHaves) == 0 {
 		t.Fatal("should have received want-haves but didn't")
 	}
 

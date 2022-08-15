@@ -3,6 +3,9 @@ package peermanager
 import (
 	"bytes"
 	"fmt"
+	rs "github.com/ipfs/go-bitswap/internal/relaysession"
+	"math/rand"
+	"time"
 
 	cid "github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p-core/peer"
@@ -334,6 +337,84 @@ func (pwm *peerWantManager) sendCancels(cancelKs []cid.Cid) {
 	// peer-by-peer.
 	for _, c := range cancelKs {
 		delete(pwm.wantPeers, c)
+	}
+}
+
+// Selected a random suset of peers according to the degree of the relay session.
+func (pwm *peerWantManager) selectRandomSubset(registry *rs.RelayRegistry) map[peer.ID]*peerWant {
+	filteredPeers := make(map[peer.ID]*peerWant)
+	rand.Seed(time.Now().UnixNano())
+	perm := rand.Perm(len(pwm.peerWants))
+	ks := make([]peer.ID, 0)
+
+	if int(registry.Degree) < len(pwm.peerWants) {
+		// Get all peers available to broadcast
+		for k := range pwm.peerWants {
+			ks = append(ks, k)
+		}
+
+		// Choose a random subset.
+		i := 0
+		for _, p := range perm {
+			filteredPeers[ks[p]] = pwm.peerWants[ks[p]]
+			i++
+
+			if i >= int(registry.Degree) {
+				break
+			}
+		}
+	} else {
+		filteredPeers = pwm.peerWants
+	}
+	return filteredPeers
+}
+
+// broadcastWantHaves sends want-haves that doen't have it yet.
+func (pwm *peerWantManager) broadcastRelayWants(wantHaves []cid.Cid, registry *rs.RelayRegistry) {
+	unsent := make([]cid.Cid, 0, len(wantHaves))
+	for _, c := range wantHaves {
+		if pwm.broadcastWants.Has(c) {
+			// Already a broadcast want, skip it.
+			continue
+		}
+		pwm.broadcastWants.Add(c)
+		unsent = append(unsent, c)
+
+		// If no peer has a pending want for the key
+		if _, ok := pwm.wantPeers[c]; !ok {
+			// Increment the total wants gauge
+			pwm.wantGauge.Inc()
+		}
+	}
+
+	if len(unsent) == 0 {
+		return
+	}
+
+	// Allocate a single buffer to filter broadcast wants for each peer
+	bcstWantsBuffer := make([]cid.Cid, 0, len(unsent))
+
+	// TODO: From all peers we limit the number of peers of the relayBroadcast
+	// to the degree of the relaySession. We currently choose the broadcasting
+	// peers randomly, but additonal logic could be added here to do it in
+	// smarter way.
+	filteredPeers := pwm.selectRandomSubset(registry)
+
+	// Send broadcast wants to each peer
+	for _, pws := range filteredPeers {
+		peerUnsent := bcstWantsBuffer[:0]
+		for _, c := range unsent {
+			// If we've already sent a want to this peer, skip them.
+			if !pws.wantBlocks.Has(c) && !pws.wantHaves.Has(c) {
+				peerUnsent = append(peerUnsent, c)
+			}
+		}
+
+		if len(peerUnsent) > 0 {
+			for _, c := range peerUnsent {
+				pws.peerQueue.AddBroadcastWantHaves([]cid.Cid{c})
+			}
+		}
 	}
 }
 

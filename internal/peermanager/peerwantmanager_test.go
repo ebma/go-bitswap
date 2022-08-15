@@ -1,6 +1,7 @@
 package peermanager
 
 import (
+	rs "github.com/ipfs/go-bitswap/internal/relaysession"
 	"testing"
 
 	"github.com/ipfs/go-bitswap/internal/testutil"
@@ -513,4 +514,59 @@ func TestStatsRemovePeerOverlappingWantBlockWantHave(t *testing.T) {
 	if wbg.count != 2 {
 		t.Fatal("Expected 2 want-blocks")
 	}
+}
+
+func TestPWMBroadcastRelay(t *testing.T) {
+	pwm := newPeerWantManager(&gauge{}, &gauge{})
+
+	peers := testutil.GeneratePeers(3)
+	cids := testutil.GenerateCids(2)
+	cids2 := testutil.GenerateCids(2)
+	r := &rs.RelayRegistry{
+		Degree: 1,
+	}
+
+	peerQueues := make(map[peer.ID]PeerQueue)
+	for _, p := range peers[:2] {
+		pq := &mockPQ{}
+		peerQueues[p] = pq
+		pwm.addPeer(pq, p)
+		if len(pq.bcst) > 0 {
+			t.Errorf("expected no broadcast wants")
+		}
+	}
+
+	// Broadcast 2 cids to 1 peer because degree=1
+	pwm.broadcastRelayWants(cids, r)
+	wants := 0
+	for _, pqi := range peerQueues {
+		pq := pqi.(*mockPQ)
+		wants += len(pq.bcst)
+	}
+	if wants != 2 {
+		t.Fatal("Broadcasting to more than one peer: ", wants)
+	}
+
+	// Broadcasting same cids should have no effect
+	clearSent(peerQueues)
+	pwm.broadcastWantHaves(cids)
+	for _, pqi := range peerQueues {
+		pq := pqi.(*mockPQ)
+		if len(pq.bcst) != 0 {
+			t.Fatal("Expected 0 want-haves")
+		}
+	}
+
+	// Broadcast 2 other cids
+	clearSent(peerQueues)
+	wants = 0
+	pwm.broadcastRelayWants(cids2, r)
+	for _, pqi := range peerQueues {
+		pq := pqi.(*mockPQ)
+		wants += len(pq.bcst)
+	}
+	if wants != 2 {
+		t.Fatal("Broadcasting to more than one peer: ", wants)
+	}
+
 }

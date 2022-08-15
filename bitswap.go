@@ -23,6 +23,7 @@ import (
 	"github.com/ipfs/go-bitswap/internal/notifications"
 	bspm "github.com/ipfs/go-bitswap/internal/peermanager"
 	bspqm "github.com/ipfs/go-bitswap/internal/providerquerymanager"
+	rs "github.com/ipfs/go-bitswap/internal/relaysession"
 	bssession "github.com/ipfs/go-bitswap/internal/session"
 	bssim "github.com/ipfs/go-bitswap/internal/sessioninterestmanager"
 	bssm "github.com/ipfs/go-bitswap/internal/sessionmanager"
@@ -242,8 +243,10 @@ func New(parent context.Context, network bsnet.BitSwapNetwork,
 		notif notifications.PubSub,
 		provSearchDelay time.Duration,
 		rebroadcastDelay delay.D,
-		self peer.ID) bssm.Session {
-		return bssession.New(sessctx, sessmgr, id, spm, pqm, sim, pm, bpm, notif, provSearchDelay, rebroadcastDelay, self)
+		self peer.ID,
+		relay bool,
+		relayRegistry *rs.RelayRegistry) bssm.Session {
+		return bssession.New(sessctx, sessmgr, id, spm, pqm, sim, pm, bpm, notif, provSearchDelay, rebroadcastDelay, self, relay, relayRegistry)
 	}
 	sessionPeerManagerFactory := func(ctx context.Context, id uint64) bssession.SessionPeerManager {
 		return bsspm.New(id, network.ConnectionManager())
@@ -297,6 +300,7 @@ func New(parent context.Context, network bsnet.BitSwapNetwork,
 		activeEngineGauge,
 		pendingBlocksGauge,
 		activeBlocksGauge,
+		sm,
 		decision.WithTaskComparator(bs.taskComparator),
 		decision.WithTargetMessageSize(bs.engineTargetMessageSize),
 		decision.WithPeerBlockRequestFilter(bs.peerBlockRequestFilter),
@@ -537,7 +541,7 @@ func (bs *Bitswap) receiveBlocksFrom(ctx context.Context, from peer.ID, blks []b
 	bs.sm.ReceiveFrom(ctx, from, allKs, haves, dontHaves)
 
 	// Send wanted blocks to decision engine
-	bs.engine.ReceivedBlocks(from, wanted)
+	bs.engine.ReceivedBlocks(from, wanted, haves)
 
 	// Publish the block to any Bitswap clients that had requested blocks.
 	// (the sessions use this pubsub mechanism to inform clients of incoming

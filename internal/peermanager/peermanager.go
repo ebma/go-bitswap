@@ -2,6 +2,7 @@ package peermanager
 
 import (
 	"context"
+	rs "github.com/ipfs/go-bitswap/internal/relaysession"
 	"sync"
 
 	logging "github.com/ipfs/go-log"
@@ -128,6 +129,16 @@ func (pm *PeerManager) ResponseReceived(p peer.ID, ks []cid.Cid) {
 	if ok {
 		pq.ResponseReceived(ks)
 	}
+}
+
+// BroadcastRelayWants broadcasts want-haves to all peers (used by the session to discover seeds).
+// For each peer it filters out want-haves that have previously been sent to the peer.
+func (pm *PeerManager) BroadcastRelayWants(ctx context.Context, registry *rs.RelayRegistry, wantHaves []cid.Cid) {
+	pm.pqLk.Lock()
+	defer pm.pqLk.Unlock()
+
+	// Broadcast WantHaves with for the relay session according to degree and registry.
+	pm.pwm.broadcastRelayWants(wantHaves, registry)
 }
 
 // BroadcastWantHaves broadcasts want-haves to all peers (used by the session
