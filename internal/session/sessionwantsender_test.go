@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	rs "github.com/ipfs/go-bitswap/internal/relaysession"
 	"sync"
 	"testing"
 	"time"
@@ -76,9 +77,10 @@ func (pm *mockPeerManager) has(p peer.ID, sid uint64) bool {
 	return false
 }
 
-func (*mockPeerManager) UnregisterSession(uint64)                      {}
-func (*mockPeerManager) BroadcastWantHaves(context.Context, []cid.Cid) {}
-func (*mockPeerManager) SendCancels(context.Context, []cid.Cid)        {}
+func (*mockPeerManager) UnregisterSession(uint64)                                          {}
+func (*mockPeerManager) BroadcastWantHaves(context.Context, []cid.Cid)                     {}
+func (*mockPeerManager) BroadcastRelayWants(context.Context, *rs.RelayRegistry, []cid.Cid) {}
+func (*mockPeerManager) SendCancels(context.Context, []cid.Cid)                            {}
 
 func (pm *mockPeerManager) SendWants(ctx context.Context, p peer.ID, wantBlocks []cid.Cid, wantHaves []cid.Cid) {
 	pm.lk.Lock()

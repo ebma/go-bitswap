@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	bssm "github.com/ipfs/go-bitswap/internal/sessionmanager"
 	"strings"
 	"sync"
 	"testing"
@@ -33,8 +34,9 @@ type peerTag struct {
 }
 
 type fakePeerTagger struct {
-	lk   sync.Mutex
-	tags map[string]*peerTag
+	lk             sync.Mutex
+	protectedPeers map[peer.ID]map[string]struct{}
+	tags           map[string]*peerTag
 }
 
 func (fpt *fakePeerTagger) TagPeer(p peer.ID, tag string, n int) {
@@ -86,6 +88,43 @@ func (fpt *fakePeerTagger) wait(tag string) {
 	<-doneCh
 }
 
+// TODO: In order to successfully run these tests we need to create a
+// SessionManager interface so that we can create a mock sessionManager.
+// I leave this for the second round of the prototype.
+type mockSessionMgr struct {
+	lk            sync.Mutex
+	removeSession bool
+	cancels       []cid.Cid
+}
+
+func newMockSessionMgr() *mockSessionMgr {
+	return &mockSessionMgr{}
+}
+
+func (msm *mockSessionMgr) removeSessionCalled() bool {
+	msm.lk.Lock()
+	defer msm.lk.Unlock()
+	return msm.removeSession
+}
+
+func (msm *mockSessionMgr) cancelled() []cid.Cid {
+	msm.lk.Lock()
+	defer msm.lk.Unlock()
+	return msm.cancels
+}
+
+func (msm *mockSessionMgr) RemoveSession(sesid uint64) {
+	msm.lk.Lock()
+	defer msm.lk.Unlock()
+	msm.removeSession = true
+}
+
+func (msm *mockSessionMgr) CancelSessionWants(sid uint64, wants []cid.Cid) {
+	msm.lk.Lock()
+	defer msm.lk.Unlock()
+	msm.cancels = append(msm.cancels, wants...)
+}
+
 type engineSet struct {
 	PeerTagger *fakePeerTagger
 	Peer       peer.ID
@@ -100,7 +139,8 @@ func newTestEngine(ctx context.Context, idStr string, opts ...Option) engineSet 
 func newTestEngineWithSampling(ctx context.Context, idStr string, peerSampleInterval time.Duration, sampleCh chan struct{}, clock clock.Clock, opts ...Option) engineSet {
 	fpt := &fakePeerTagger{}
 	bs := blockstore.NewBlockstore(dssync.MutexWrap(ds.NewMapDatastore()))
-	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, fpt, "localhost", 0, NewTestScoreLedger(peerSampleInterval, sampleCh, clock), opts...)
+	var sm *bssm.SessionManager
+	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, fpt, "localhost", 0, NewTestScoreLedger(peerSampleInterval, sampleCh, clock), sm, opts...)
 	e.StartWorkers(ctx, process.WithTeardown(func() error { return nil }))
 	return engineSet{
 		Peer: peer.ID(idStr),
@@ -126,7 +166,7 @@ func TestConsistentAccounting(t *testing.T) {
 
 		sender.Engine.MessageSent(receiver.Peer, m)
 		receiver.Engine.MessageReceived(ctx, sender.Peer, m)
-		receiver.Engine.ReceivedBlocks(sender.Peer, m.Blocks())
+		receiver.Engine.ReceivedBlocks(sender.Peer, m.Blocks(), nil)
 	}
 
 	// Ensure sender records the change
@@ -194,6 +234,7 @@ func newEngineForTesting(
 	self peer.ID,
 	maxReplaceSize int,
 	scoreLedger ScoreLedger,
+	sm *bssm.SessionManager,
 	opts ...Option,
 ) *Engine {
 	testPendingEngineGauge := metrics.NewCtx(ctx, "pending_tasks", "Total number of pending tasks").Gauge()
@@ -213,6 +254,7 @@ func newEngineForTesting(
 		testActiveEngineGauge,
 		testPendingBlocksGauge,
 		testActiveBlocksGauge,
+		sm,
 		opts...,
 	)
 }
@@ -220,7 +262,8 @@ func newEngineForTesting(
 func TestOutboxClosedWhenEngineClosed(t *testing.T) {
 	t.SkipNow() // TODO implement *Engine.Close
 	ctx := context.Background()
-	e := newEngineForTesting(ctx, blockstore.NewBlockstore(dssync.MutexWrap(ds.NewMapDatastore())), 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()))
+	var sm *bssm.SessionManager
+	e := newEngineForTesting(ctx, blockstore.NewBlockstore(dssync.MutexWrap(ds.NewMapDatastore())), 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()), sm)
 	e.StartWorkers(ctx, process.WithTeardown(func() error { return nil }))
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -549,7 +592,8 @@ func TestPartnerWantHaveWantBlockNonActive(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()))
+	var sm *bssm.SessionManager
+	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()), sm)
 	e.StartWorkers(ctx, process.WithTeardown(func() error { return nil }))
 	for i, testCase := range testCases {
 		t.Logf("Test case %d:", i)
@@ -706,7 +750,8 @@ func TestPartnerWantHaveWantBlockActive(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()))
+	var sm *bssm.SessionManager
+	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()), sm)
 	e.StartWorkers(ctx, process.WithTeardown(func() error { return nil }))
 
 	var next envChan
@@ -891,7 +936,8 @@ func TestPartnerWantsThenCancels(t *testing.T) {
 	ctx := context.Background()
 	for i := 0; i < numRounds; i++ {
 		expected := make([][]string, 0, len(testcases))
-		e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()))
+		var sm *bssm.SessionManager
+		e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()), sm)
 		e.StartWorkers(ctx, process.WithTeardown(func() error { return nil }))
 		for _, testcase := range testcases {
 			set := testcase[0]
@@ -917,7 +963,8 @@ func TestSendReceivedBlocksToPeersThatWantThem(t *testing.T) {
 	otherPeer := libp2ptest.RandPeerIDFatal(t)
 
 	ctx := context.Background()
-	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()))
+	var sm *bssm.SessionManager
+	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()), sm)
 	e.StartWorkers(ctx, process.WithTeardown(func() error { return nil }))
 
 	blks := testutil.GenerateBlocksOfSize(4, 8*1024)
@@ -935,7 +982,7 @@ func TestSendReceivedBlocksToPeersThatWantThem(t *testing.T) {
 		t.Fatal("expected no envelope yet")
 	}
 
-	e.ReceivedBlocks(otherPeer, []blocks.Block{blks[0], blks[2]})
+	e.ReceivedBlocks(otherPeer, []blocks.Block{blks[0], blks[2]}, nil)
 	if err := bs.PutMany(context.Background(), []blocks.Block{blks[0], blks[2]}); err != nil {
 		t.Fatal(err)
 	}
@@ -963,7 +1010,8 @@ func TestSendDontHave(t *testing.T) {
 	otherPeer := libp2ptest.RandPeerIDFatal(t)
 
 	ctx := context.Background()
-	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()))
+	var sm *bssm.SessionManager
+	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()), sm)
 	e.StartWorkers(ctx, process.WithTeardown(func() error { return nil }))
 
 	blks := testutil.GenerateBlocksOfSize(4, 8*1024)
@@ -1000,7 +1048,7 @@ func TestSendDontHave(t *testing.T) {
 	}
 
 	// Receive all the blocks
-	e.ReceivedBlocks(otherPeer, []blocks.Block{blks[0], blks[2]})
+	e.ReceivedBlocks(otherPeer, []blocks.Block{blks[0], blks[2]}, nil)
 	if err := bs.PutMany(context.Background(), blks); err != nil {
 		t.Fatal(err)
 	}
@@ -1029,7 +1077,8 @@ func TestWantlistForPeer(t *testing.T) {
 	otherPeer := libp2ptest.RandPeerIDFatal(t)
 
 	ctx := context.Background()
-	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()))
+	var sm *bssm.SessionManager
+	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, &fakePeerTagger{}, "localhost", 0, NewTestScoreLedger(shortTerm, nil, clock.New()), sm)
 	e.StartWorkers(ctx, process.WithTeardown(func() error { return nil }))
 
 	blks := testutil.GenerateBlocksOfSize(4, 8*1024)
@@ -1080,7 +1129,8 @@ func TestTaskComparator(t *testing.T) {
 
 	// use a single task worker so that the order of outgoing messages is deterministic
 	engineTaskWorkerCount := 1
-	e := newEngineForTesting(ctx, bs, 4, engineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, fpt, "localhost", 0, sl,
+	var sm *bssm.SessionManager
+	e := newEngineForTesting(ctx, bs, 4, engineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, fpt, "localhost", 0, sl, sm,
 		// if this Option is omitted, the test fails
 		WithTaskComparator(func(ta, tb *TaskInfo) bool {
 			// prioritize based on lexicographic ordering of block content
@@ -1139,7 +1189,8 @@ func TestPeerBlockFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, fpt, "localhost", 0, sl,
+	var sm *bssm.SessionManager
+	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, fpt, "localhost", 0, sl, sm,
 		WithPeerBlockRequestFilter(func(p peer.ID, c cid.Cid) bool {
 			// peer 0 has access to everything
 			if p == peerIDs[0] {
@@ -1296,7 +1347,8 @@ func TestPeerBlockFilterMutability(t *testing.T) {
 
 	filterAllowList := make(map[cid.Cid]bool)
 
-	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, fpt, "localhost", 0, sl,
+	var sm *bssm.SessionManager
+	e := newEngineForTesting(ctx, bs, 4, defaults.BitswapEngineTaskWorkerCount, defaults.BitswapMaxOutstandingBytesPerPeer, fpt, "localhost", 0, sl, sm,
 		WithPeerBlockRequestFilter(func(p peer.ID, c cid.Cid) bool {
 			return filterAllowList[c]
 		}),

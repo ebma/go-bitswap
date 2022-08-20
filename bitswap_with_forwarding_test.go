@@ -71,7 +71,6 @@ func TestRelaySession(t *testing.T) {
 	var cids []cid.Cid
 	for _, blk := range blks {
 		cids = append(cids, blk.Cid())
-		// Try replacing this again with NotifyNewBlocks()
 		addBlock(t, ctx, peerA, blk)
 	}
 
