@@ -492,8 +492,8 @@ func (s *Session) wantBlocks(ctx context.Context, newks []cid.Cid) {
 }
 
 func (s *Session) broadcastRelayWants(ctx context.Context, relayRegistry *rs.RelayRegistry, wants []cid.Cid) {
-	log.Debugw("broadcastWantHaves", "session", s.id, "cids", wants)
-	s.pm.BroadcastWantHaves(ctx, wants)
+	log.Debugw("broadcastRelayWants", "session", s.id, "cids", wants)
+	s.pm.BroadcastRelayWants(ctx, relayRegistry, wants)
 }
 
 // Send want-haves to all connected peers
