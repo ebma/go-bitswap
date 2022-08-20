@@ -64,7 +64,7 @@ func (rs *RelaySession) UpdateSession(ctx context.Context, kt *keyTracker) {
 			// We need to start a new search because the CID is not active.
 			sessionBlks = append(sessionBlks, t.Key)
 			// Add to the registry
-			rs.Registry.r[t.Key] = make(map[peer.ID]int32, 0)
+			rs.Registry.r[t.Key] = make(map[peer.ID]int32, 1)
 		}
 		rs.Registry.r[t.Key][kt.Peer] = t.TTL
 	}
@@ -95,7 +95,7 @@ type keyTracker struct {
 }
 
 func (kt *keyTracker) UpdateTracker(c cid.Cid) {
-	kt.T = append(kt.T, &itemTrack{c, 0})
+	kt.T = append(kt.T, &itemTrack{c, 1})
 }
 
 func NewKeyTracker(p peer.ID) *keyTracker {

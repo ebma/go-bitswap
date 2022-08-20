@@ -514,6 +514,7 @@ func (bs *Bitswap) NotifyNewBlocks(ctx context.Context, blks ...blocks.Block) er
 
 // receiveBlocksFrom process blocks received from the network
 func (bs *Bitswap) receiveBlocksFrom(ctx context.Context, from peer.ID, blks []blocks.Block, haves []cid.Cid, dontHaves []cid.Cid) error {
+	log.Debugw("in receiveBlocksFrom", "from", from, "blks", len(blks), "haves", haves, "dontHaves", dontHaves)
 	select {
 	case <-bs.process.Closing():
 		return errors.New("bitswap is closed")
@@ -523,6 +524,17 @@ func (bs *Bitswap) receiveBlocksFrom(ctx context.Context, from peer.ID, blks []b
 	wanted, notWanted := bs.sim.SplitWantedUnwanted(blks)
 	for _, b := range notWanted {
 		log.Debugf("[recv] block not in wantlist; cid=%s, peer=%s", b.Cid(), from)
+	}
+
+	// This fixes the problem where the blocks that are received are not stored locally
+	// TODO but maybe this is a bad idea? Should we be storing the blocks in the first place?
+	// The current bitswap implementation does not have a call to put anything in the blockstore?
+	if len(wanted) > 0 {
+		err := bs.blockstore.PutMany(ctx, wanted)
+		if err != nil {
+			log.Errorf("Error writing %d blocks to datastore: %s", len(wanted), err)
+			return err
+		}
 	}
 
 	allKs := make([]cid.Cid, 0, len(blks))
