@@ -537,7 +537,7 @@ func (mq *MessageQueue) sendMessage() {
 	}
 
 	// TODO should this only be applied to "WANT_HAVE" messages?
-	awaitTricklingDelay(5)
+	awaitTricklingDelay(200)
 
 	wantlist := message.Wantlist()
 	mq.logOutgoingMessage(wantlist)
@@ -566,12 +566,21 @@ func (mq *MessageQueue) sendMessage() {
 	}
 }
 
-func awaitTricklingDelay(lambda float64) {
+// Delay execution by a random amount drawn from a poisson distribution.
+func awaitTricklingDelayPoisson(lambda float64) {
 	// Setting lambda to >= 10 will result in a distribution that is close to the normal distribution
 	p := poisson.Poisson{Lambda: lambda}
 	// Calculate the delay in milliseconds * 100
 	// p.Rand() returns an integer value
 	delay := float64(time.Millisecond) * p.Rand() * 100
+
+	log.Infow("Delaying message send by", "delay", delay, "duration", time.Duration(delay))
+	time.Sleep(time.Duration(delay))
+}
+
+// Delay execution by a constant delay
+func awaitTricklingDelay(milliseconds int64) {
+	delay := int64(time.Millisecond) * milliseconds
 
 	log.Infow("Delaying message send by", "delay", delay, "duration", time.Duration(delay))
 	time.Sleep(time.Duration(delay))
