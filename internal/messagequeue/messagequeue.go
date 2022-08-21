@@ -16,6 +16,8 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"go.uber.org/zap"
+
+	poisson "gonum.org/v1/gonum/stat/distuv"
 )
 
 var log = logging.Logger("bitswap")
@@ -534,8 +536,13 @@ func (mq *MessageQueue) sendMessage() {
 		return
 	}
 
+	// TODO should this only be applied to "WANT_HAVE" messages?
+	awaitTricklingDelay(5)
+
 	wantlist := message.Wantlist()
 	mq.logOutgoingMessage(wantlist)
+
+	log.Debugw("Sending message to peer", "peer", mq.p, "message", message, "wantlist", wantlist)
 
 	if err := sender.SendMsg(mq.ctx, message); err != nil {
 		// If the message couldn't be sent, the networking layer will
@@ -557,6 +564,17 @@ func (mq *MessageQueue) sendMessage() {
 	if mq.hasPendingWork() {
 		mq.signalWorkReady()
 	}
+}
+
+func awaitTricklingDelay(lambda float64) {
+	// Setting lambda to >= 10 will result in a distribution that is close to the normal distribution
+	p := poisson.Poisson{Lambda: lambda}
+	// Calculate the delay in milliseconds * 100
+	// p.Rand() returns an integer value
+	delay := float64(time.Millisecond) * p.Rand() * 100
+
+	log.Infow("Delaying message send by", "delay", delay, "duration", time.Duration(delay))
+	time.Sleep(time.Duration(delay))
 }
 
 // If want-block times out, simulate a DONT_HAVE reponse.
