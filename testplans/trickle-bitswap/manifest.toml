@@ -24,7 +24,10 @@ skip_runtime_image = true
 build_base_image = "golang:1.17.8-buster"
 
 [extra_sources]
-"docker:go" = ["./test-datasets"]
+"docker:go" = ["../test-datasets"]
+#"docker:go" = [
+#    "/home/marcel/Documents/Studies/thesis/trickle-bitswap/go-bitswap/testplans/trickle-bitswap/test-datasets"
+#]
 
 [builders."exec:go"]
 enabled = true
@@ -48,7 +51,7 @@ instances = { min = 1, max = 200, default = 2 }
 bandwidth_mb = { type = "int", desc = "bandwidth", unit = "Mib", default = 1024 }
 bstore_delay_ms = { type = "int", desc = "blockstore get / put delay (Only applicable for in-memory stores)", unit = "milliseconds", default = 5 }
 count = { type = "int", desc = "number of transfers", default = "10" }
-#data_dir = { type = "string", desc = "directory with data is located", default = "../test-datasets" }
+#data_dir = { type = "string", desc = "directory with data is located", default = "../plan/test-datasets" } # This works for local:docker
 data_dir = { type = "string", desc = "directory with data is located", default = "/home/marcel/Documents/Studies/thesis/trickle-bitswap/go-bitswap/testplans/trickle-bitswap/test-datasets" } # This works for 'local:exec'
 dialer = { type = "string", desc = "network topology between nodes", default = "default" }
 disk_store = { type = "bool", desc = "Enable Badger Data Store instead of an in-memory store", default = false }

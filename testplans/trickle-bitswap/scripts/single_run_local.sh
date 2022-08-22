@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#RUNNER="local:docker"
-#BUILDER="docker:go"
 RUNNER="local:exec"
 BUILDER="exec:go"
 
@@ -21,10 +19,8 @@ JITTER=10
 BANDWIDTH=150
 PARALLEL_GEN=100
 TESTCASE=bitswap-transfer
-INPUT_DATA=files # use this for local:exec
-#INPUT_DATA=random # use this for local:docker || does not work locally due to permissions
-#DATA_DIR=../extra/test-datasets # This would be for the docker:go runner
-DATA_DIR=/home/marcel/Documents/Studies/thesis/trickle-bitswap/go-bitswap/testplans/trickle-bitswap/test-datasets # This is for the local:exec runner
+INPUT_DATA=files # 'random' does not work locally due to permissions of /tmp directory
+DATA_DIR=./test-datasets
 TCP_ENABLED=false
 MAX_CONNECTION_RATE=100
 
