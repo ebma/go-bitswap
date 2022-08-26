@@ -223,6 +223,7 @@ func InitializeTest(ctx context.Context, runenv *runtime.RunEnv, testvars *TestV
 	// Signal that this node is in the given state, and wait for all peers to
 	// send the same signal
 	signalAndWaitForAll := func(state string) error {
+		runenv.RecordMessage("Signaling %v", state)
 		_, err := client.SignalAndWait(ctx, sync.State(state), runenv.TestInstanceCount)
 		return err
 	}
@@ -238,7 +239,7 @@ func (t *TestData) publishFile(ctx context.Context, fIndex int, cid *cid.Cid, ru
 
 	runenv.RecordMessage("Published Added CID: %v", *cid)
 	// Inform other nodes of the root CID
-	if _, err := t.client.Publish(ctx, rootCidTopic, cid); err != nil {
+	if _, err := t.client.Publish(ctx, rootCidTopic, *cid); err != nil {
 		return fmt.Errorf("Failed to get Redis Sync rootCidTopic %w", err)
 	}
 	return nil
@@ -248,20 +249,18 @@ func (t *TestData) readFile(ctx context.Context, fIndex int, runenv *runtime.Run
 	// Create identifier for specific file size.
 	rootCidTopic := getRootCidTopic(fIndex)
 	// Get the root CID from a seed
-	rootCidCh := make(chan *cid.Cid, 1)
-	sctx, cancelRootCidSub := context.WithCancel(ctx)
-	defer cancelRootCidSub()
-	if _, err := t.client.Subscribe(sctx, rootCidTopic, rootCidCh); err != nil {
+	rootCidCh := make(chan cid.Cid, 1)
+	// Not creating a new subcontext for the subscription seems to fix a bug of closed channels
+	if _, err := t.client.Subscribe(ctx, rootCidTopic, rootCidCh); err != nil {
 		return cid.Undef, fmt.Errorf("Failed to subscribe to rootCidTopic %w", err)
 	}
 	// Note: only need to get the root CID from one seed - it should be the
 	// same on all seeds (seed data is generated from repeatable random
 	// sequence or existing file)
-	rootCidPtr, ok := <-rootCidCh
+	rootCid, ok := <-rootCidCh
 	if !ok {
 		return cid.Undef, fmt.Errorf("no root cid in %d seconds", testvars.Timeout/time.Second)
 	}
-	rootCid := *rootCidPtr
 	runenv.RecordMessage("Received rootCid: %v", rootCid)
 	return rootCid, nil
 }
