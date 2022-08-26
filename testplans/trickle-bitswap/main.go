@@ -10,6 +10,6 @@ func main() {
 }
 
 var testcases = map[string]interface{}{
-	"bitswap-speedtest": run.InitializedTestCaseFn(test.BitswapSpeedTest),
-	"bitswap-transfer":  run.InitializedTestCaseFn(test.BitswapTransferTest),
+	"speedtest": run.InitializedTestCaseFn(test.BitswapSpeedTest),
+	"transfer":  run.InitializedTestCaseFn(test.BitswapTransferTest),
 }
