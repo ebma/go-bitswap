@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -138,7 +137,7 @@ func GetFileList(runenv *runtime.RunEnv) ([]TestFile, error) {
 	case "files":
 		path := runenv.StringParam("data_dir")
 		runenv.RecordMessage("Getting file list for %s", path)
-		files, err := ioutil.ReadDir(path)
+		files, err := os.ReadDir(path)
 		if err != nil {
 			return nil, err
 		}
@@ -153,7 +152,11 @@ func GetFileList(runenv *runtime.RunEnv) ([]TestFile, error) {
 					return nil, err
 				}
 			} else {
-				size = file.Size()
+				info, err := file.Info()
+				if err != nil {
+					return nil, err
+				}
+				size = info.Size()
 			}
 
 			// Append the file.
