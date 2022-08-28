@@ -11,7 +11,7 @@ source ../scripts/exec.sh
 echo "[*] Running Experiment"
 run_composition ./composition-local.toml
 # Plot in pdf
-python3 ../scripts/pdf.py "RFC102"
+python3 ../scripts/pdf.py
 
 
 echo "Cleaning previous results..."
@@ -21,4 +21,4 @@ mkdir ./results
 echo "[*] Running baseline"
 run_composition ./baseline-local.toml
 # Plot in pdf
-python3 ../testbed/testbed/scripts/pdf.py "RFC102" baseline
+python3 ../scripts/pdf.py baseline

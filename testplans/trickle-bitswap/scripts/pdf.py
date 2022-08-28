@@ -5,16 +5,14 @@ import utils
 from matplotlib.backends.backend_pdf import PdfPages
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
-rfc = sys.argv[1]
-filename = "/rfc.pdf"
-if len(sys.argv) == 3:
-    filename = "/" + sys.argv[2] + ".pdf"
+filename = "result.pdf"
+if len(sys.argv) == 2:
+    filename = sys.argv[1] + ".pdf"
 
-print(filename)
 
-with PdfPages(dir_path + "/../../../RFC/"+rfc+filename) as export_pdf:
+with PdfPages(dir_path + "/../experiments/" + filename) as export_pdf:
 
-    agg, testcases = process.aggregate_results(dir_path + "/../../../RFC/results")
+    agg, testcases = process.aggregate_results(dir_path + "/../experiments/results")
     byLatency = process.groupBy(agg, "latencyMS")
     byNodeType = process.groupBy(agg, "nodeType")
     byFileSize = process.groupBy(agg, "fileSize")
