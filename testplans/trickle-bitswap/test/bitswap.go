@@ -26,31 +26,32 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 	if err != nil {
 		return err
 	}
+	//logging.SetLogLevel("bitswap", "DEBUG")
+	//logging.SetLogLevel("*", "DEBUG")
 
-	nodeType := "Leech"
+	nodeType := "bitswap"
 
 	/// --- Set up
 	ctx, cancel := context.WithTimeout(context.Background(), testvars.Timeout)
 	defer cancel()
-	baseT, err := initializeTest(ctx, runenv, testvars)
+	baseT, err := initializeGeneralNetwork(ctx, runenv, testvars)
 	if err != nil {
 		return err
 	}
-	t, err := initializeBitswapTest(ctx, runenv, testvars, baseT)
-	runenv.RecordMessage("created node %s with addrs", t.peerInfos)
+	testData, err := initializeBitswapNetwork(ctx, runenv, testvars, baseT)
 
-	transferNode := t.node
-	signalAndWaitForAll := t.signalAndWaitForAll
+	transferNode := testData.node
+	signalAndWaitForAll := testData.signalAndWaitForAll
 
 	// Start still alive process if enabled
-	t.stillAlive(runenv, testvars)
+	testData.stillAlive(runenv, testvars)
 
 	var tcpFetch int64
 
 	// For each test permutation found in the test
 	for pIndex, testParams := range testvars.Permutations {
 		// Set up network (with traffic shaping)
-		if err := utils.SetupNetwork(ctx, runenv, t.nwClient, t.nodetp, t.tpindex, testParams.Latency,
+		if err := utils.SetupNetwork(ctx, runenv, testData.nwClient, testData.nodetp, testData.tpindex, testParams.Latency,
 			testParams.Bandwidth, testParams.JitterPct); err != nil {
 			return fmt.Errorf("Failed to set up network: %v", err)
 		}
@@ -65,11 +66,11 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			return err
 		}
 
-		switch t.nodetp {
+		switch testData.nodetp {
 		case utils.Seed:
-			rootCid, err = t.addPublishFile(ctx, pIndex, testParams.File, runenv, testvars)
+			rootCid, err = testData.addPublishFile(ctx, pIndex, testParams.File, runenv, testvars)
 		case utils.Leech:
-			rootCid, err = t.readFile(ctx, pIndex, runenv, testvars)
+			rootCid, err = testData.readFile(ctx, pIndex, runenv, testvars)
 		}
 		if err != nil {
 			return err
@@ -84,11 +85,11 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 		if testvars.TCPEnabled {
 			runenv.RecordMessage("Running TCP test...")
-			switch t.nodetp {
+			switch testData.nodetp {
 			case utils.Seed:
-				err = t.runTCPServer(ctx, pIndex, 0, testParams.File, runenv, testvars)
+				err = testData.runTCPServer(ctx, pIndex, 0, testParams.File, runenv, testvars)
 			case utils.Leech:
-				tcpFetch, err = t.runTCPFetch(ctx, pIndex, 0, runenv, testvars)
+				tcpFetch, err = testData.runTCPFetch(ctx, pIndex, 0, runenv, testvars)
 			}
 			if err != nil {
 				return err
@@ -99,7 +100,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 		for runNum := 1; runNum < testvars.RunCount+1; runNum++ {
 			// Reset the timeout for each run
-			ctx, cancel := context.WithTimeout(ctx, testvars.RunTimeout)
+			sctx, cancel := context.WithTimeout(ctx, testvars.RunTimeout)
 			defer cancel()
 
 			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
@@ -112,11 +113,11 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 			runenv.RecordMessage("Starting run %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 
-			dialed, err := t.dialFn(ctx, transferNode.Host(), t.nodetp, t.peerInfos, testvars.MaxConnectionRate)
+			dialed, err := testData.dialFn(sctx, transferNode.Host(), testData.nodetp, testData.peerInfos, testvars.MaxConnectionRate)
 			if err != nil {
 				return err
 			}
-			runenv.RecordMessage("%s Dialed %d other nodes:", t.nodetp.String(), len(dialed))
+			runenv.RecordMessage("%s Dialed %d other nodes", testData.nodetp.String(), len(dialed))
 
 			// Wait for all nodes to be connected
 			err = signalAndWaitForAll("connect-complete-" + runID)
@@ -127,31 +128,31 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			/// --- Start test
 
 			var timeToFetch time.Duration
-			if t.nodetp == utils.Leech {
+			if testData.nodetp == utils.Leech {
 				// For each wave
 				for waveNum := 0; waveNum < testvars.NumWaves; waveNum++ {
 					// Only leecheers for that wave entitled to leech.
-					if (t.tpindex % testvars.NumWaves) == waveNum {
+					if (testData.tpindex % testvars.NumWaves) == waveNum {
 						runenv.RecordMessage("Starting wave %d", waveNum)
 						// Stagger the start of the first request from each leech
 						// Note: seq starts from 1 (not 0)
-						startDelay := time.Duration(t.seq-1) * testvars.RequestStagger
+						startDelay := time.Duration(testData.seq-1) * testvars.RequestStagger
 
 						runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 						runenv.RecordMessage("Leech fetching data after %s delay", startDelay)
 						start := time.Now()
 						// TODO: Here we may be able to define requesting pattern. ipfs.DAG()
 						// Right now using a path.
-						ctxFetch, cancel := context.WithTimeout(ctx, testvars.RunTimeout/2)
+						ctxFetch, cancel := context.WithTimeout(sctx, testvars.RunTimeout/2)
 						// Pin Add also traverse the whole DAG
 						// err := ipfsNode.API.Pin().Add(ctxFetch, fPath)
-						rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, t.peerInfos)
+						rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, testData.peerInfos)
 						if err != nil {
 							runenv.RecordMessage("Error fetching data: %v", err)
 							leechFails++
 						} else {
 							runenv.RecordMessage("Fetch complete, proceeding")
-							err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(t.tpindex)+time.Now().String())
+							err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(testData.tpindex)+time.Now().String())
 							if err != nil {
 								cancel()
 								return err
@@ -166,7 +167,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 						runenv.RecordMessage("Waiting 5 seconds between waves for wave %d", waveNum)
 						time.Sleep(5 * time.Second)
 					}
-					_, err = t.client.SignalAndWait(ctx, sync.State(fmt.Sprintf("leech-wave-%d", waveNum)), testvars.LeechCount)
+					_, err = testData.client.SignalAndWait(sctx, sync.State(fmt.Sprintf("leech-wave-%d", waveNum)), testvars.LeechCount)
 				}
 			}
 
@@ -177,23 +178,27 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			}
 
 			/// --- Report stats
-			err = t.emitMetrics(runenv, runNum, nodeType, testParams, timeToFetch, tcpFetch, leechFails, testvars.MaxConnectionRate)
+			err = testData.emitMetrics(runenv, runNum, nodeType, testParams, timeToFetch, tcpFetch, leechFails, testvars.MaxConnectionRate)
 			if err != nil {
 				return err
 			}
 			runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
 
-			err = t.cleanupRun(ctx, rootCid, runenv)
+			// Sleep a bit to allow the rest of the trickled messages to complete
+			//runenv.RecordMessage("Sleeping for 5 seconds to allow trickle messages to complete")
+			//time.Sleep(5 * time.Second)
+
+			err = testData.cleanupRun(sctx, rootCid, runenv)
 			if err != nil {
 				return err
 			}
 		}
-		err = t.cleanupFile(ctx, rootCid)
+		err = testData.cleanupFile(ctx, rootCid)
 		if err != nil {
 			return err
 		}
 	}
-	err = t.close()
+	err = testData.close()
 	if err != nil {
 		return err
 	}
@@ -202,7 +207,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 	return nil
 }
 
-func initializeTest(ctx context.Context, runenv *runtime.RunEnv, testvars *TestVars) (*TestData, error) {
+func initializeGeneralNetwork(ctx context.Context, runenv *runtime.RunEnv, testvars *TestVars) (*TestData, error) {
 	client := sync.MustBoundClient(ctx, runenv)
 	nwClient := network.NewClient(client, runenv)
 
@@ -286,7 +291,7 @@ func initializeTest(ctx context.Context, runenv *runtime.RunEnv, testvars *TestV
 		seq, grpseq, nodetp, tpindex, seedIndex}, nil
 }
 
-func initializeBitswapTest(ctx context.Context, runenv *runtime.RunEnv, testvars *TestVars, baseT *TestData) (*NodeTestData, error) {
+func initializeBitswapNetwork(ctx context.Context, runenv *runtime.RunEnv, testvars *TestVars, baseT *TestData) (*NodeTestData, error) {
 	h, err := makeHost(baseT)
 	if err != nil {
 		return nil, err
