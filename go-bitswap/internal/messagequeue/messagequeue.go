@@ -537,7 +537,7 @@ func (mq *MessageQueue) sendMessage() {
 	}
 
 	// TODO should this only be applied to "WANT_HAVE" messages?
-	awaitTricklingDelay(200)
+	awaitTricklingDelay(2)
 
 	wantlist := message.Wantlist()
 	mq.logOutgoingMessage(wantlist)

@@ -39,7 +39,8 @@ func addBlockCustom(t *testing.T, ctx context.Context, exchange *bitswap.Bitswap
 }
 
 func TestRelaySession(t *testing.T) {
-	logging.SetLogLevel("engine", "DEBUG")
+	//logging.SetLogLevel("engine", "DEBUG")
+	logging.SetLogLevel("bitswap", "DEBUG")
 	//logging.SetLogLevel("*", "DEBUG") // uncomment to see all logging
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
@@ -139,8 +140,8 @@ func SetupConnections(ctx context.Context, self host.Host, others []host.Host) e
 }
 
 func TestComplexTopology(t *testing.T) {
-	logging.SetLogLevel("engine", "DEBUG")
-	//logging.SetLogLevel("bitswap", "DEBUG")
+	//logging.SetLogLevel("engine", "DEBUG")
+	logging.SetLogLevel("bitswap", "DEBUG")
 
 	//var ttl int32 = 1
 	bsOpts := []bitswap.Option{

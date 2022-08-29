@@ -316,9 +316,9 @@ def plot_want_messages(byFileSize, byTopology):
             # Computing averages
             # Remove the division if you want to see total values 
             # arr_wants_avg.append(round(wants/instances/1000,1))
-            arr_want_haves.append(round(want_haves/wants_n,1))
-            arr_want_blocks.append(round(want_blocks/wants_n,1))
-            arr_wants_avg_single.append(round(wants/wants_n,1))
+            # arr_want_haves.append(round(want_haves/wants_n,1)) # TODO fix division by zero here
+            # arr_want_blocks.append(round(want_blocks/wants_n,1))
+            # arr_wants_avg_single.append(round(wants/wants_n,1))
             arr_wants_max.append(want_max)
             arr_wants_total.append(wants/1000)
 

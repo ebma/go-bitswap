@@ -131,7 +131,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			if testData.nodetp == utils.Leech {
 				// For each wave
 				for waveNum := 0; waveNum < testvars.NumWaves; waveNum++ {
-					// Only leecheers for that wave entitled to leech.
+					// Only leechers for that wave entitled to leech.
 					if (testData.tpindex % testvars.NumWaves) == waveNum {
 						runenv.RecordMessage("Starting wave %d", waveNum)
 						// Stagger the start of the first request from each leech

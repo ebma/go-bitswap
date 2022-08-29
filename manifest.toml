@@ -19,9 +19,14 @@ run_image = "scratch"
 [builders."docker:go"]
 enabled = true
 skip_runtime_image = true
-#exec_pkg = "."
-#module_path = "github.com/ipfs/testground/plans/trickle-bitswap"
 build_base_image = "golang:1.17.8-buster"
+#enable_go_build_cache = true
+
+[builders."docker:go".dockerfile_extensions]
+# Copy local version of Bitswap to the build container.
+pre_mod_download = "COPY /plan/go-bitswap ${PLAN_DIR}/go-bitswap"
+#pre_mod_download = "COPY /plan/go-bitswap/ /plan/ipfs/go-bitswap/"
+
 
 [extra_sources]
 "docker:go" = ["../test-datasets"]
