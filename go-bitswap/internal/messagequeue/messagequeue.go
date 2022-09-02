@@ -25,6 +25,8 @@ var sflog = log.Desugar()
 
 const (
 	defaultRebroadcastInterval = 30 * time.Second
+
+	defaultTricklingDelay = 200 * time.Millisecond
 	// maxRetries is the number of times to attempt to send a message before
 	// giving up
 	maxRetries  = 3
@@ -96,6 +98,10 @@ type MessageQueue struct {
 	rebroadcastIntervalLk sync.RWMutex
 	rebroadcastInterval   time.Duration
 	rebroadcastTimer      *clock.Timer
+
+	tricklingDelay time.Duration
+	tricklingLock  sync.Mutex
+
 	// For performance reasons we just clear out the fields of the message
 	// instead of creating a new one every time.
 	msg bsmsg.BitSwapMessage
@@ -258,6 +264,7 @@ func newMessageQueue(
 		outgoingWork:        make(chan time.Time, 1),
 		responses:           make(chan []cid.Cid, 8),
 		rebroadcastInterval: defaultRebroadcastInterval,
+		tricklingDelay:      defaultTricklingDelay,
 		sendErrorBackoff:    sendErrorBackoff,
 		maxValidLatency:     maxValidLatency,
 		priority:            maxPriority,
@@ -537,7 +544,7 @@ func (mq *MessageQueue) sendMessage() {
 	}
 
 	// TODO should this only be applied to "WANT_HAVE" messages?
-	awaitTricklingDelay(2)
+	mq.awaitTricklingDelay()
 
 	wantlist := message.Wantlist()
 	mq.logOutgoingMessage(wantlist)
@@ -574,16 +581,18 @@ func awaitTricklingDelayPoisson(lambda float64) {
 	// p.Rand() returns an integer value
 	delay := float64(time.Millisecond) * p.Rand() * 100
 
-	log.Infow("Delaying message send by", "delay", delay, "duration", time.Duration(delay))
+	log.Infof("Delaying message queue execution by %v seconds", delay)
 	time.Sleep(time.Duration(delay))
 }
 
 // Delay execution by a constant delay
-func awaitTricklingDelay(milliseconds int64) {
-	delay := int64(time.Millisecond) * milliseconds
-
-	log.Infow("Delaying message send by", "delay", delay, "duration", time.Duration(delay))
-	time.Sleep(time.Duration(delay))
+func (mq *MessageQueue) awaitTricklingDelay() {
+	log.Infof("Peer: %v | Before delay lock()", mq.p)
+	mq.tricklingLock.Lock()
+	log.Infof("Peer: %v | Delaying message queue execution by %v seconds", mq.p, mq.tricklingDelay)
+	time.Sleep(mq.tricklingDelay)
+	log.Infof("Peer: %v | Before delay unlock()", mq.p)
+	mq.tricklingLock.Unlock()
 }
 
 // If want-block times out, simulate a DONT_HAVE reponse.
