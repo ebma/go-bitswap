@@ -38,10 +38,12 @@ const (
 	Leech
 	// Doesn't seed or fetch data
 	Passive
+	// Connects to every node to collect messages
+	Eavesdropper
 )
 
 func (nt NodeType) String() string {
-	return [...]string{"Seed", "Leech", "Passive"}[nt]
+	return [...]string{"Seed", "Leech", "Passive", "Eavesdropper"}[nt]
 }
 
 // Adapted from the netflix/p2plab repo under an Apache-2 license.

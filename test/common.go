@@ -449,6 +449,7 @@ func generateAndAdd(ctx context.Context, runenv *runtime.RunEnv, node utils.Node
 func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.DefaultClient, addrInfo *peer.AddrInfo, seq int64) (int64, utils.NodeType, int, error) {
 	leechCount := runenv.IntParam("leech_count")
 	passiveCount := runenv.IntParam("passive_count")
+	eavesdropperCount := runenv.IntParam("eavesdropper_count")
 
 	grpCountOverride := false
 	if runenv.TestGroupID != "" {
@@ -460,6 +461,11 @@ func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.Default
 		grpPsvLabel := runenv.TestGroupID + "_passive_count"
 		if runenv.IsParamSet(grpPsvLabel) {
 			passiveCount = runenv.IntParam(grpPsvLabel)
+			grpCountOverride = true
+		}
+		grpEavsLabel := runenv.TestGroupID + "_eavesdropper_count"
+		if runenv.IsParamSet(grpEavsLabel) {
+			eavesdropperCount = runenv.IntParam(grpPsvLabel)
 			grpCountOverride = true
 		}
 	}
@@ -486,9 +492,12 @@ func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.Default
 	case grpseq <= int64(leechCount):
 		nodetp = utils.Leech
 		tpindex = int(grpseq) - 1
-	case grpseq > int64(leechCount+passiveCount):
+	case grpseq > int64(leechCount) && grpseq <= int64(leechCount+eavesdropperCount):
+		nodetp = utils.Eavesdropper
+		tpindex = int(grpseq) - 1 - (leechCount + eavesdropperCount)
+	case grpseq > int64(leechCount+passiveCount+eavesdropperCount):
 		nodetp = utils.Seed
-		tpindex = int(grpseq) - 1 - (leechCount + passiveCount)
+		tpindex = int(grpseq) - 1 - (leechCount + passiveCount + eavesdropperCount)
 	default:
 		nodetp = utils.Passive
 		tpindex = int(grpseq) - 1 - leechCount
@@ -612,7 +621,7 @@ type messageHistoryRecorder struct {
 
 func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry) {
 	msg.Message.Loggable()
-	msgString := fmt.Sprintf("{ \"run\": \"%s\",  \"timestamp\": \"%d\", \"peer\": \"%s\", \"message\": {%s} }", m.id, msg.Timestamp.UnixMicro(), msg.Peer, msg.Message.Loggable())
+	msgString := fmt.Sprintf("{ \"run\": \"%s\", \"timestamp\": \"%d\", \"peer\": \"%s\", \"message\": {%s} }", m.id, msg.Timestamp.UnixMicro(), msg.Peer, msg.Message.Loggable())
 	_, err := fmt.Fprintln(m.file, msgString)
 	if err != nil {
 		m.runenv.RecordMessage("Error writing message history entry: %s", err)
@@ -629,4 +638,29 @@ func newMessageHistoryRecorder(runenv *runtime.RunEnv, runNum int) utils.Message
 	id := fmt.Sprintf("%d", runNum)
 	return &messageHistoryRecorder{runenv, file, id}
 
+}
+
+type globalInfoRecorder struct {
+	runenv *runtime.RunEnv
+	file   *os.File
+	id     string
+}
+
+func (g globalInfoRecorder) RecordGlobalInfo(info string) {
+	msgString := fmt.Sprintf("{ \"id\": \"%s\", \"timestamp\": \"%d\", \"info\": \"%s\" }", g.id, time.Now().UnixMicro(), info)
+	_, err := fmt.Fprintln(g.file, msgString)
+	if err != nil {
+		g.runenv.RecordMessage("Error writing global info: %s", err)
+		return
+	}
+}
+
+func newGlobalInfoRecorder(runenv *runtime.RunEnv, seq int64) utils.GlobalInfoRecorder {
+	file, err := os.OpenFile(runenv.TestOutputsPath+"/../globalInfo.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	if err != nil {
+		runenv.RecordMessage("Error creating global info file: %s", err)
+		return nil
+	}
+	id := fmt.Sprintf("%d", seq)
+	return &globalInfoRecorder{runenv, file, id}
 }

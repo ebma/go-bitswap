@@ -46,6 +46,10 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 	// Start still alive process if enabled
 	testData.stillAlive(runenv, testvars)
 
+	globalInfoRecorder := newGlobalInfoRecorder(runenv, testData.seq)
+
+	globalInfoRecorder.RecordGlobalInfo(fmt.Sprintf("node_type=%s", testData.nodetp.String()))
+
 	var tcpFetch int64
 
 	// For each test permutation found in the test
@@ -113,6 +117,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 			runenv.RecordMessage("Starting run %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 
+			// TODO make sure that 'eavesdropper' connects to all peers
 			dialed, err := testData.dialFn(sctx, transferNode.Host(), testData.nodetp, testData.peerInfos, testvars.MaxConnectionRate)
 			if err != nil {
 				return err
@@ -138,6 +143,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 						// Note: seq starts from 1 (not 0)
 						startDelay := time.Duration(testData.seq-1) * testvars.RequestStagger
 
+						globalInfoRecorder.RecordGlobalInfo(fmt.Sprintf("looking_for=%s", rootCid.String()))
 						runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 						runenv.RecordMessage("Leech fetching data after %s delay", startDelay)
 						start := time.Now()
@@ -187,16 +193,6 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				return err
 			}
 			runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
-
-			//if testData.nodetp == utils.Seed {
-			//	runenv.CreateRandomFile()
-			//
-			//	f, err := os.OpenFile(runenv.TestOutputsPath+"message_history.txt", os.O_RDWR|os.O_CREATE, 0755)
-			//	for _, msg := range transferNode.bitswap.stats().msgHistory {
-			//
-			//	}
-			//
-			//}
 
 			// Sleep a bit to allow the rest of the trickled messages to complete
 			//runenv.RecordMessage("Sleeping for 5 seconds to allow trickle messages to complete")

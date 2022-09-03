@@ -36,6 +36,10 @@ type MessageRecorder interface {
 	RecordMessage(msg string, a ...interface{})
 }
 
+type GlobalInfoRecorder interface {
+	RecordGlobalInfo(info string)
+}
+
 type MessageHistoryRecorder interface {
 	RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry)
 }
