@@ -18,7 +18,8 @@ type Stat struct {
 	DupBlksReceived  uint64
 	DupDataReceived  uint64
 	MessagesReceived uint64
-	// TODO add more bitswap stats
+
+	MessageHistory []MessageHistoryEntry
 }
 
 // Stat returns aggregated statistics about bitswap operations
@@ -44,6 +45,8 @@ func (bs *Bitswap) Stat() (*Stat, error) {
 		st.Peers = append(st.Peers, p.Pretty())
 	}
 	sort.Strings(st.Peers)
+
+	st.MessageHistory = bs.messageHistory
 
 	return st, nil
 }

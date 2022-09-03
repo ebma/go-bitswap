@@ -162,6 +162,20 @@ func (n *BitswapNode) EmitMetrics(recorder MetricsRecorder) error {
 	return err
 }
 
+func (n *BitswapNode) EmitMessageHistory(recorder MessageHistoryRecorder) error {
+	stats, err := n.bitswap.Stat()
+
+	if err != nil {
+		return err
+	}
+
+	for _, msg := range stats.MessageHistory {
+		recorder.RecordMessageHistoryEntry(msg)
+	}
+
+	return err
+}
+
 func (n *BitswapNode) Fetch(ctx context.Context, c cid.Cid, _ []PeerInfo) (files.Node, error) {
 	err := merkledag.FetchGraph(ctx, c, n.dserv)
 	if err != nil {

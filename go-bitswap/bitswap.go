@@ -328,6 +328,12 @@ func New(parent context.Context, network bsnet.BitSwapNetwork,
 	return bs
 }
 
+type MessageHistoryEntry struct {
+	Message   bsmsg.BitSwapMessage
+	Timestamp time.Time
+	Peer      peer.ID
+}
+
 // Bitswap instances implement the bitswap protocol.
 type Bitswap struct {
 	pm *bspm.PeerManager
@@ -360,6 +366,9 @@ type Bitswap struct {
 	// Counters for various statistics
 	counterLk sync.Mutex
 	counters  *counters
+
+	// history for statistics
+	messageHistory []MessageHistoryEntry
 
 	// Metrics interface metrics
 	dupMetric         metrics.Histogram
@@ -576,6 +585,9 @@ func (bs *Bitswap) ReceiveMessage(ctx context.Context, p peer.ID, incoming bsmsg
 	bs.counters.messagesRecvd++
 	bs.counterLk.Unlock()
 
+	historyEntry := MessageHistoryEntry{Message: incoming, Peer: p, Timestamp: time.Now()}
+	bs.messageHistory = append(bs.messageHistory, historyEntry)
+
 	// This call records changes to wantlists, blocks received,
 	// and number of bytes transfered.
 	bs.engine.MessageReceived(ctx, p, incoming)
@@ -677,7 +689,7 @@ func (bs *Bitswap) PeerDisconnected(p peer.ID) {
 // ReceiveError is called by the network interface when an error happens
 // at the network layer. Currently just logs error.
 func (bs *Bitswap) ReceiveError(err error) {
-	log.Infof("Bitswap ReceiveError: %s", err)
+	log.Infof("Bitswap ReceiveError: %s | occured in %v", err, bs.network.Self())
 	// TODO log the network error
 	// TODO bubble the network error up to the parent context/error logger
 }

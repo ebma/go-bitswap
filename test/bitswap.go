@@ -182,7 +182,21 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			if err != nil {
 				return err
 			}
+			err = testData.emitMessageHistory(runenv)
+			if err != nil {
+				return err
+			}
 			runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
+
+			//if testData.nodetp == utils.Seed {
+			//	runenv.CreateRandomFile()
+			//
+			//	f, err := os.OpenFile(runenv.TestOutputsPath+"message_history.txt", os.O_RDWR|os.O_CREATE, 0755)
+			//	for _, msg := range transferNode.bitswap.stats().msgHistory {
+			//
+			//	}
+			//
+			//}
 
 			// Sleep a bit to allow the rest of the trickled messages to complete
 			//runenv.RecordMessage("Sleeping for 5 seconds to allow trickle messages to complete")

@@ -3,10 +3,12 @@ package test
 import (
 	"context"
 	"fmt"
+	"github.com/ipfs/go-bitswap"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils/dialer"
 	"math"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -418,6 +420,12 @@ func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, runNum int, transport
 	return t.node.EmitMetrics(recorder)
 }
 
+func (t *NodeTestData) emitMessageHistory(runenv *runtime.RunEnv) error {
+	recorder := newMessageHistoryRecorder(runenv)
+
+	return t.node.EmitMessageHistory(recorder)
+}
+
 func generateAndAdd(ctx context.Context, runenv *runtime.RunEnv, node utils.Node, f utils.TestFile) (*cid.Cid, error) {
 	// Generate the file
 	inputData := runenv.StringParam("input_data")
@@ -594,4 +602,29 @@ func newMetricsRecorder(runenv *runtime.RunEnv, runNum int, seq int64, grpseq in
 
 func (mr *metricsRecorder) Record(key string, value float64) {
 	mr.runenv.R().RecordPoint(fmt.Sprintf("%s/name:%s", mr.id, key), value)
+}
+
+type messageHistoryRecorder struct {
+	runenv *runtime.RunEnv
+	file   *os.File
+}
+
+func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry) {
+	msg.Message.Loggable()
+	msgString := fmt.Sprintf("{ \"Timestamp\": \"%d\", \"Peer\": \"%s\", \"Message\": {%s} }", msg.Timestamp.UnixMicro(), msg.Peer, msg.Message.Loggable())
+	_, err := fmt.Fprintln(m.file, msgString)
+	if err != nil {
+		m.runenv.RecordMessage("Error writing message history entry: %s", err)
+		return
+	}
+}
+
+func newMessageHistoryRecorder(runenv *runtime.RunEnv) utils.MessageHistoryRecorder {
+	file, err := os.Create(runenv.TestOutputsPath + "/messageHistory.out")
+	if err != nil {
+		runenv.RecordMessage("Error creating message history file: %s", err)
+		return nil
+	}
+	return &messageHistoryRecorder{runenv, file}
+
 }

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"github.com/ipfs/go-bitswap"
 
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
@@ -24,6 +25,7 @@ type Node interface {
 	Host() host.Host
 	DAGService() ipld.DAGService
 	EmitKeepAlive(recorder MessageRecorder) error
+	EmitMessageHistory(recorder MessageHistoryRecorder) error
 }
 
 type MetricsRecorder interface {
@@ -32,4 +34,8 @@ type MetricsRecorder interface {
 
 type MessageRecorder interface {
 	RecordMessage(msg string, a ...interface{})
+}
+
+type MessageHistoryRecorder interface {
+	RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry)
 }
