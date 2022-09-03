@@ -420,8 +420,8 @@ func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, runNum int, transport
 	return t.node.EmitMetrics(recorder)
 }
 
-func (t *NodeTestData) emitMessageHistory(runenv *runtime.RunEnv) error {
-	recorder := newMessageHistoryRecorder(runenv)
+func (t *NodeTestData) emitMessageHistory(runenv *runtime.RunEnv, runNum int) error {
+	recorder := newMessageHistoryRecorder(runenv, runNum)
 
 	return t.node.EmitMessageHistory(recorder)
 }
@@ -607,11 +607,12 @@ func (mr *metricsRecorder) Record(key string, value float64) {
 type messageHistoryRecorder struct {
 	runenv *runtime.RunEnv
 	file   *os.File
+	id     string
 }
 
 func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry) {
 	msg.Message.Loggable()
-	msgString := fmt.Sprintf("{ \"Timestamp\": \"%d\", \"Peer\": \"%s\", \"Message\": {%s} }", msg.Timestamp.UnixMicro(), msg.Peer, msg.Message.Loggable())
+	msgString := fmt.Sprintf("{ \"run\": \"%s\",  \"timestamp\": \"%d\", \"peer\": \"%s\", \"message\": {%s} }", m.id, msg.Timestamp.UnixMicro(), msg.Peer, msg.Message.Loggable())
 	_, err := fmt.Fprintln(m.file, msgString)
 	if err != nil {
 		m.runenv.RecordMessage("Error writing message history entry: %s", err)
@@ -619,12 +620,13 @@ func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHis
 	}
 }
 
-func newMessageHistoryRecorder(runenv *runtime.RunEnv) utils.MessageHistoryRecorder {
-	file, err := os.Create(runenv.TestOutputsPath + "/messageHistory.out")
+func newMessageHistoryRecorder(runenv *runtime.RunEnv, runNum int) utils.MessageHistoryRecorder {
+	file, err := os.OpenFile(runenv.TestOutputsPath+"/messageHistory.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {
 		runenv.RecordMessage("Error creating message history file: %s", err)
 		return nil
 	}
-	return &messageHistoryRecorder{runenv, file}
+	id := fmt.Sprintf("%d", runNum)
+	return &messageHistoryRecorder{runenv, file, id}
 
 }

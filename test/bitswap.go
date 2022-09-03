@@ -182,7 +182,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			if err != nil {
 				return err
 			}
-			err = testData.emitMessageHistory(runenv)
+			err = testData.emitMessageHistory(runenv, runNum)
 			if err != nil {
 				return err
 			}
