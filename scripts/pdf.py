@@ -1,7 +1,6 @@
 import process
 import os
 import sys
-import utils
 from matplotlib.backends.backend_pdf import PdfPages
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
