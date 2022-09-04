@@ -620,6 +620,10 @@ type messageHistoryRecorder struct {
 }
 
 func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry) {
+	// don't log non-want-have messages
+	if len(msg.Message.Wantlist()) == 0 {
+		return
+	}
 	wantlistString := ""
 	for index, entry := range msg.Message.Wantlist() {
 		if index > 0 {

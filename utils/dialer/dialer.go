@@ -117,3 +117,34 @@ func DialOtherPeers(ctx context.Context, self core.Host, selfType utils.NodeType
 
 	return toDial, nil
 }
+
+// DialAllPeers connects to all peers, ignoring the possible tcp error
+func DialAllPeers(ctx context.Context, self core.Host, ais []utils.PeerInfo) ([]peer.AddrInfo, error) {
+	// Dial to all the other peers
+	var toDial []peer.AddrInfo
+	for _, inf := range ais {
+		ai := inf.Addr
+		id1, _ := ai.ID.MarshalBinary()
+		id2, _ := self.ID().MarshalBinary()
+
+		// skip over dialing ourselves
+		if bytes.Compare(id1, id2) != 0 {
+			toDial = append(toDial, ai)
+		}
+	}
+	g, ctx := errgroup.WithContext(ctx)
+	for _, ai := range toDial {
+		ai := ai
+		g.Go(func() error {
+			if err := self.Connect(ctx, ai); err != nil {
+				return fmt.Errorf("Error while dialing peer %v: %w", ai.Addrs, err)
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	return toDial, nil
+}

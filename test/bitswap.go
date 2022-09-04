@@ -48,7 +48,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 	globalInfoRecorder := newGlobalInfoRecorder(runenv, testData.seq)
 
-	globalInfoRecorder.RecordGlobalInfo(fmt.Sprintf("\"node_id\": \"%s\", \"node_type\": \"%s\"", testData.node.Host().ID().String(), testData.nodetp.String()))
+	globalInfoRecorder.RecordGlobalInfo(fmt.Sprintf("\"node_id\": \"%s\", \"node_type\": \"%s\", \"directory\": \"%s\"", testData.node.Host().ID().String(), testData.nodetp.String(), runenv.TestOutputsPath))
 
 	var tcpFetch int64
 
@@ -117,8 +117,13 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 			runenv.RecordMessage("Starting run %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 
-			// TODO make sure that 'eavesdropper' connects to all peers
-			dialed, err := testData.dialFn(sctx, transferNode.Host(), testData.nodetp, testData.peerInfos, testvars.MaxConnectionRate)
+			var dialed []peer.AddrInfo
+			if testData.nodetp == utils.Eavesdropper {
+				// TODO if this throws some TCP error when many instances are running, do this in an extra step after the other node types are done dialling
+				dialed, err = dialer.DialAllPeers(sctx, transferNode.Host(), testData.peerInfos)
+			} else {
+				dialed, err = testData.dialFn(sctx, transferNode.Host(), testData.nodetp, testData.peerInfos, testvars.MaxConnectionRate)
+			}
 			if err != nil {
 				return err
 			}
@@ -143,7 +148,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 						// Note: seq starts from 1 (not 0)
 						startDelay := time.Duration(testData.seq-1) * testvars.RequestStagger
 
-						globalInfoRecorder.RecordGlobalInfo(fmt.Sprintf("\"looking_for\": \"%s\"", rootCid.String()))
+						globalInfoRecorder.RecordGlobalInfo(fmt.Sprintf("\"run\": \"%d\", \"peer\": \"%s\", \"looking_for\": \"%s\"", runNum, testData.node.Host().ID().String(), rootCid.String()))
 						runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 						runenv.RecordMessage("Leech fetching data after %s delay", startDelay)
 						start := time.Now()
