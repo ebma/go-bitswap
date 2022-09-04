@@ -15,9 +15,9 @@ id = "nodes"
 instances = { count = 30 }
 
 [groups.build]
-#dependencies = [
-#    { module = "github.com/ipfs/go-bitswap", target = "github.com/adlrocha/go-bitswap", version = "39aeae7a7b188abfc659d49c12e27059e1e7b8ee" }
-#]
+dependencies = [
+    { module = "github.com/ipfs/go-bitswap", target = "github.com/ipfs/go-bitswap", version = "1d1c6bfed305c2075850ab11685485d75f29394f" }
+]
 
 [groups.run]
 [groups.run.test_params]
@@ -27,7 +27,7 @@ run_timeout_secs = "900"
 timeout_secs = "2000"
 run_count = "3"
 leech_count = "15"
-passive_count = "13"
+seed_count = "3"
 max_connection_rate = "100"
 # input_data = "random"
 # file_size = "10000000,30000000,50000000"

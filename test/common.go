@@ -81,8 +81,8 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	if runenv.IsParamSet("leech_count") {
 		tv.LeechCount = runenv.IntParam("leech_count")
 	}
-	if runenv.IsParamSet("passive_count") {
-		tv.PassiveCount = runenv.IntParam("passive_count")
+	if runenv.IsParamSet("seed_count") {
+		tv.PassiveCount = runenv.IntParam("seed_count")
 	}
 	if runenv.IsParamSet("request_stagger") {
 		tv.RequestStagger = time.Duration(runenv.IntParam("request_stagger")) * time.Millisecond
@@ -448,7 +448,7 @@ func generateAndAdd(ctx context.Context, runenv *runtime.RunEnv, node utils.Node
 
 func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.DefaultClient, addrInfo *peer.AddrInfo, seq int64) (int64, utils.NodeType, int, error) {
 	leechCount := runenv.IntParam("leech_count")
-	passiveCount := runenv.IntParam("passive_count")
+	seedCount := runenv.IntParam("seed_count")
 	eavesdropperCount := runenv.IntParam("eavesdropper_count")
 
 	grpCountOverride := false
@@ -458,14 +458,14 @@ func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.Default
 			leechCount = runenv.IntParam(grpLchLabel)
 			grpCountOverride = true
 		}
-		grpPsvLabel := runenv.TestGroupID + "_passive_count"
-		if runenv.IsParamSet(grpPsvLabel) {
-			passiveCount = runenv.IntParam(grpPsvLabel)
+		grpSeedLabel := runenv.TestGroupID + "_seed_count"
+		if runenv.IsParamSet(grpSeedLabel) {
+			seedCount = runenv.IntParam(grpSeedLabel)
 			grpCountOverride = true
 		}
 		grpEavsLabel := runenv.TestGroupID + "_eavesdropper_count"
 		if runenv.IsParamSet(grpEavsLabel) {
-			eavesdropperCount = runenv.IntParam(grpPsvLabel)
+			eavesdropperCount = runenv.IntParam(grpSeedLabel)
 			grpCountOverride = true
 		}
 	}
@@ -495,11 +495,11 @@ func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.Default
 	case grpseq > int64(leechCount) && grpseq <= int64(leechCount+eavesdropperCount):
 		nodetp = utils.Eavesdropper
 		tpindex = int(grpseq) - 1 - (leechCount + eavesdropperCount)
-	case grpseq > int64(leechCount+passiveCount+eavesdropperCount):
-		nodetp = utils.Seed
-		tpindex = int(grpseq) - 1 - (leechCount + passiveCount + eavesdropperCount)
-	default:
+	case grpseq > int64(leechCount+seedCount+eavesdropperCount):
 		nodetp = utils.Passive
+		tpindex = int(grpseq) - 1 - (leechCount + seedCount + eavesdropperCount)
+	default:
+		nodetp = utils.Seed
 		tpindex = int(grpseq) - 1 - leechCount
 	}
 
@@ -600,7 +600,7 @@ func newMetricsRecorder(runenv *runtime.RunEnv, runNum int, seq int64, grpseq in
 	latencyMS := latency.Milliseconds()
 	instance := runenv.TestInstanceCount
 	leechCount := runenv.IntParam("leech_count")
-	passiveCount := runenv.IntParam("passive_count")
+	passiveCount := runenv.IntParam("seed_count")
 
 	id := fmt.Sprintf("topology:(%d-%d-%d)/transport:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/groupName:%s/groupSeq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d",
 		instance-leechCount-passiveCount, leechCount, passiveCount, transport, maxConnectionRate,

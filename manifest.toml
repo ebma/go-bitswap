@@ -20,19 +20,16 @@ run_image = "scratch"
 enabled = true
 skip_runtime_image = true
 build_base_image = "golang:1.17.8-buster"
-#enable_go_build_cache = true
 
 [builders."docker:go".dockerfile_extensions]
-# Copy local version of Bitswap to the build container.
+# Copy local version of go-bitswap to the build container.
+# More info here https://docs.testground.ai/builder-library/docker-go#customizing-the-build
 pre_mod_download = "COPY /plan/go-bitswap ${PLAN_DIR}/go-bitswap"
-#pre_mod_download = "COPY /plan/go-bitswap/ /plan/ipfs/go-bitswap/"
-
 
 [extra_sources]
-"docker:go" = ["../test-datasets"]
-#"docker:go" = [
-#    "/home/marcel/Documents/Studies/thesis/trickle-bitswap/go-bitswap/testplans/trickle-bitswap/test-datasets"
-#]
+# This doesn't work
+# The test-datasets is just available because it lives in the same directory as the test-plan
+# "docker:go" = ["../test-datasets"]
 
 [builders."exec:go"]
 enabled = true
@@ -60,6 +57,7 @@ count = { type = "int", desc = "number of transfers", default = "10" }
 data_dir = { type = "string", desc = "directory with data is located", default = "/home/marcel/Documents/Studies/thesis/trickle-bitswap/go-bitswap/testplans/trickle-bitswap/test-datasets" } # This works for 'local:exec'
 dialer = { type = "string", desc = "network topology between nodes", default = "default" }
 disk_store = { type = "bool", desc = "Enable Badger Data Store instead of an in-memory store", default = false }
+eavesdropper_count = { type = "int", desc = "number of eavesdropper nodes", unit = "peers", default = 1 }
 enable_dht = { type = "bool", desc = "Enable DHT in IPFS nodes", default = false }
 enable_providing = { type = "bool", desc = "Enable the providing system", default = false }
 enable_tcp = { type = "bool", desc = "Enable TCP comparison", default = false }

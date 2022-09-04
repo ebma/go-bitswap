@@ -16,9 +16,6 @@ instances = { count = 30 }
 
 [groups.build]
 skip_runtime_image = "true"
-#dependencies = [
-#    { module = "github.com/ipfs/go-bitswap", target = "github.com/adlrocha/go-bitswap", version = "c40f2c5613e47bcff700eb154e6c0e0120e2f6d2" }
-#]
 
 [groups.run]
 [groups.run.test_params]
@@ -28,7 +25,7 @@ run_timeout_secs = "900"
 timeout_secs = "2000"
 run_count = "3"
 leech_count = "15"
-passive_count = "13"
+seed_count = "3"
 max_connection_rate = "100"
 # input_data = "random"
 # file_size = "10000000,30000000,50000000"
