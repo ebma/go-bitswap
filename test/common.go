@@ -620,9 +620,18 @@ type messageHistoryRecorder struct {
 }
 
 func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry) {
-	msg.Message.Loggable()
-	msgString := fmt.Sprintf("{ \"run\": \"%s\", \"timestamp\": \"%d\", \"peer\": \"%s\", \"message\": {%s} }", m.id, msg.Timestamp.UnixMicro(), msg.Peer, msg.Message.Loggable())
-	_, err := fmt.Fprintln(m.file, msgString)
+	wantlistString := ""
+	for index, entry := range msg.Message.Wantlist() {
+		if index > 0 {
+			wantlistString = wantlistString + fmt.Sprintf(", \"%s\"", entry.Cid)
+		} else {
+			wantlistString = wantlistString + fmt.Sprintf("\"%s\"", entry.Cid)
+		}
+
+	}
+	msgObjectString := fmt.Sprintf("\"wants\": [%s]", wantlistString)
+	logString := fmt.Sprintf("{ \"run\": \"%s\", \"timestamp\": \"%d\", \"peer\": \"%s\", \"message\": { %s } }", m.id, msg.Timestamp.UnixMicro(), msg.Peer, msgObjectString)
+	_, err := fmt.Fprintln(m.file, logString)
 	if err != nil {
 		m.runenv.RecordMessage("Error writing message history entry: %s", err)
 		return
@@ -647,7 +656,7 @@ type globalInfoRecorder struct {
 }
 
 func (g globalInfoRecorder) RecordGlobalInfo(info string) {
-	msgString := fmt.Sprintf("{ \"id\": \"%s\", \"timestamp\": \"%d\", \"info\": \"%s\" }", g.id, time.Now().UnixMicro(), info)
+	msgString := fmt.Sprintf("{ \"id\": \"%s\", \"timestamp\": \"%d\", \"info\": { %s } },", g.id, time.Now().UnixMicro(), info)
 	_, err := fmt.Fprintln(g.file, msgString)
 	if err != nil {
 		g.runenv.RecordMessage("Error writing global info: %s", err)
@@ -656,7 +665,7 @@ func (g globalInfoRecorder) RecordGlobalInfo(info string) {
 }
 
 func newGlobalInfoRecorder(runenv *runtime.RunEnv, seq int64) utils.GlobalInfoRecorder {
-	file, err := os.OpenFile(runenv.TestOutputsPath+"/../globalInfo.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	file, err := os.OpenFile(runenv.TestOutputsPath+"/../globalInfo.json", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {
 		runenv.RecordMessage("Error creating global info file: %s", err)
 		return nil

@@ -48,7 +48,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 	globalInfoRecorder := newGlobalInfoRecorder(runenv, testData.seq)
 
-	globalInfoRecorder.RecordGlobalInfo(fmt.Sprintf("node_type=%s", testData.nodetp.String()))
+	globalInfoRecorder.RecordGlobalInfo(fmt.Sprintf("\"node_id\": \"%s\", \"node_type\": \"%s\"", testData.node.Host().ID().String(), testData.nodetp.String()))
 
 	var tcpFetch int64
 
@@ -143,7 +143,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 						// Note: seq starts from 1 (not 0)
 						startDelay := time.Duration(testData.seq-1) * testvars.RequestStagger
 
-						globalInfoRecorder.RecordGlobalInfo(fmt.Sprintf("looking_for=%s", rootCid.String()))
+						globalInfoRecorder.RecordGlobalInfo(fmt.Sprintf("\"looking_for\": \"%s\"", rootCid.String()))
 						runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 						runenv.RecordMessage("Leech fetching data after %s delay", startDelay)
 						start := time.Now()
