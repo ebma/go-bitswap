@@ -420,10 +420,10 @@ func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, runNum int, transport
 	return t.node.EmitMetrics(recorder)
 }
 
-func (t *NodeTestData) emitMessageHistory(runenv *runtime.RunEnv, runNum int) error {
-	recorder := newMessageHistoryRecorder(runenv, runNum)
+func (t *NodeTestData) emitMessageHistory(runenv *runtime.RunEnv, id string, runNum int) error {
+	recorder := newMessageHistoryRecorder(runenv, id)
 
-	return t.node.EmitMessageHistory(recorder)
+	return t.node.EmitMessageHistory(recorder, runNum)
 }
 
 func generateAndAdd(ctx context.Context, runenv *runtime.RunEnv, node utils.Node, f utils.TestFile) (*cid.Cid, error) {
@@ -619,7 +619,7 @@ type messageHistoryRecorder struct {
 	id     string
 }
 
-func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry) {
+func (m messageHistoryRecorder) RecordMessageHistoryEntry(runNum int, msg bitswap.MessageHistoryEntry) {
 	// don't log non-want-have messages
 	if len(msg.Message.Wantlist()) == 0 {
 		return
@@ -634,7 +634,7 @@ func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHis
 
 	}
 	msgObjectString := fmt.Sprintf("\"wants\": [%s]", wantlistString)
-	logString := fmt.Sprintf("{ \"run\": \"%s\", \"timestamp\": \"%d\", \"peer\": \"%s\", \"message\": { %s } }", m.id, msg.Timestamp.UnixMicro(), msg.Peer, msgObjectString)
+	logString := fmt.Sprintf("{ \"run\": \"%d\", \"receiver\": \"%s\", \"timestamp\": \"%d\", \"peer\": \"%s\", \"message\": { %s } }", runNum, m.id, msg.Timestamp.UnixMicro(), msg.Peer, msgObjectString)
 	_, err := fmt.Fprintln(m.file, logString)
 	if err != nil {
 		m.runenv.RecordMessage("Error writing message history entry: %s", err)
@@ -642,14 +642,14 @@ func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHis
 	}
 }
 
-func newMessageHistoryRecorder(runenv *runtime.RunEnv, runNum int) utils.MessageHistoryRecorder {
+func newMessageHistoryRecorder(runenv *runtime.RunEnv, hostID string) utils.MessageHistoryRecorder {
 	file, err := os.OpenFile(runenv.TestOutputsPath+"/messageHistory.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {
 		runenv.RecordMessage("Error creating message history file: %s", err)
 		return nil
 	}
-	id := fmt.Sprintf("%d", runNum)
-	return &messageHistoryRecorder{runenv, file, id}
+	//id := fmt.Sprintf("%d", runNum)
+	return &messageHistoryRecorder{runenv, file, hostID}
 
 }
 
@@ -669,7 +669,8 @@ func (g globalInfoRecorder) RecordGlobalInfo(infoType string, info string) {
 }
 
 func newGlobalInfoRecorder(runenv *runtime.RunEnv, seq int64) utils.GlobalInfoRecorder {
-	file, err := os.OpenFile(runenv.TestOutputsPath+"/../globalInfo.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	// TODO change this so that the globalInfo is written to a file in the test outputs directory and then collected for each node and combined
+	file, err := os.OpenFile(runenv.TestOutputsPath+"/globalInfo.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {
 		runenv.RecordMessage("Error creating global info file: %s", err)
 		return nil

@@ -48,7 +48,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 	globalInfoRecorder := newGlobalInfoRecorder(runenv, testData.seq)
 
-	globalInfoRecorder.RecordGlobalInfo("node_info", fmt.Sprintf("\"node_id\": \"%s\", \"node_type\": \"%s\", \"directory\": \"%s\"", testData.node.Host().ID().String(), testData.nodetp.String(), runenv.TestOutputsPath))
+	globalInfoRecorder.RecordGlobalInfo("node_info", fmt.Sprintf("\"node_id\": \"%s\", \"node_type\": \"%s\"", testData.node.Host().ID().String(), testData.nodetp.String()))
 
 	var tcpFetch int64
 
@@ -193,7 +193,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			if err != nil {
 				return err
 			}
-			err = testData.emitMessageHistory(runenv, runNum)
+			err = testData.emitMessageHistory(runenv, testData.node.Host().ID().String(), runNum)
 			if err != nil {
 				return err
 			}

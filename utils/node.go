@@ -25,7 +25,7 @@ type Node interface {
 	Host() host.Host
 	DAGService() ipld.DAGService
 	EmitKeepAlive(recorder MessageRecorder) error
-	EmitMessageHistory(recorder MessageHistoryRecorder) error
+	EmitMessageHistory(recorder MessageHistoryRecorder, runNum int) error
 }
 
 type MetricsRecorder interface {
@@ -41,5 +41,5 @@ type GlobalInfoRecorder interface {
 }
 
 type MessageHistoryRecorder interface {
-	RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry)
+	RecordMessageHistoryEntry(runNum int, msg bitswap.MessageHistoryEntry)
 }

@@ -20,14 +20,28 @@ def parse_args():
     return parser.parse_args()
 
 
-def find_global_info_file(results_dir):
-    print("Looking for global info file in {}".format(results_dir))
+def aggregate_global_info(results_dir):
+    aggregated_items = []
     for subdir, _, files in os.walk(results_dir):
         for filename in files:
             filepath = subdir + os.sep + filename
             if filepath.split("/")[-1] == "globalInfo.out":
-                return filepath
-    raise Exception("Could not find globalInfo.out file")
+                result_file = open(filepath, 'r')
+                for l in result_file.readlines():
+                    aggregated_items.append(process_info_line(l))
+    return aggregated_items
+
+
+def aggregate_message_histories(results_dir):
+    aggregated_items = []
+    for subdir, _, files in os.walk(results_dir):
+        for filename in files:
+            filepath = subdir + os.sep + filename
+            if filepath.split("/")[-1] == "messageHistory.out":
+                result_file = open(filepath, 'r')
+                for l in result_file.readlines():
+                    aggregated_items.append(process_message_line(l))
+    return aggregated_items
 
 
 def process_info_line(l):
@@ -65,29 +79,18 @@ if __name__ == "__main__":
     elif args.rel_dir:
         results_dir = dir_path + '/' + args.rel_dir
 
-    info_file = find_global_info_file(results_dir)
-    if args.source:
-        info_file = args.source
-
-    info_items = []
-    with open(info_file, 'r') as f:
-        for l in f.readlines():
-            info_items.append(process_info_line(l))
-
+    info_items = aggregate_global_info(results_dir)
     node_info_items = [item for item in info_items if item['type'] == 'node_info']
     leech_target_items = [item for item in info_items if item['type'] == 'leech_target']
 
+    message_items = aggregate_message_histories(results_dir)
+
     eavesdropper_nodes = [item['value'] for item in node_info_items if item['value']['node_type'] == 'Eavesdropper']
+    eavesdropper_node_ids = [node['node_id'] for node in eavesdropper_nodes]
+    # message history of the eavesdropper nodes
+    eavesdropper_message_items = [item for item in message_items if item['receiver'] in eavesdropper_node_ids]
 
-    # message history files of the eavesdropper nodes
-    message_history_files = [str(node['directory']) + '/messageHistory.out' for node in eavesdropper_nodes]
-    message_items = []
-    for message_history_file in message_history_files:
-        with open(message_history_file, 'r') as f:
-            for l in f.readlines():
-                message_items.append(process_message_line(l))
-
-    estimator = FirstTimestampEstimator(message_items)
+    estimator = FirstTimestampEstimator(eavesdropper_message_items)
 
     correct_predictions = 0
     for leech_target in leech_target_items:
@@ -101,6 +104,8 @@ if __name__ == "__main__":
         if prediction == target:
             print("Prediction correct for run", run, "looking for", cid, ":", prediction)
             correct_predictions += 1
+        else:
+            print("Prediction incorrect for run", run, "looking for", cid, ":", prediction, "instead of", target)
 
     prediction_rate = correct_predictions / len(leech_target_items)
     print("Prediction rate:", prediction_rate)
