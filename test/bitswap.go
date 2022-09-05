@@ -117,20 +117,32 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 			runenv.RecordMessage("Starting run %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 
-			var dialed []peer.AddrInfo
-			if testData.nodetp == utils.Eavesdropper {
-				// TODO if this throws some TCP error when many instances are running, do this in an extra step after the other node types are done dialling
-				dialed, err = dialer.DialAllPeers(sctx, transferNode.Host(), testData.peerInfos)
-			} else {
-				dialed, err = testData.dialFn(sctx, transferNode.Host(), testData.nodetp, testData.peerInfos, testvars.MaxConnectionRate)
+			//var dialed []peer.AddrInfo
+			if testData.nodetp != utils.Eavesdropper {
+				dialed, err := testData.dialFn(sctx, transferNode.Host(), testData.nodetp, testData.peerInfos, testvars.MaxConnectionRate)
+				runenv.RecordMessage("%s Dialed %d other nodes", testData.nodetp.String(), len(dialed))
+				if err != nil {
+					return err
+				}
 			}
+
+			// Wait for normal nodes to be connected
+			err = signalAndWaitForAll("connect-normal-complete-" + runID)
 			if err != nil {
 				return err
 			}
-			runenv.RecordMessage("%s Dialed %d other nodes", testData.nodetp.String(), len(dialed))
 
-			// Wait for all nodes to be connected
-			err = signalAndWaitForAll("connect-complete-" + runID)
+			if testData.nodetp == utils.Eavesdropper {
+				// Let eavesdropper nodes dial all peers
+				// we do this separately from the other call because of a TCP error when many instances are running
+				dialed, err := dialer.DialAllPeers(sctx, transferNode.Host(), testData.peerInfos)
+				runenv.RecordMessage("%s Dialed %d other nodes", testData.nodetp.String(), len(dialed))
+				if err != nil {
+					return err
+				}
+			}
+			// Wait for eavesdropper nodes to be connected
+			err = signalAndWaitForAll("connect-eavesdropper-complete-" + runID)
 			if err != nil {
 				return err
 			}
