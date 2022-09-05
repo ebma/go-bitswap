@@ -48,7 +48,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 	globalInfoRecorder := newGlobalInfoRecorder(runenv, testData.seq)
 
-	globalInfoRecorder.RecordGlobalInfo("node_info", fmt.Sprintf("\"node_id\": \"%s\", \"node_type\": \"%s\"", testData.node.Host().ID().String(), testData.nodetp.String()))
+	globalInfoRecorder.RecordGlobalInfo("NodeInfo", fmt.Sprintf("\"nodeId\": \"%s\", \"nodeType\": \"%s\"", testData.node.Host().ID().String(), testData.nodetp.String()))
 
 	var tcpFetch int64
 
@@ -151,8 +151,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			/// --- Start test
 			var timeToFetch time.Duration
 			if testData.nodetp == utils.Leech {
-				globalInfoRecorder.RecordGlobalInfo("leech_target", fmt.Sprintf("\"run\": \"%d\", \"permutation_index\": \"%d\","+
-					"\"peer\": \"%s\", \"looking_for\": \"%s\"", runNum, pIndex, testData.node.Host().ID().String(), rootCid.String()))
+				globalInfoRecorder.RecordGlobalInfo("LeechTarget", fmt.Sprintf("\"run\": \"%d\", \"permutationIndex\": \"%d\","+
+					"\"peer\": \"%s\", \"lookingFor\": \"%s\"", runNum, pIndex, testData.node.Host().ID().String(), rootCid.String()))
 				runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 				start := time.Now()
 				// TODO: Here we may be able to define requesting pattern. ipfs.DAG()

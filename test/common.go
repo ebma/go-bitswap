@@ -516,7 +516,6 @@ func getNodeSetSeq(ctx context.Context, client *sync.DefaultClient, addrInfo *pe
 }
 
 func fractionalDAG(ctx context.Context, runenv *runtime.RunEnv, seedIndex int, c cid.Cid, dserv ipld.DAGService) error {
-
 	//TODO: Explore this seed_fraction parameter.
 	if !runenv.IsParamSet("seed_fraction") {
 		return nil

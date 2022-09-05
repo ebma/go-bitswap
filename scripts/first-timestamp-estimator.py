@@ -86,13 +86,13 @@ if __name__ == "__main__":
         results_dir = dir_path + '/' + args.rel_dir
 
     info_items = aggregate_global_info(results_dir)
-    node_info_items = [item for item in info_items if item['type'] == 'node_info']
-    leech_target_items = [item for item in info_items if item['type'] == 'leech_target']
+    node_info_items = [item for item in info_items if item['type'] == 'NodeInfo']
+    leech_target_items = [item for item in info_items if item['type'] == 'LeechTarget']
 
     message_items = aggregate_message_histories(results_dir)
 
-    eavesdropper_nodes = [item['value'] for item in node_info_items if item['value']['node_type'] == 'Eavesdropper']
-    eavesdropper_node_ids = [node['node_id'] for node in eavesdropper_nodes]
+    eavesdropper_nodes = [item['value'] for item in node_info_items if item['value']['nodeType'] == 'Eavesdropper']
+    eavesdropper_node_ids = [node['nodeId'] for node in eavesdropper_nodes]
     # message history of the eavesdropper nodes
     eavesdropper_message_items = [item for item in message_items if item['receiver'] in eavesdropper_node_ids]
 
@@ -100,9 +100,9 @@ if __name__ == "__main__":
 
     correct_predictions = 0
     for leech_target in leech_target_items:
-        permutation = leech_target['value']['permutation_index']
+        permutation = leech_target['value']['permutationIndex']
         run = leech_target['value']['run']
-        cid = leech_target['value']['looking_for']
+        cid = leech_target['value']['lookingFor']
         # the prediction estimated by the estimator
         prediction = estimator.predict(permutation, run, cid)
         # the leech that should be identified by the estimator
