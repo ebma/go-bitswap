@@ -136,50 +136,32 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			}
 
 			/// --- Start test
-
 			var timeToFetch time.Duration
 			if testData.nodetp == utils.Leech {
-				// For each wave
-				for waveNum := 0; waveNum < testvars.NumWaves; waveNum++ {
-					// Only leechers for that wave entitled to leech.
-					if (testData.tpindex % testvars.NumWaves) == waveNum {
-						runenv.RecordMessage("Starting wave %d", waveNum)
-						// Stagger the start of the first request from each leech
-						// Note: seq starts from 1 (not 0)
-						startDelay := time.Duration(testData.seq-1) * testvars.RequestStagger
-
-						globalInfoRecorder.RecordGlobalInfo("leech_target", fmt.Sprintf("\"run\": \"%d\", \"peer\": \"%s\", \"looking_for\": \"%s\"", runNum, testData.node.Host().ID().String(), rootCid.String()))
-						runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
-						runenv.RecordMessage("Leech fetching data after %s delay", startDelay)
-						start := time.Now()
-						// TODO: Here we may be able to define requesting pattern. ipfs.DAG()
-						// Right now using a path.
-						ctxFetch, cancel := context.WithTimeout(sctx, testvars.RunTimeout/2)
-						// Pin Add also traverse the whole DAG
-						// err := ipfsNode.API.Pin().Add(ctxFetch, fPath)
-						rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, testData.peerInfos)
-						if err != nil {
-							runenv.RecordMessage("Error fetching data: %v", err)
-							leechFails++
-						} else {
-							runenv.RecordMessage("Fetch complete, proceeding")
-							err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(testData.tpindex)+time.Now().String())
-							if err != nil {
-								cancel()
-								return err
-							}
-							timeToFetch = time.Since(start)
-							s, _ := rcvFile.Size()
-							runenv.RecordMessage("Leech fetch of %d complete (%d ns) for wave %d", s, timeToFetch, waveNum)
-						}
+				globalInfoRecorder.RecordGlobalInfo("leech_target", fmt.Sprintf("\"run\": \"%d\", \"peer\": \"%s\", \"looking_for\": \"%s\"", runNum, testData.node.Host().ID().String(), rootCid.String()))
+				runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
+				start := time.Now()
+				// TODO: Here we may be able to define requesting pattern. ipfs.DAG()
+				// Right now using a path.
+				ctxFetch, cancel := context.WithTimeout(sctx, testvars.RunTimeout/2)
+				// Pin Add also traverse the whole DAG
+				// err := ipfsNode.API.Pin().Add(ctxFetch, fPath)
+				rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, testData.peerInfos)
+				if err != nil {
+					runenv.RecordMessage("Error fetching data: %v", err)
+					leechFails++
+				} else {
+					runenv.RecordMessage("Fetch complete, proceeding")
+					err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(testData.tpindex)+time.Now().String())
+					if err != nil {
 						cancel()
+						return err
 					}
-					if waveNum < testvars.NumWaves-1 {
-						runenv.RecordMessage("Waiting 5 seconds between waves for wave %d", waveNum)
-						time.Sleep(5 * time.Second)
-					}
-					_, err = testData.client.SignalAndWait(sctx, sync.State(fmt.Sprintf("leech-wave-%d", waveNum)), testvars.LeechCount)
+					timeToFetch = time.Since(start)
+					s, _ := rcvFile.Size()
+					runenv.RecordMessage("Leech fetch of %d complete (%d ns)", s, timeToFetch)
 				}
+				cancel()
 			}
 
 			// Wait for all leeches to have downloaded the data from seeds
