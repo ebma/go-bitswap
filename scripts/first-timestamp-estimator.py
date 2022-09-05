@@ -52,7 +52,12 @@ def process_info_line(l):
 
 def process_message_line(l):
     l = json.loads(l)
+    name = l['name'].split("/")
     item = l
+    for attr in name:
+        attr = attr.split(":")
+        item[attr[0]] = attr[1]
+    item['ts'] = l['ts']
     return item
 
 
@@ -60,13 +65,14 @@ class FirstTimestampEstimator:
     def __init__(self, messages):
         self.messages = messages
 
-    def predict(self, run_num, cid):
-        # filter messages related to target run
-        run_messages = [m for m in self.messages if m['run'] == run_num]
+    def predict(self, permutation_index, run_num, cid):
+        # filter messages related to target permutation and run
+        run_messages = [m for m in self.messages if
+                        m['permutationIndex'] == str(permutation_index) and m['run'] == str(run_num)]
         # filter messages related to target cid
         cid_messages = [m for m in run_messages if cid in m['message']['wants']]
-        cid_messages.sort(key=lambda x: x['timestamp'])
-        prediction = cid_messages[0]['peer']
+        cid_messages.sort(key=lambda x: x['ts'])
+        prediction = cid_messages[0]['sender']
         return prediction
 
 
@@ -94,15 +100,16 @@ if __name__ == "__main__":
 
     correct_predictions = 0
     for leech_target in leech_target_items:
+        permutation = leech_target['value']['permutation_index']
         run = leech_target['value']['run']
         cid = leech_target['value']['looking_for']
         # the prediction estimated by the estimator
-        prediction = estimator.predict(run, cid)
+        prediction = estimator.predict(permutation, run, cid)
         # the leech that should be identified by the estimator
         target = leech_target['value']['peer']
 
         if prediction == target:
-            print("Prediction correct for run", run, "looking for", cid, ":", prediction)
+            print("Prediction correct for run", run, "of permutation", permutation, "looking for", cid, ":", prediction)
             correct_predictions += 1
         else:
             print("Prediction incorrect for run", run, "looking for", cid, ":", prediction, "instead of", target)

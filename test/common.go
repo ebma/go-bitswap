@@ -408,9 +408,9 @@ func (t *NodeTestData) close() error {
 
 func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, runNum int, transport string,
 	permutation TestPermutation, timeToFetch time.Duration, tcpFetch int64, leechFails int64,
-	maxConnectionRate int) error {
+	maxConnectionRate int, pIndex int) error {
 
-	recorder := newMetricsRecorder(runenv, runNum, t.seq, t.grpseq, transport, permutation.Latency, permutation.Bandwidth, int(permutation.File.Size()), t.nodetp, t.tpindex, maxConnectionRate)
+	recorder := newMetricsRecorder(runenv, runNum, t.seq, t.grpseq, transport, permutation.Latency, permutation.Bandwidth, int(permutation.File.Size()), t.nodetp, t.tpindex, maxConnectionRate, pIndex)
 	if t.nodetp == utils.Leech {
 		recorder.Record("time_to_fetch", float64(timeToFetch))
 		recorder.Record("leech_fails", float64(leechFails))
@@ -420,10 +420,11 @@ func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, runNum int, transport
 	return t.node.EmitMetrics(recorder)
 }
 
-func (t *NodeTestData) emitMessageHistory(runenv *runtime.RunEnv, id string, runNum int) error {
-	recorder := newMessageHistoryRecorder(runenv, id)
+func (t *NodeTestData) emitMessageHistory(runenv *runtime.RunEnv, runNum int, transport string,
+	permutation TestPermutation, maxConnectionRate int, pIndex int, host string) error {
+	recorder := newMessageHistoryRecorder(runenv, runNum, t.seq, t.grpseq, transport, permutation.Latency, permutation.Bandwidth, int(permutation.File.Size()), t.nodetp, t.tpindex, maxConnectionRate, pIndex, host)
 
-	return t.node.EmitMessageHistory(recorder, runNum)
+	return t.node.EmitMessageHistory(recorder)
 }
 
 func generateAndAdd(ctx context.Context, runenv *runtime.RunEnv, node utils.Node, f utils.TestFile) (*cid.Cid, error) {
@@ -588,6 +589,22 @@ func getTCPAddrTopic(id int, run int) *sync.Topic {
 	return sync.NewTopic(fmt.Sprintf("tcp-addr-%d-%d", id, run), "")
 }
 
+func createRecorderIDFromParams(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
+	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
+	maxConnectionRate int, pIndex int) string {
+
+	latencyMS := latency.Milliseconds()
+	instance := runenv.TestInstanceCount
+	leechCount := runenv.IntParam("leech_count")
+	passiveCount := runenv.IntParam("seed_count")
+	eavesdropperCount := runenv.IntParam("eavesdropper_count")
+
+	id := fmt.Sprintf("topology:(%d-%d-%d-%d)/transport:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/groupName:%s/groupSeq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d",
+		instance-leechCount-passiveCount-eavesdropperCount, leechCount, passiveCount, eavesdropperCount, transport, maxConnectionRate,
+		latencyMS, bandwidthMB, runNum, seq, runenv.TestGroupID, grpseq, fileSize, nodetp, tpindex, pIndex)
+	return id
+}
+
 type metricsRecorder struct {
 	runenv *runtime.RunEnv
 	id     string
@@ -595,16 +612,9 @@ type metricsRecorder struct {
 
 func newMetricsRecorder(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
 	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
-	maxConnectionRate int) utils.MetricsRecorder {
+	maxConnectionRate int, pIndex int) utils.MetricsRecorder {
 
-	latencyMS := latency.Milliseconds()
-	instance := runenv.TestInstanceCount
-	leechCount := runenv.IntParam("leech_count")
-	passiveCount := runenv.IntParam("seed_count")
-
-	id := fmt.Sprintf("topology:(%d-%d-%d)/transport:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/groupName:%s/groupSeq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d",
-		instance-leechCount-passiveCount, leechCount, passiveCount, transport, maxConnectionRate,
-		latencyMS, bandwidthMB, runNum, seq, runenv.TestGroupID, grpseq, fileSize, nodetp, tpindex)
+	id := createRecorderIDFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex)
 
 	return &metricsRecorder{runenv, id}
 }
@@ -617,9 +627,10 @@ type messageHistoryRecorder struct {
 	runenv *runtime.RunEnv
 	file   *os.File
 	id     string
+	host   string
 }
 
-func (m messageHistoryRecorder) RecordMessageHistoryEntry(runNum int, msg bitswap.MessageHistoryEntry) {
+func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry) {
 	// don't log non-want-have messages
 	if len(msg.Message.Wantlist()) == 0 {
 		return
@@ -634,7 +645,7 @@ func (m messageHistoryRecorder) RecordMessageHistoryEntry(runNum int, msg bitswa
 
 	}
 	msgObjectString := fmt.Sprintf("\"wants\": [%s]", wantlistString)
-	logString := fmt.Sprintf("{ \"run\": \"%d\", \"receiver\": \"%s\", \"timestamp\": \"%d\", \"peer\": \"%s\", \"message\": { %s } }", runNum, m.id, msg.Timestamp.UnixMicro(), msg.Peer, msgObjectString)
+	logString := fmt.Sprintf("{ \"name\": \"%s\", \"receiver\": \"%s\", \"ts\": \"%d\", \"sender\": \"%s\", \"message\": { %s } }", m.id, m.host, msg.Timestamp.UnixNano(), msg.Peer, msgObjectString)
 	_, err := fmt.Fprintln(m.file, logString)
 	if err != nil {
 		m.runenv.RecordMessage("Error writing message history entry: %s", err)
@@ -642,14 +653,18 @@ func (m messageHistoryRecorder) RecordMessageHistoryEntry(runNum int, msg bitswa
 	}
 }
 
-func newMessageHistoryRecorder(runenv *runtime.RunEnv, hostID string) utils.MessageHistoryRecorder {
+func newMessageHistoryRecorder(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
+	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
+	maxConnectionRate int, pIndex int, host string) utils.MessageHistoryRecorder {
+
+	id := createRecorderIDFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex)
+
 	file, err := os.OpenFile(runenv.TestOutputsPath+"/messageHistory.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {
 		runenv.RecordMessage("Error creating message history file: %s", err)
 		return nil
 	}
-	//id := fmt.Sprintf("%d", runNum)
-	return &messageHistoryRecorder{runenv, file, hostID}
+	return &messageHistoryRecorder{runenv, file, id, host}
 
 }
 
@@ -669,7 +684,6 @@ func (g globalInfoRecorder) RecordGlobalInfo(infoType string, info string) {
 }
 
 func newGlobalInfoRecorder(runenv *runtime.RunEnv, seq int64) utils.GlobalInfoRecorder {
-	// TODO change this so that the globalInfo is written to a file in the test outputs directory and then collected for each node and combined
 	file, err := os.OpenFile(runenv.TestOutputsPath+"/globalInfo.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {
 		runenv.RecordMessage("Error creating global info file: %s", err)

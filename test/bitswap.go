@@ -54,6 +54,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 	// For each test permutation found in the test
 	for pIndex, testParams := range testvars.Permutations {
+		runenv.RecordMessage("Running test permutation %d", pIndex)
 		// Set up network (with traffic shaping)
 		if err := utils.SetupNetwork(ctx, runenv, testData.nwClient, testData.nodetp, testData.tpindex, testParams.Latency,
 			testParams.Bandwidth, testParams.JitterPct); err != nil {
@@ -150,7 +151,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			/// --- Start test
 			var timeToFetch time.Duration
 			if testData.nodetp == utils.Leech {
-				globalInfoRecorder.RecordGlobalInfo("leech_target", fmt.Sprintf("\"run\": \"%d\", \"peer\": \"%s\", \"looking_for\": \"%s\"", runNum, testData.node.Host().ID().String(), rootCid.String()))
+				globalInfoRecorder.RecordGlobalInfo("leech_target", fmt.Sprintf("\"run\": \"%d\", \"permutation_index\": \"%d\","+
+					"\"peer\": \"%s\", \"looking_for\": \"%s\"", runNum, pIndex, testData.node.Host().ID().String(), rootCid.String()))
 				runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 				start := time.Now()
 				// TODO: Here we may be able to define requesting pattern. ipfs.DAG()
@@ -183,11 +185,11 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			}
 
 			/// --- Report stats
-			err = testData.emitMetrics(runenv, runNum, nodeType, testParams, timeToFetch, tcpFetch, leechFails, testvars.MaxConnectionRate)
+			err = testData.emitMetrics(runenv, runNum, nodeType, testParams, timeToFetch, tcpFetch, leechFails, testvars.MaxConnectionRate, pIndex)
 			if err != nil {
 				return err
 			}
-			err = testData.emitMessageHistory(runenv, testData.node.Host().ID().String(), runNum)
+			err = testData.emitMessageHistory(runenv, runNum, nodeType, testParams, testvars.MaxConnectionRate, pIndex, testData.node.Host().ID().String())
 			if err != nil {
 				return err
 			}

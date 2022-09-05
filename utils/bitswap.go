@@ -164,7 +164,7 @@ func (n *BitswapNode) EmitMetrics(recorder MetricsRecorder) error {
 	return err
 }
 
-func (n *BitswapNode) EmitMessageHistory(recorder MessageHistoryRecorder, runNum int) error {
+func (n *BitswapNode) EmitMessageHistory(recorder MessageHistoryRecorder) error {
 	stats, err := n.bitswap.Stat()
 
 	if err != nil {
@@ -172,7 +172,7 @@ func (n *BitswapNode) EmitMessageHistory(recorder MessageHistoryRecorder, runNum
 	}
 
 	for _, msg := range stats.MessageHistory {
-		recorder.RecordMessageHistoryEntry(runNum, msg)
+		recorder.RecordMessageHistoryEntry(msg)
 	}
 
 	return err
