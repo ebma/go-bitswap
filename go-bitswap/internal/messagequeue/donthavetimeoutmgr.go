@@ -16,11 +16,11 @@ const (
 	// or when the peer takes too long to respond.
 	// If the peer doesn't respond to a want-block within the timeout, the
 	// local node assumes that the peer doesn't have the block.
-	dontHaveTimeout = 5 * time.Second
+	dontHaveTimeout = 10 * time.Second
 
 	// maxExpectedWantProcessTime is the maximum amount of time we expect a
 	// peer takes to process a want and initiate sending a response to us
-	maxExpectedWantProcessTime = 2 * time.Second
+	maxExpectedWantProcessTime = 5 * time.Second
 
 	// maxTimeout is the maximum allowed timeout, regardless of latency
 	maxTimeout = dontHaveTimeout + maxExpectedWantProcessTime
@@ -253,7 +253,7 @@ func (dhtm *dontHaveTimeoutMgr) checkForTimeouts() {
 
 	// Fire the timeout event for the expired wants
 	if len(expired) > 0 {
-		go dhtm.fireTimeout(expired)
+		//go dhtm.fireTimeout(expired)
 	}
 
 	if len(dhtm.wantQueue) == 0 {

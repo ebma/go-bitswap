@@ -5,6 +5,7 @@ import (
 	"fmt"
 	rs "github.com/ipfs/go-bitswap/internal/relaysession"
 	"math/rand"
+	"sync"
 	"time"
 
 	cid "github.com/ipfs/go-cid"
@@ -18,6 +19,10 @@ type Gauge interface {
 	Inc()
 	Dec()
 }
+
+const (
+	defaultTricklingDelay = 200 * time.Millisecond
+)
 
 // peerWantManager keeps track of which want-haves and want-blocks have been
 // sent to each peer, so that the PeerManager doesn't send duplicates.
@@ -37,6 +42,10 @@ type peerWantManager struct {
 	wantGauge Gauge
 	// Keeps track of the number of active want-blocks
 	wantBlockGauge Gauge
+
+	// tricklingLock is used to delay the execution of the trickling function
+	tricklingLock  sync.Mutex
+	tricklingDelay time.Duration
 }
 
 type peerWant struct {
@@ -54,6 +63,8 @@ func newPeerWantManager(wantGauge Gauge, wantBlockGauge Gauge) *peerWantManager 
 		wantPeers:      make(map[cid.Cid]map[peer.ID]struct{}),
 		wantGauge:      wantGauge,
 		wantBlockGauge: wantBlockGauge,
+		tricklingLock:  sync.Mutex{},
+		tricklingDelay: defaultTricklingDelay,
 	}
 }
 
@@ -153,9 +164,18 @@ func (pwm *peerWantManager) broadcastWantHaves(wantHaves []cid.Cid) {
 		}
 
 		if len(peerUnsent) > 0 {
-			pws.peerQueue.AddBroadcastWantHaves(peerUnsent)
+			pwm.trickleExecution(func() {
+				pws.peerQueue.AddBroadcastWantHaves(peerUnsent)
+			})
 		}
 	}
+}
+
+func (pwm *peerWantManager) trickleExecution(trickledFunction func()) {
+	pwm.tricklingLock.Lock()
+	trickledFunction()
+	time.Sleep(pwm.tricklingDelay)
+	pwm.tricklingLock.Unlock()
 }
 
 // sendWants only sends the peer the want-blocks and want-haves that have not
@@ -412,7 +432,9 @@ func (pwm *peerWantManager) broadcastRelayWants(wantHaves []cid.Cid, registry *r
 
 		if len(peerUnsent) > 0 {
 			for _, c := range peerUnsent {
-				pws.peerQueue.AddBroadcastWantHaves([]cid.Cid{c})
+				pwm.trickleExecution(func() {
+					pws.peerQueue.AddBroadcastWantHaves([]cid.Cid{c})
+				})
 			}
 		}
 	}
