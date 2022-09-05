@@ -154,7 +154,8 @@ func (pwm *peerWantManager) broadcastWantHaves(wantHaves []cid.Cid) {
 	bcstWantsBuffer := make([]cid.Cid, 0, len(unsent))
 
 	// Send broadcast wants to each peer
-	for _, pws := range pwm.peerWants {
+	shuffledPwsArr := getShuffledPeerWants(pwm.peerWants)
+	for _, pws := range shuffledPwsArr {
 		peerUnsent := bcstWantsBuffer[:0]
 		for _, c := range unsent {
 			// If we've already sent a want to this peer, skip them.
@@ -360,6 +361,20 @@ func (pwm *peerWantManager) sendCancels(cancelKs []cid.Cid) {
 	}
 }
 
+// Shuffles the peerWants array to randomize the order in which peers are send messages to
+func getShuffledPeerWants(peerWants map[peer.ID]*peerWant) []*peerWant {
+	var pwsArr []*peerWant
+	for _, pws := range peerWants {
+		pwsArr = append(pwsArr, pws)
+	}
+	permutation := rand.Perm(len(pwsArr))
+	shuffledPwsArr := make([]*peerWant, len(pwsArr))
+	for i, v := range permutation {
+		shuffledPwsArr[v] = pwsArr[i]
+	}
+	return shuffledPwsArr
+}
+
 // Selected a random suset of peers according to the degree of the relay session.
 func (pwm *peerWantManager) selectRandomSubset(registry *rs.RelayRegistry) map[peer.ID]*peerWant {
 	filteredPeers := make(map[peer.ID]*peerWant)
@@ -420,8 +435,9 @@ func (pwm *peerWantManager) broadcastRelayWants(wantHaves []cid.Cid, registry *r
 	// smarter way.
 	filteredPeers := pwm.selectRandomSubset(registry)
 
+	shuffledPeers := getShuffledPeerWants(filteredPeers)
 	// Send broadcast wants to each peer
-	for _, pws := range filteredPeers {
+	for _, pws := range shuffledPeers {
 		peerUnsent := bcstWantsBuffer[:0]
 		for _, c := range unsent {
 			// If we've already sent a want to this peer, skip them.
