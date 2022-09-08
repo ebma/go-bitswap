@@ -50,3 +50,7 @@ func (bs *Bitswap) Stat() (*Stat, error) {
 
 	return st, nil
 }
+
+func (bs *Bitswap) ClearMessageHistory() {
+	bs.messageHistory = []MessageHistoryEntry{}
+}

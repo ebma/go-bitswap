@@ -118,6 +118,7 @@ func CreateBitswapNode(ctx context.Context, h host.Host, bstore blockstore.Block
 		return nil, err
 	}
 	net := bsnet.NewFromIpfsHost(h, routing)
+	// TODO pass trickling delay parameter
 	bitswap := bs.New(ctx, net, bstore).(*bs.Bitswap)
 	bserv := blockservice.New(bstore, bitswap)
 	dserv := merkledag.NewDAGService(bserv)
@@ -174,6 +175,9 @@ func (n *BitswapNode) EmitMessageHistory(recorder MessageHistoryRecorder) error 
 	for _, msg := range stats.MessageHistory {
 		recorder.RecordMessageHistoryEntry(msg)
 	}
+
+	// Clear message history after recording them to prevent duplicates
+	n.bitswap.ClearMessageHistory()
 
 	return err
 }
