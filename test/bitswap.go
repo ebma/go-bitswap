@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
+	logging "github.com/ipfs/go-log"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils/dialer"
 	"github.com/libp2p/go-libp2p"
@@ -27,6 +28,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 		return err
 	}
 	//logging.SetLogLevel("bitswap", "DEBUG")
+	//logging.SetLogLevel("messagequeue", "DEBUG")
 	//logging.SetLogLevel("*", "DEBUG")
 
 	nodeType := "bitswap"
@@ -38,23 +40,29 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 	if err != nil {
 		return err
 	}
-	testData, err := initializeBitswapNetwork(ctx, runenv, testvars, baseT)
+	// Initialize libp2p host
+	h, err := makeHost(baseT)
+	runenv.RecordMessage("I am %s with addrs: %v", h.ID(), h.Addrs())
+	if err != nil {
+		return err
+	}
 
-	transferNode := testData.node
-	signalAndWaitForAll := testData.signalAndWaitForAll
-
-	// Start still alive process if enabled
-	testData.stillAlive(runenv, testvars)
-
-	globalInfoRecorder := newGlobalInfoRecorder(runenv, testData.seq)
-
-	globalInfoRecorder.RecordGlobalInfo("NodeInfo", fmt.Sprintf("\"nodeId\": \"%s\", \"nodeType\": \"%s\"", testData.node.Host().ID().String(), testData.nodetp.String()))
+	globalInfoRecorder := newGlobalInfoRecorder(runenv, baseT.seq)
+	globalInfoRecorder.RecordGlobalInfo("NodeInfo", fmt.Sprintf("\"nodeId\": \"%s\", \"nodeType\": \"%s\"", h.ID().String(), baseT.nodetp.String()))
 
 	var tcpFetch int64
 
 	// For each test permutation found in the test
 	for pIndex, testParams := range testvars.Permutations {
 		runenv.RecordMessage("Running test permutation %d", pIndex)
+		// Initialize the bitswap node with trickling delay of test permutation
+		tricklingDelay := testParams.TricklingDelay
+		testData, err := initializeBitswapNetwork(ctx, runenv, testvars, baseT, h, tricklingDelay)
+		transferNode := testData.node
+		signalAndWaitForAll := testData.signalAndWaitForAll
+		// Start still alive process if enabled
+		testData.stillAlive(runenv, testvars)
+
 		// Set up network (with traffic shaping)
 		if err := utils.SetupNetwork(ctx, runenv, testData.nwClient, testData.nodetp, testData.tpindex, testParams.Latency,
 			testParams.Bandwidth, testParams.JitterPct); err != nil {
@@ -75,6 +83,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 		case utils.Seed:
 			rootCid, err = testData.addPublishFile(ctx, pIndex, testParams.File, runenv, testvars)
 		case utils.Leech:
+			logging.SetLogLevel("bs:peermgr", "DEBUG")
 			rootCid, err = testData.readFile(ctx, pIndex, runenv, testvars)
 		}
 		if err != nil {
@@ -185,19 +194,15 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			}
 
 			/// --- Report stats
-			err = testData.emitMetrics(runenv, runNum, nodeType, testParams, timeToFetch, tcpFetch, leechFails, testvars.MaxConnectionRate, pIndex)
+			err = testData.emitMetrics(runenv, runNum, nodeType, testParams, timeToFetch, tcpFetch, leechFails, testvars.MaxConnectionRate, pIndex, tricklingDelay)
 			if err != nil {
 				return err
 			}
-			err = testData.emitMessageHistory(runenv, runNum, nodeType, testParams, testvars.MaxConnectionRate, pIndex, testData.node.Host().ID().String())
+			err = testData.emitMessageHistory(runenv, runNum, nodeType, testParams, testvars.MaxConnectionRate, pIndex, tricklingDelay, testData.node.Host().ID().String())
 			if err != nil {
 				return err
 			}
 			runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
-
-			// Sleep a bit to allow the rest of the trickled messages to complete
-			//runenv.RecordMessage("Sleeping for 5 seconds to allow trickle messages to complete")
-			//time.Sleep(5 * time.Second)
 
 			err = testData.cleanupRun(sctx, rootCid, runenv)
 			if err != nil {
@@ -209,9 +214,11 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			return err
 		}
 	}
-	err = testData.close()
-	if err != nil {
-		return err
+	if h != nil {
+		err = h.Close()
+		if err != nil {
+			return err
+		}
 	}
 
 	runenv.RecordMessage("Ending testcase")
@@ -302,13 +309,7 @@ func initializeGeneralNetwork(ctx context.Context, runenv *runtime.RunEnv, testv
 		seq, grpseq, nodetp, tpindex, seedIndex}, nil
 }
 
-func initializeBitswapNetwork(ctx context.Context, runenv *runtime.RunEnv, testvars *TestVars, baseT *TestData) (*NodeTestData, error) {
-	h, err := makeHost(baseT)
-	if err != nil {
-		return nil, err
-	}
-	runenv.RecordMessage("I am %s with addrs: %v", h.ID(), h.Addrs())
-
+func initializeBitswapNetwork(ctx context.Context, runenv *runtime.RunEnv, testvars *TestVars, baseT *TestData, h host.Host, delay time.Duration) (*NodeTestData, error) {
 	// Use the same blockstore on all runs for the seed node
 	bstoreDelay := time.Duration(runenv.IntParam("bstore_delay_ms")) * time.Millisecond
 
@@ -322,7 +323,7 @@ func initializeBitswapNetwork(ctx context.Context, runenv *runtime.RunEnv, testv
 		return nil, err
 	}
 	// Create a new bitswap node from the blockstore
-	bsnode, err := utils.CreateBitswapNode(ctx, h, bstore)
+	bsnode, err := utils.CreateBitswapNode(ctx, h, bstore, delay)
 	if err != nil {
 		return nil, err
 	}

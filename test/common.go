@@ -26,10 +26,11 @@ import (
 )
 
 type TestPermutation struct {
-	File      utils.TestFile
-	Bandwidth int
-	Latency   time.Duration
-	JitterPct int
+	File           utils.TestFile
+	Bandwidth      int
+	Latency        time.Duration
+	TricklingDelay time.Duration
+	JitterPct      int
 }
 
 // TestVars testing variables
@@ -126,6 +127,10 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	if err != nil {
 		return nil, err
 	}
+	tricklingDelays, err := utils.ParseIntArray(runenv.StringParam("trickling_delay_ms"))
+	if err != nil {
+		return nil, err
+	}
 	jitters, err := utils.ParseIntArray(runenv.StringParam("jitter_pct"))
 	if err != nil {
 		return nil, err
@@ -141,7 +146,9 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 			for _, l := range latencies {
 				latency := time.Duration(l) * time.Millisecond
 				for _, j := range jitters {
-					tv.Permutations = append(tv.Permutations, TestPermutation{File: f, Bandwidth: int(b), Latency: latency, JitterPct: int(j)})
+					for _, td := range tricklingDelays {
+						tv.Permutations = append(tv.Permutations, TestPermutation{File: f, Bandwidth: int(b), Latency: latency, JitterPct: int(j), TricklingDelay: time.Duration(td) * time.Millisecond})
+					}
 				}
 			}
 		}
@@ -408,9 +415,9 @@ func (t *NodeTestData) close() error {
 
 func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, runNum int, transport string,
 	permutation TestPermutation, timeToFetch time.Duration, tcpFetch int64, leechFails int64,
-	maxConnectionRate int, pIndex int) error {
+	maxConnectionRate int, pIndex int, tricklingDelay time.Duration) error {
 
-	recorder := newMetricsRecorder(runenv, runNum, t.seq, t.grpseq, transport, permutation.Latency, permutation.Bandwidth, int(permutation.File.Size()), t.nodetp, t.tpindex, maxConnectionRate, pIndex)
+	recorder := newMetricsRecorder(runenv, runNum, t.seq, t.grpseq, transport, permutation.Latency, permutation.Bandwidth, int(permutation.File.Size()), t.nodetp, t.tpindex, maxConnectionRate, pIndex, tricklingDelay)
 	if t.nodetp == utils.Leech {
 		recorder.Record("time_to_fetch", float64(timeToFetch))
 		recorder.Record("leech_fails", float64(leechFails))
@@ -421,8 +428,8 @@ func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, runNum int, transport
 }
 
 func (t *NodeTestData) emitMessageHistory(runenv *runtime.RunEnv, runNum int, transport string,
-	permutation TestPermutation, maxConnectionRate int, pIndex int, host string) error {
-	recorder := newMessageHistoryRecorder(runenv, runNum, t.seq, t.grpseq, transport, permutation.Latency, permutation.Bandwidth, int(permutation.File.Size()), t.nodetp, t.tpindex, maxConnectionRate, pIndex, host)
+	permutation TestPermutation, maxConnectionRate int, pIndex int, tricklingDelay time.Duration, host string) error {
+	recorder := newMessageHistoryRecorder(runenv, runNum, t.seq, t.grpseq, transport, permutation.Latency, permutation.Bandwidth, int(permutation.File.Size()), t.nodetp, t.tpindex, maxConnectionRate, pIndex, tricklingDelay, host)
 
 	return t.node.EmitMessageHistory(recorder)
 }
@@ -590,7 +597,7 @@ func getTCPAddrTopic(id int, run int) *sync.Topic {
 
 func createRecorderIDFromParams(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
 	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
-	maxConnectionRate int, pIndex int) string {
+	maxConnectionRate int, pIndex int, tricklingDelay time.Duration) string {
 
 	latencyMS := latency.Milliseconds()
 	instance := runenv.TestInstanceCount
@@ -598,9 +605,9 @@ func createRecorderIDFromParams(runenv *runtime.RunEnv, runNum int, seq int64, g
 	passiveCount := runenv.IntParam("seed_count")
 	eavesdropperCount := runenv.IntParam("eavesdropper_count")
 
-	id := fmt.Sprintf("topology:(%d-%d-%d-%d)/transport:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/groupName:%s/groupSeq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d",
+	id := fmt.Sprintf("topology:(%d-%d-%d-%d)/transport:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/groupName:%s/groupSeq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
 		instance-leechCount-passiveCount-eavesdropperCount, leechCount, passiveCount, eavesdropperCount, transport, maxConnectionRate,
-		latencyMS, bandwidthMB, runNum, seq, runenv.TestGroupID, grpseq, fileSize, nodetp, tpindex, pIndex)
+		latencyMS, bandwidthMB, runNum, seq, runenv.TestGroupID, grpseq, fileSize, nodetp, tpindex, pIndex, tricklingDelay)
 	return id
 }
 
@@ -611,9 +618,9 @@ type metricsRecorder struct {
 
 func newMetricsRecorder(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
 	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
-	maxConnectionRate int, pIndex int) utils.MetricsRecorder {
+	maxConnectionRate int, pIndex int, tricklingDelay time.Duration) utils.MetricsRecorder {
 
-	id := createRecorderIDFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex)
+	id := createRecorderIDFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex, tricklingDelay)
 
 	return &metricsRecorder{runenv, id}
 }
@@ -654,9 +661,9 @@ func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHis
 
 func newMessageHistoryRecorder(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
 	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
-	maxConnectionRate int, pIndex int, host string) utils.MessageHistoryRecorder {
+	maxConnectionRate int, pIndex int, tricklingDelay time.Duration, host string) utils.MessageHistoryRecorder {
 
-	id := createRecorderIDFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex)
+	id := createRecorderIDFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex, tricklingDelay)
 
 	file, err := os.OpenFile(runenv.TestOutputsPath+"/messageHistory.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {

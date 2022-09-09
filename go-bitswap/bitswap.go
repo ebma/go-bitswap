@@ -174,6 +174,12 @@ func WithTaskComparator(comparator TaskComparator) Option {
 	}
 }
 
+func WithTricklingDelay(tricklingDelay time.Duration) Option {
+	return func(bs *Bitswap) {
+		bs.tricklingDelay = tricklingDelay
+	}
+}
+
 // New initializes a BitSwap instance that communicates over the provided
 // BitSwapNetwork. This function registers the returned instance as the network
 // delegate. Runs until context is cancelled or bitswap.Close is called.
@@ -273,6 +279,7 @@ func New(parent context.Context, network bsnet.BitSwapNetwork,
 		provideEnabled:                   true,
 		provSearchDelay:                  defaults.ProvSearchDelay,
 		rebroadcastDelay:                 delay.Fixed(time.Minute),
+		tricklingDelay:                   defaults.TricklingDelay,
 		engineBstoreWorkerCount:          defaults.BitswapEngineBlockstoreWorkerCount,
 		engineTaskWorkerCount:            defaults.BitswapEngineTaskWorkerCount,
 		taskWorkerCount:                  defaults.BitswapTaskWorkerCount,
@@ -391,6 +398,9 @@ type Bitswap struct {
 
 	// how long to wait before looking for providers in a session
 	provSearchDelay time.Duration
+
+	// how long to wait before broadcasting a want-have message to another peer
+	tricklingDelay time.Duration
 
 	// how often to rebroadcast providing requests to find more optimized providers
 	rebroadcastDelay delay.D
