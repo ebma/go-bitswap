@@ -681,7 +681,7 @@ type globalInfoRecorder struct {
 }
 
 func (g globalInfoRecorder) RecordGlobalInfo(infoType string, info string) {
-	msgString := fmt.Sprintf("{ \"id\": \"%s\", \"timestamp\": \"%d\", \"type\": \"%s\", \"info\": { %s } }", g.id, time.Now().UnixMicro(), infoType, info)
+	msgString := fmt.Sprintf("{ \"id\": \"%s\", \"timestamp\": \"%d\", \"type\": \"%s\", %s }", g.id, time.Now().UnixMicro(), infoType, info)
 	_, err := fmt.Fprintln(g.file, msgString)
 	if err != nil {
 		g.runenv.RecordMessage("Error writing global info: %s", err)

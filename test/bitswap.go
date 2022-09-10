@@ -160,8 +160,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			/// --- Start test
 			var timeToFetch time.Duration
 			if testData.nodetp == utils.Leech {
-				globalInfoRecorder.RecordGlobalInfo("LeechTarget", fmt.Sprintf("\"run\": \"%d\", \"permutationIndex\": \"%d\","+
-					"\"peer\": \"%s\", \"lookingFor\": \"%s\"", runNum, pIndex, testData.node.Host().ID().String(), rootCid.String()))
+				globalInfoRecorder.RecordGlobalInfo("LeechTarget", fmt.Sprintf("\"run\": \"%d\", \"latencyMS\": \"%d\", \"tricklingDelayMS\": \"%d\", \"permutationIndex\": \"%d\","+
+					"\"peer\": \"%s\", \"lookingFor\": \"%s\"", runNum, testParams.Latency.Milliseconds(), testParams.TricklingDelay.Milliseconds(), pIndex, testData.node.Host().ID().String(), rootCid.String()))
 				runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 				start := time.Now()
 				// TODO: Here we may be able to define requesting pattern. ipfs.DAG()
