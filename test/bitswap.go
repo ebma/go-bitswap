@@ -47,8 +47,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 		return err
 	}
 
-	globalInfoRecorder := newGlobalInfoRecorder(runenv, baseT.seq)
-	globalInfoRecorder.RecordGlobalInfo("NodeInfo", fmt.Sprintf("\"nodeId\": \"%s\", \"nodeType\": \"%s\"", h.ID().String(), baseT.nodetp.String()))
+	globalInfoRecorder := newGlobalInfoRecorder(runenv)
+	globalInfoRecorder.RecordNodeInfo(fmt.Sprintf("\"nodeId\": \"%s\", \"nodeType\": \"%s\"", h.ID().String(), baseT.nodetp.String()))
 
 	var tcpFetch int64
 
@@ -160,8 +160,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			/// --- Start test
 			var timeToFetch time.Duration
 			if testData.nodetp == utils.Leech {
-				globalInfoRecorder.RecordGlobalInfo("LeechTarget", fmt.Sprintf("\"run\": \"%d\", \"latencyMS\": \"%d\", \"tricklingDelayMS\": \"%d\", \"permutationIndex\": \"%d\","+
-					"\"peer\": \"%s\", \"lookingFor\": \"%s\"", runNum, testParams.Latency.Milliseconds(), testParams.TricklingDelay.Milliseconds(), pIndex, testData.node.Host().ID().String(), rootCid.String()))
+				meta := CreateMetaFromParams(runenv, runNum, testData.seq, testData.grpseq, nodeType, testParams.Latency, testParams.Bandwidth, int(testParams.File.Size()), testData.nodetp, testData.tpindex, testvars.MaxConnectionRate, pIndex, tricklingDelay)
+				globalInfoRecorder.RecordInfoWithMeta(meta, fmt.Sprintf("\"peer\": \"%s\", \"lookingFor\": \"%s\"", testData.node.Host().ID().String(), rootCid.String()))
 				runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 				start := time.Now()
 				// TODO: Here we may be able to define requesting pattern. ipfs.DAG()

@@ -48,12 +48,18 @@ def aggregate_message_histories(results_dir):
 
 def process_info_line(l):
     l = json.loads(l)
-    return l
+    item = l
+    if 'meta' in l:
+        name = l['meta'].split("/")
+        for attr in name:
+            attr = attr.split(":")
+            item[attr[0]] = attr[1]
+    return item
 
 
 def process_message_line(l):
     l = json.loads(l)
-    name = l['name'].split("/")
+    name = l['meta'].split("/")
     item = l
     for attr in name:
         attr = attr.split(":")
@@ -110,7 +116,7 @@ if __name__ == "__main__":
 
     info_items = aggregate_global_info(results_dir)
     node_info_items = [item for item in info_items if item['type'] == 'NodeInfo']
-    leech_target_items = [item for item in info_items if item['type'] == 'LeechTarget']
+    leech_target_items = [item for item in info_items if item['type'] == 'LeechInfo']
 
     message_items = aggregate_message_histories(results_dir)
 
@@ -155,9 +161,9 @@ if __name__ == "__main__":
         print("Prediction rate for latency", latency, ":", prediction_rate)
 
         # split by delay
-        unique_delays = list(set([item['tricklingDelayMS'] for item in latency_items]))
+        unique_delays = list(set([item['tricklingDelay'] for item in latency_items]))
         for delay in unique_delays:
-            delay_items = [item for item in latency_items if item['tricklingDelayMS'] == delay]
+            delay_items = [item for item in latency_items if item['tricklingDelay'] == delay]
             correct_predictions = len([item for item in delay_items if item['predictionCorrect']])
             prediction_rate = correct_predictions / len(delay_items)
             print("Prediction rate for latency", latency, "with delay", delay, ":", prediction_rate)

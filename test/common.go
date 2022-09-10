@@ -595,7 +595,7 @@ func getTCPAddrTopic(id int, run int) *sync.Topic {
 	return sync.NewTopic(fmt.Sprintf("tcp-addr-%d-%d", id, run), "")
 }
 
-func createRecorderIDFromParams(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
+func CreateMetaFromParams(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
 	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
 	maxConnectionRate int, pIndex int, tricklingDelay time.Duration) string {
 
@@ -620,7 +620,7 @@ func newMetricsRecorder(runenv *runtime.RunEnv, runNum int, seq int64, grpseq in
 	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
 	maxConnectionRate int, pIndex int, tricklingDelay time.Duration) utils.MetricsRecorder {
 
-	id := createRecorderIDFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex, tricklingDelay)
+	id := CreateMetaFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex, tricklingDelay)
 
 	return &metricsRecorder{runenv, id}
 }
@@ -632,7 +632,7 @@ func (mr *metricsRecorder) Record(key string, value float64) {
 type messageHistoryRecorder struct {
 	runenv *runtime.RunEnv
 	file   *os.File
-	id     string
+	meta   string
 	host   string
 }
 
@@ -651,7 +651,7 @@ func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHis
 
 	}
 	msgObjectString := fmt.Sprintf("\"wants\": [%s]", wantlistString)
-	logString := fmt.Sprintf("{ \"name\": \"%s\", \"receiver\": \"%s\", \"ts\": \"%d\", \"sender\": \"%s\", \"message\": { %s } }", m.id, m.host, msg.Timestamp.UnixNano(), msg.Peer, msgObjectString)
+	logString := fmt.Sprintf("{ \"meta\": \"%s\", \"receiver\": \"%s\", \"ts\": \"%d\", \"sender\": \"%s\", \"message\": { %s } }", m.meta, m.host, msg.Timestamp.UnixNano(), msg.Peer, msgObjectString)
 	_, err := fmt.Fprintln(m.file, logString)
 	if err != nil {
 		m.runenv.RecordMessage("Error writing message history entry: %s", err)
@@ -663,7 +663,7 @@ func newMessageHistoryRecorder(runenv *runtime.RunEnv, runNum int, seq int64, gr
 	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
 	maxConnectionRate int, pIndex int, tricklingDelay time.Duration, host string) utils.MessageHistoryRecorder {
 
-	id := createRecorderIDFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex, tricklingDelay)
+	id := CreateMetaFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex, tricklingDelay)
 
 	file, err := os.OpenFile(runenv.TestOutputsPath+"/messageHistory.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {
@@ -677,11 +677,11 @@ func newMessageHistoryRecorder(runenv *runtime.RunEnv, runNum int, seq int64, gr
 type globalInfoRecorder struct {
 	runenv *runtime.RunEnv
 	file   *os.File
-	id     string
 }
 
-func (g globalInfoRecorder) RecordGlobalInfo(infoType string, info string) {
-	msgString := fmt.Sprintf("{ \"id\": \"%s\", \"timestamp\": \"%d\", \"type\": \"%s\", %s }", g.id, time.Now().UnixMicro(), infoType, info)
+func (g globalInfoRecorder) RecordInfoWithMeta(meta string, info string) {
+	infoType := "LeechInfo"
+	msgString := fmt.Sprintf("{ \"meta\": \"%s\", \"timestamp\": \"%d\", \"type\": \"%s\", %s }", meta, time.Now().UnixMicro(), infoType, info)
 	_, err := fmt.Fprintln(g.file, msgString)
 	if err != nil {
 		g.runenv.RecordMessage("Error writing global info: %s", err)
@@ -689,12 +689,21 @@ func (g globalInfoRecorder) RecordGlobalInfo(infoType string, info string) {
 	}
 }
 
-func newGlobalInfoRecorder(runenv *runtime.RunEnv, seq int64) utils.GlobalInfoRecorder {
+func (g globalInfoRecorder) RecordNodeInfo(info string) {
+	infoType := "NodeInfo"
+	msgString := fmt.Sprintf("{ \"timestamp\": \"%d\", \"type\": \"%s\", %s }", time.Now().UnixMicro(), infoType, info)
+	_, err := fmt.Fprintln(g.file, msgString)
+	if err != nil {
+		g.runenv.RecordMessage("Error writing global info: %s", err)
+		return
+	}
+}
+
+func newGlobalInfoRecorder(runenv *runtime.RunEnv) utils.GlobalInfoRecorder {
 	file, err := os.OpenFile(runenv.TestOutputsPath+"/globalInfo.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {
 		runenv.RecordMessage("Error creating global info file: %s", err)
 		return nil
 	}
-	id := fmt.Sprintf("%d", seq)
-	return &globalInfoRecorder{runenv, file, id}
+	return &globalInfoRecorder{runenv, file}
 }

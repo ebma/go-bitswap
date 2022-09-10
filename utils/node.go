@@ -37,7 +37,8 @@ type MessageRecorder interface {
 }
 
 type GlobalInfoRecorder interface {
-	RecordGlobalInfo(infoType string, info string)
+	RecordNodeInfo(info string)
+	RecordInfoWithMeta(meta string, info string)
 }
 
 type MessageHistoryRecorder interface {
