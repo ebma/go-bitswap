@@ -10,6 +10,5 @@ func main() {
 }
 
 var testcases = map[string]interface{}{
-	"speedtest": run.InitializedTestCaseFn(test.BitswapSpeedTest),
-	"transfer":  run.InitializedTestCaseFn(test.BitswapTransferTest),
+	"transfer": run.InitializedTestCaseFn(test.BitswapTransferTest),
 }
