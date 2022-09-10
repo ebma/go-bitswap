@@ -82,8 +82,6 @@ class FirstTimestampEstimator:
 
 
 def plot_prediction_accuracy(prediction_results):
-    print(prediction_results)
-
     prediction_results.sort(key=lambda x: x['latency'])
 
     plt.figure()
@@ -140,15 +138,10 @@ if __name__ == "__main__":
         leech_target['prediction'] = prediction
 
         if prediction == target:
-            print("Prediction correct for run", run, "of permutation", permutation, "looking for", cid, ":", prediction)
             correct_predictions += 1
             leech_target['predictionCorrect'] = True
         else:
             leech_target['predictionCorrect'] = False
-            print("Prediction incorrect for run", run, "looking for", cid, ":", prediction, "instead of", target)
-
-
-    print(leech_target_items)
 
     prediction_results = list()
     # split by latency

@@ -31,11 +31,11 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 	//logging.SetLogLevel("messagequeue", "DEBUG")
 	//logging.SetLogLevel("*", "DEBUG")
 
-	nodeType := "bitswap"
-
 	/// --- Set up
 	ctx, cancel := context.WithTimeout(context.Background(), testvars.Timeout)
 	defer cancel()
+
+	// TODO maybe create for loop and iterate over different eavesdropper amounts
 	baseT, err := initializeGeneralNetwork(ctx, runenv, testvars)
 	if err != nil {
 		return err
@@ -110,12 +110,15 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			}
 		}
 
-		runenv.RecordMessage("Starting %s Fetch...", nodeType)
+		runenv.RecordMessage("Starting %s Fetch...")
 
 		for runNum := 1; runNum < testvars.RunCount+1; runNum++ {
 			// Reset the timeout for each run
 			sctx, cancel := context.WithTimeout(ctx, testvars.RunTimeout)
 			defer cancel()
+
+			// Used for logging
+			meta := CreateMetaFromParams(runenv, runNum, testData.seq, testData.grpseq, testParams.Latency, testParams.Bandwidth, int(testParams.File.Size()), testData.nodetp, testData.tpindex, testvars.MaxConnectionRate, pIndex, tricklingDelay)
 
 			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
 
@@ -160,7 +163,6 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			/// --- Start test
 			var timeToFetch time.Duration
 			if testData.nodetp == utils.Leech {
-				meta := CreateMetaFromParams(runenv, runNum, testData.seq, testData.grpseq, nodeType, testParams.Latency, testParams.Bandwidth, int(testParams.File.Size()), testData.nodetp, testData.tpindex, testvars.MaxConnectionRate, pIndex, tricklingDelay)
 				globalInfoRecorder.RecordInfoWithMeta(meta, fmt.Sprintf("\"peer\": \"%s\", \"lookingFor\": \"%s\"", testData.node.Host().ID().String(), rootCid.String()))
 				runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
 				start := time.Now()
@@ -194,11 +196,11 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			}
 
 			/// --- Report stats
-			err = testData.emitMetrics(runenv, runNum, nodeType, testParams, timeToFetch, tcpFetch, leechFails, testvars.MaxConnectionRate, pIndex, tricklingDelay)
+			err = testData.emitMetrics(runenv, meta, timeToFetch, tcpFetch, leechFails)
 			if err != nil {
 				return err
 			}
-			err = testData.emitMessageHistory(runenv, runNum, nodeType, testParams, testvars.MaxConnectionRate, pIndex, tricklingDelay, testData.node.Host().ID().String())
+			err = testData.emitMessageHistory(runenv, meta, testData.node.Host().ID().String())
 			if err != nil {
 				return err
 			}

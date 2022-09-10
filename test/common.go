@@ -413,11 +413,10 @@ func (t *NodeTestData) close() error {
 	return (*t.host).Close()
 }
 
-func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, runNum int, transport string,
-	permutation TestPermutation, timeToFetch time.Duration, tcpFetch int64, leechFails int64,
-	maxConnectionRate int, pIndex int, tricklingDelay time.Duration) error {
+func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, meta string,
+	timeToFetch time.Duration, tcpFetch int64, leechFails int64) error {
 
-	recorder := newMetricsRecorder(runenv, runNum, t.seq, t.grpseq, transport, permutation.Latency, permutation.Bandwidth, int(permutation.File.Size()), t.nodetp, t.tpindex, maxConnectionRate, pIndex, tricklingDelay)
+	recorder := newMetricsRecorder(runenv, meta)
 	if t.nodetp == utils.Leech {
 		recorder.Record("time_to_fetch", float64(timeToFetch))
 		recorder.Record("leech_fails", float64(leechFails))
@@ -427,10 +426,8 @@ func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, runNum int, transport
 	return t.node.EmitMetrics(recorder)
 }
 
-func (t *NodeTestData) emitMessageHistory(runenv *runtime.RunEnv, runNum int, transport string,
-	permutation TestPermutation, maxConnectionRate int, pIndex int, tricklingDelay time.Duration, host string) error {
-	recorder := newMessageHistoryRecorder(runenv, runNum, t.seq, t.grpseq, transport, permutation.Latency, permutation.Bandwidth, int(permutation.File.Size()), t.nodetp, t.tpindex, maxConnectionRate, pIndex, tricklingDelay, host)
-
+func (t *NodeTestData) emitMessageHistory(runenv *runtime.RunEnv, meta string, host string) error {
+	recorder := newMessageHistoryRecorder(runenv, meta, host)
 	return t.node.EmitMessageHistory(recorder)
 }
 
@@ -596,37 +593,31 @@ func getTCPAddrTopic(id int, run int) *sync.Topic {
 }
 
 func CreateMetaFromParams(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
-	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
+	latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
 	maxConnectionRate int, pIndex int, tricklingDelay time.Duration) string {
 
-	latencyMS := latency.Milliseconds()
 	instance := runenv.TestInstanceCount
 	leechCount := runenv.IntParam("leech_count")
 	passiveCount := runenv.IntParam("seed_count")
 	eavesdropperCount := runenv.IntParam("eavesdropper_count")
 
-	id := fmt.Sprintf("topology:(%d-%d-%d-%d)/transport:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/groupName:%s/groupSeq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
-		instance-leechCount-passiveCount-eavesdropperCount, leechCount, passiveCount, eavesdropperCount, transport, maxConnectionRate,
-		latencyMS, bandwidthMB, runNum, seq, runenv.TestGroupID, grpseq, fileSize, nodetp, tpindex, pIndex, tricklingDelay)
+	id := fmt.Sprintf("topology:(%d-%d-%d-%d)/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/groupName:%s/groupSeq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
+		instance-leechCount-passiveCount-eavesdropperCount, leechCount, passiveCount, eavesdropperCount, maxConnectionRate,
+		latency.Milliseconds(), bandwidthMB, runNum, seq, runenv.TestGroupID, grpseq, fileSize, nodetp, tpindex, pIndex, tricklingDelay.Milliseconds())
 	return id
 }
 
 type metricsRecorder struct {
 	runenv *runtime.RunEnv
-	id     string
+	meta   string
 }
 
-func newMetricsRecorder(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
-	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
-	maxConnectionRate int, pIndex int, tricklingDelay time.Duration) utils.MetricsRecorder {
-
-	id := CreateMetaFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex, tricklingDelay)
-
-	return &metricsRecorder{runenv, id}
+func newMetricsRecorder(runenv *runtime.RunEnv, meta string) utils.MetricsRecorder {
+	return &metricsRecorder{runenv, meta}
 }
 
 func (mr *metricsRecorder) Record(key string, value float64) {
-	mr.runenv.R().RecordPoint(fmt.Sprintf("%s/name:%s", mr.id, key), value)
+	mr.runenv.R().RecordPoint(fmt.Sprintf("%s/meta:%s", mr.meta, key), value)
 }
 
 type messageHistoryRecorder struct {
@@ -659,18 +650,13 @@ func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHis
 	}
 }
 
-func newMessageHistoryRecorder(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
-	transport string, latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
-	maxConnectionRate int, pIndex int, tricklingDelay time.Duration, host string) utils.MessageHistoryRecorder {
-
-	id := CreateMetaFromParams(runenv, runNum, seq, grpseq, transport, latency, bandwidthMB, fileSize, nodetp, tpindex, maxConnectionRate, pIndex, tricklingDelay)
-
+func newMessageHistoryRecorder(runenv *runtime.RunEnv, meta string, host string) utils.MessageHistoryRecorder {
 	file, err := os.OpenFile(runenv.TestOutputsPath+"/messageHistory.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {
 		runenv.RecordMessage("Error creating message history file: %s", err)
 		return nil
 	}
-	return &messageHistoryRecorder{runenv, file, id, host}
+	return &messageHistoryRecorder{runenv, file, meta, host}
 
 }
 
