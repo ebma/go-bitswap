@@ -57,7 +57,7 @@ type peerWant struct {
 
 // New creates a new peerWantManager with a Gauge that keeps track of the
 // number of active want-blocks (ie sent but no response received)
-func newPeerWantManager(wantGauge Gauge, wantBlockGauge Gauge) *peerWantManager {
+func newPeerWantManager(wantGauge Gauge, wantBlockGauge Gauge, tricklingDelay time.Duration) *peerWantManager {
 	randSource := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return &peerWantManager{
 		broadcastWants: cid.NewSet(),
@@ -66,7 +66,7 @@ func newPeerWantManager(wantGauge Gauge, wantBlockGauge Gauge) *peerWantManager 
 		wantGauge:      wantGauge,
 		wantBlockGauge: wantBlockGauge,
 		tricklingLock:  sync.Mutex{},
-		tricklingDelay: defaultTricklingDelay,
+		tricklingDelay: tricklingDelay,
 		seededRand:     *randSource,
 	}
 }
@@ -157,7 +157,6 @@ func (pwm *peerWantManager) broadcastWantHaves(wantHaves []cid.Cid) {
 	bcstWantsBuffer := make([]cid.Cid, 0, len(unsent))
 
 	// Send broadcast wants to each peer
-	log.Info("broadcasting want-haves to peers")
 	shuffledPwsArr := pwm.getShuffledPeerWants(pwm.peerWants)
 	for _, pws := range shuffledPwsArr {
 		peerUnsent := bcstWantsBuffer[:0]
@@ -373,7 +372,6 @@ func (pwm *peerWantManager) getShuffledPeerWants(peerWants map[peer.ID]*peerWant
 	}
 	// re-use random source to prevent always having the same permutations
 	permutation := pwm.seededRand.Perm(len(pwsArr))
-	log.Info("permutation: ", permutation)
 	shuffledPwsArr := make([]*peerWant, len(pwsArr))
 	for i, v := range permutation {
 		shuffledPwsArr[v] = pwsArr[i]
@@ -442,7 +440,6 @@ func (pwm *peerWantManager) broadcastRelayWants(wantHaves []cid.Cid, registry *r
 	filteredPeers := pwm.selectRandomSubset(registry)
 
 	shuffledPeers := pwm.getShuffledPeerWants(filteredPeers)
-	log.Info("Broadcasting relay wants to peers")
 	// Send broadcast wants to each peer
 	for _, pws := range shuffledPeers {
 		peerUnsent := bcstWantsBuffer[:0]

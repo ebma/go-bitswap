@@ -118,7 +118,7 @@ func CreateBitswapNode(ctx context.Context, h host.Host, bstore blockstore.Block
 		return nil, err
 	}
 	net := bsnet.NewFromIpfsHost(h, routing)
-	bitswap := bs.New(ctx, net, bstore, bs.WithTricklingDelay(tricklingDelay)).(*bs.Bitswap)
+	bitswap := bs.New(ctx, net, bstore, tricklingDelay).(*bs.Bitswap)
 	bserv := blockservice.New(bstore, bitswap)
 	dserv := merkledag.NewDAGService(bserv)
 	return &BitswapNode{bitswap, bstore, dserv, h}, nil

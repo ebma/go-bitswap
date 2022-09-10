@@ -174,17 +174,17 @@ func WithTaskComparator(comparator TaskComparator) Option {
 	}
 }
 
-func WithTricklingDelay(tricklingDelay time.Duration) Option {
-	return func(bs *Bitswap) {
-		bs.tricklingDelay = tricklingDelay
-	}
-}
+//func WithTricklingDelay(tricklingDelay time.Duration) Option {
+//	return func(bs *Bitswap) {
+//		bs.tricklingDelay = tricklingDelay
+//	}
+//}
 
 // New initializes a BitSwap instance that communicates over the provided
 // BitSwapNetwork. This function registers the returned instance as the network
 // delegate. Runs until context is cancelled or bitswap.Close is called.
 func New(parent context.Context, network bsnet.BitSwapNetwork,
-	bstore blockstore.Blockstore, options ...Option) exchange.Interface {
+	bstore blockstore.Blockstore, tricklingDelay time.Duration, options ...Option) exchange.Interface {
 
 	// important to use provided parent context (since it may include important
 	// loggable data). It's probably not a good idea to allow bitswap to be
@@ -235,7 +235,7 @@ func New(parent context.Context, network bsnet.BitSwapNetwork,
 
 	sim := bssim.New()
 	bpm := bsbpm.New()
-	pm := bspm.New(ctx, peerQueueFactory, network.Self())
+	pm := bspm.New(ctx, peerQueueFactory, network.Self(), tricklingDelay)
 	pqm := bspqm.New(ctx, network)
 
 	sessionFactory := func(
