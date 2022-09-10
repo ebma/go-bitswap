@@ -268,7 +268,7 @@ def plot_messages(byFileSize, byTopology):
         autolabel(ax, bar4)
 
         ax.set_ylabel('Number of messages')
-        ax.set_ylabel('File Size (MB)') 
+        ax.set_xlabel('File Size (MB)')
         ax.set_title('Average number of messages exchanged ' + t)
         ax.set_xticks(x)
         ax.set_xticklabels(labels)
