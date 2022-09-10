@@ -2,6 +2,8 @@ import argparse
 import json
 import os
 
+import matplotlib.pyplot as plt
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -46,8 +48,7 @@ def aggregate_message_histories(results_dir):
 
 def process_info_line(l):
     l = json.loads(l)
-    item = {'source': l['id'], 'timestamp': l['timestamp'], 'value': l['info'], 'type': l['type']}
-    return item
+    return l
 
 
 def process_message_line(l):
@@ -65,12 +66,37 @@ class FirstTimestampEstimator:
     def __init__(self, messages):
         self.messages = messages
 
-    def predict_source_of(self, cid):
+    def predict(self, permutation, run, cid):
+        run_messages = [m for m in self.messages if m['run'] == run and m['permutationIndex'] == permutation]
         # filter messages related to target cid
         cid_messages = [m for m in run_messages if cid in m['message']['wants']]
         cid_messages.sort(key=lambda x: x['ts'])
         prediction = cid_messages[0]['sender']
         return prediction
+
+
+def plot_prediction_accuracy(prediction_results):
+    print(prediction_results)
+
+    prediction_results.sort(key=lambda x: x['latency'])
+
+    plt.figure()
+    unique_latencies = list(set([r['latency'] for r in prediction_results]))
+    for latency in unique_latencies:
+        latency_results = [r for r in prediction_results if r['latency'] == latency]
+        latency_results.sort(key=lambda x: x['delay'])
+        # x-axis
+        delays = [r['delay'] for r in latency_results]
+        # y-axis
+        accuracy = [r['prediction_rate'] for r in latency_results]
+        plt.plot(delays, accuracy, label=f"latency: {latency}ms")
+
+    plt.title("Prediction accuracy")
+    plt.xlabel("Trickling Delay (ms)")
+    plt.ylabel("Prediction rate")
+    plt.grid(True)
+    plt.legend()
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -88,63 +114,54 @@ if __name__ == "__main__":
 
     message_items = aggregate_message_histories(results_dir)
 
-    eavesdropper_nodes = [item['value'] for item in node_info_items if item['value']['nodeType'] == 'Eavesdropper']
+    eavesdropper_nodes = [item for item in node_info_items if item['nodeType'] == 'Eavesdropper']
     eavesdropper_node_ids = [node['nodeId'] for node in eavesdropper_nodes]
     # message history of the eavesdropper nodes
     eavesdropper_message_items = [item for item in message_items if item['receiver'] in eavesdropper_node_ids]
 
-    # group by tricklingDelay
-    eavesdropper_message_items.sort(key=lambda x: x['tricklingDelay'])
-    unique_delays = list(set([item['tricklingDelay'] for item in eavesdropper_message_items]))
+    estimator = FirstTimestampEstimator(eavesdropper_message_items)
 
-    prediction_map = {}
-    # predict the source grouped by the trickling delay
-    for delay in unique_delays:
-        items_with_delay = [item for item in eavesdropper_message_items if item['tricklingDelay'] == delay]
-        unique_permutations_for_delay = list(set([item['permutationIndex'] for item in items_with_delay]))
+    correct_predictions = 0
+    for leech_target in leech_target_items:
+        permutation = leech_target['permutationIndex']
+        run = leech_target['run']
+        cid = leech_target['lookingFor']
+        # the prediction estimated by the estimator
+        prediction = estimator.predict(permutation, run, cid)
+        # the leech that should be identified by the estimator
+        target = leech_target['peer']
 
-        for permutation_index in unique_permutations_for_delay:
-            correct_predictions = 0
-            leech_targets_for_permutation = [item for item in leech_target_items if
-                                             item['value']['permutationIndex'] == permutation_index]
+        leech_target['prediction'] = prediction
 
-            message_items_for_permutation = [item for item in items_with_delay if
-                                             item['permutationIndex'] == permutation_index]
+        if prediction == target:
+            print("Prediction correct for run", run, "of permutation", permutation, "looking for", cid, ":", prediction)
+            correct_predictions += 1
+            leech_target['predictionCorrect'] = True
+        else:
+            leech_target['predictionCorrect'] = False
+            print("Prediction incorrect for run", run, "looking for", cid, ":", prediction, "instead of", target)
 
-            for leech_target in leech_targets_for_permutation:
-                permutation = leech_target['value']['permutationIndex']
-                run = leech_target['value']['run']
-                cid = leech_target['value']['lookingFor']
 
-                # filter messages related to target permutation and run
-                run_messages = [m for m in message_items_for_permutation if m['run'] == str(run)]
-                estimator = FirstTimestampEstimator(run_messages)
+    print(leech_target_items)
 
-                # the prediction estimated by the estimator
-                prediction = estimator.predict_source_of(cid)
-                # the leech that should be identified by the estimator
-                target = leech_target['value']['peer']
+    prediction_results = list()
+    # split by latency
+    unique_latencies = list(set([item['latencyMS'] for item in leech_target_items]))
+    unique_latencies.sort()
+    for latency in unique_latencies:
+        latency_items = [item for item in leech_target_items if item['latencyMS'] == latency]
+        correct_predictions = len([item for item in latency_items if item['predictionCorrect']])
+        prediction_rate = correct_predictions / len(latency_items)
+        print("Prediction rate for latency", latency, ":", prediction_rate)
 
-                if prediction == target:
-                    print("Prediction correct for run", run, "of permutation", permutation, "looking for", cid, ":",
-                          prediction)
-                    correct_predictions += 1
-                else:
-                    print("Prediction incorrect for run", run, "of permutation", permutation, "looking for", cid, ":",
-                          prediction, "instead of", target)
+        # split by delay
+        unique_delays = list(set([item['tricklingDelayMS'] for item in latency_items]))
+        for delay in unique_delays:
+            delay_items = [item for item in latency_items if item['tricklingDelayMS'] == delay]
+            correct_predictions = len([item for item in delay_items if item['predictionCorrect']])
+            prediction_rate = correct_predictions / len(delay_items)
+            print("Prediction rate for latency", latency, "with delay", delay, ":", prediction_rate)
 
-            prediction_rate = correct_predictions / len(leech_targets_for_permutation)
-            # get metadata by inspecting the first item
-            first_item = message_items_for_permutation[0]
-            metadata = {'tricklingDelay': first_item['tricklingDelay'],
-                        'permutationIndex': first_item['permutationIndex'],
-                        'bandwidthMB': first_item['bandwidthMB'],
-                        'fileSize': first_item['fileSize'],
-                        'latencyMS': first_item['latencyMS'], }
-            # store metadata and prediction rate in map
-            prediction_map[delay] = {'prediction_rate': prediction_rate, 'metadata': metadata}
-            print("Prediction rate for delay", delay, "is:", correct_predictions, "/",
-                  len(leech_targets_for_permutation), "=",
-                  prediction_rate)
+            prediction_results.append({'latency': latency, 'delay': delay, 'prediction_rate': prediction_rate})
 
-    print(prediction_map)
+    plot_prediction_accuracy(prediction_results)
