@@ -32,15 +32,13 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
 
-// replace upstream dependency with local copy
-//replace github.com/ipfs/go-bitswap v0.8.0 => /home/marcel/Documents/Studies/thesis/trickle-bitswap/go-bitswap
-
 // This fixes the panic: send on closed channel issue
 replace github.com/testground/sdk-go v0.3.0 => github.com/hannahhoward/sdk-go v0.3.1-0.20220106065751-1280c9501986
 
-// TODO replace the version (v0.8.0) with the commit hash to make it work without releasing a new version on GitHub
-//replace github.com/ipfs/go-bitswap v0.8.0 => github.com/ebma/go-bitswap v0.8.0
-replace github.com/ipfs/go-bitswap v0.8.0 => /plan/go-bitswap
+// This works in the modified docker file
+//replace github.com/ipfs/go-bitswap v0.8.0 => /plan/go-bitswap
+// This works both locally and in the docker file
+replace github.com/ipfs/go-bitswap v0.8.0 => ./go-bitswap
 
 require (
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a // indirect
