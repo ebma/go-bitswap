@@ -92,7 +92,16 @@ func DialOtherPeers(ctx context.Context, self core.Host, selfType utils.NodeType
 		// connect (known to fail) by only dialing peers whose peer ID
 		// is smaller than ours.
 		if bytes.Compare(id1, id2) < 0 {
-			toDial = append(toDial, ai)
+			switch selfType {
+			// don't dial other eavesdropper nodes
+			case utils.Eavesdropper:
+				if inf.Nodetp != utils.Eavesdropper {
+					toDial = append(toDial, ai)
+				}
+			default:
+				toDial = append(toDial, ai)
+			}
+
 		}
 	}
 
