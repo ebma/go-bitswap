@@ -21,213 +21,17 @@ import (
 	"github.com/testground/sdk-go/sync"
 )
 
-// Launch bitswap nodes and connect them to each other.
-func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error {
-	testvars, err := getEnvVars(runenv)
+func makeHost(baseT *BaseTestData) (host.Host, error) {
+	// Create libp2p node
+	privKey, err := crypto.UnmarshalPrivateKey(baseT.nConfig.PrivKey)
 	if err != nil {
-		return err
-	}
-	//logging.SetLogLevel("bitswap", "DEBUG")
-	//logging.SetLogLevel("messagequeue", "DEBUG")
-	//logging.SetLogLevel("*", "DEBUG")
-
-	/// --- Set up
-	ctx, cancel := context.WithTimeout(context.Background(), testvars.Timeout)
-	defer cancel()
-
-	// TODO maybe create for loop and iterate over different eavesdropper amounts
-	baseT, err := initializeGeneralNetwork(ctx, runenv, testvars)
-	if err != nil {
-		return err
-	}
-	// Initialize libp2p host
-	h, err := makeHost(baseT)
-	runenv.RecordMessage("I am %s with addrs: %v", h.ID(), h.Addrs())
-	if err != nil {
-		return err
+		return nil, err
 	}
 
-	globalInfoRecorder := newGlobalInfoRecorder(runenv)
-	globalInfoRecorder.RecordNodeInfo(fmt.Sprintf("\"nodeId\": \"%s\", \"nodeType\": \"%s\"", h.ID().String(), baseT.nodetp.String()))
-
-	var tcpFetch int64
-
-	// For each test permutation found in the test
-	for pIndex, testParams := range testvars.Permutations {
-		runenv.RecordMessage("Running test permutation %d", pIndex)
-		// Initialize the bitswap node with trickling delay of test permutation
-		tricklingDelay := testParams.TricklingDelay
-		testData, err := initializeBitswapNetwork(ctx, runenv, testvars, baseT, h, tricklingDelay)
-		transferNode := testData.node
-		signalAndWaitForAll := testData.signalAndWaitForAll
-		// Start still alive process if enabled
-		testData.stillAlive(runenv, testvars)
-
-		// Set up network (with traffic shaping)
-		if err := utils.SetupNetwork(ctx, runenv, testData.nwClient, testData.nodetp, testData.tpindex, testParams.Latency,
-			testParams.Bandwidth, testParams.JitterPct); err != nil {
-			return fmt.Errorf("Failed to set up network: %v", err)
-		}
-
-		// Accounts for every file that couldn't be found.
-		var leechFails int64
-		var rootCid cid.Cid
-
-		// Wait for all nodes to be ready to start the run
-		err = signalAndWaitForAll(fmt.Sprintf("start-file-%d", pIndex))
-		if err != nil {
-			return err
-		}
-
-		switch testData.nodetp {
-		case utils.Seed:
-			rootCid, err = testData.addPublishFile(ctx, pIndex, testParams.File, runenv, testvars)
-		case utils.Leech:
-			logging.SetLogLevel("bs:peermgr", "DEBUG")
-			rootCid, err = testData.readFile(ctx, pIndex, runenv, testvars)
-		}
-		if err != nil {
-			return err
-		}
-
-		runenv.RecordMessage("File injest complete...")
-		// Wait for all nodes to be ready to dial
-		err = signalAndWaitForAll(fmt.Sprintf("injest-complete-%d", pIndex))
-		if err != nil {
-			return err
-		}
-
-		if testvars.TCPEnabled {
-			runenv.RecordMessage("Running TCP test...")
-			switch testData.nodetp {
-			case utils.Seed:
-				err = testData.runTCPServer(ctx, pIndex, 0, testParams.File, runenv, testvars)
-			case utils.Leech:
-				tcpFetch, err = testData.runTCPFetch(ctx, pIndex, 0, runenv, testvars)
-			}
-			if err != nil {
-				return err
-			}
-		}
-
-		runenv.RecordMessage("Starting %s Fetch...")
-
-		for runNum := 1; runNum < testvars.RunCount+1; runNum++ {
-			// Reset the timeout for each run
-			sctx, cancel := context.WithTimeout(ctx, testvars.RunTimeout)
-			defer cancel()
-
-			// Used for logging
-			meta := CreateMetaFromParams(runenv, runNum, testData.seq, testData.grpseq, testParams.Latency, testParams.Bandwidth, int(testParams.File.Size()), testData.nodetp, testData.tpindex, testvars.MaxConnectionRate, pIndex, tricklingDelay)
-
-			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
-
-			// Wait for all nodes to be ready to start the run
-			err = signalAndWaitForAll("start-run-" + runID)
-			if err != nil {
-				return err
-			}
-
-			runenv.RecordMessage("Starting run %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
-
-			//var dialed []peer.AddrInfo
-			if testData.nodetp != utils.Eavesdropper {
-				dialed, err := testData.dialFn(sctx, transferNode.Host(), testData.nodetp, testData.peerInfos, testvars.MaxConnectionRate)
-				runenv.RecordMessage("%s Dialed %d other nodes", testData.nodetp.String(), len(dialed))
-				if err != nil {
-					return err
-				}
-			}
-
-			// Wait for normal nodes to be connected
-			err = signalAndWaitForAll("connect-normal-complete-" + runID)
-			if err != nil {
-				return err
-			}
-
-			if testData.nodetp == utils.Eavesdropper {
-				// Let eavesdropper nodes dial all peers
-				// we do this separately from the other call because of a TCP error when many instances are running
-				dialed, err := dialer.DialAllPeers(sctx, transferNode.Host(), testData.peerInfos)
-				runenv.RecordMessage("%s Dialed %d other nodes", testData.nodetp.String(), len(dialed))
-				if err != nil {
-					return err
-				}
-			}
-			// Wait for eavesdropper nodes to be connected
-			err = signalAndWaitForAll("connect-eavesdropper-complete-" + runID)
-			if err != nil {
-				return err
-			}
-
-			/// --- Start test
-			var timeToFetch time.Duration
-			if testData.nodetp == utils.Leech {
-				globalInfoRecorder.RecordInfoWithMeta(meta, fmt.Sprintf("\"peer\": \"%s\", \"lookingFor\": \"%s\"", testData.node.Host().ID().String(), rootCid.String()))
-				runenv.RecordMessage("Starting to leech %d / %d (%d bytes)", runNum, testvars.RunCount, testParams.File.Size())
-				start := time.Now()
-				// TODO: Here we may be able to define requesting pattern. ipfs.DAG()
-				// Right now using a path.
-				ctxFetch, cancel := context.WithTimeout(sctx, testvars.RunTimeout/2)
-				// Pin Add also traverse the whole DAG
-				// err := ipfsNode.API.Pin().Add(ctxFetch, fPath)
-				rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, testData.peerInfos)
-				if err != nil {
-					runenv.RecordMessage("Error fetching data: %v", err)
-					leechFails++
-				} else {
-					runenv.RecordMessage("Fetch complete, proceeding")
-					err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(testData.tpindex)+time.Now().String())
-					if err != nil {
-						cancel()
-						return err
-					}
-					timeToFetch = time.Since(start)
-					s, _ := rcvFile.Size()
-					runenv.RecordMessage("Leech fetch of %d complete (%d ns)", s, timeToFetch)
-				}
-				cancel()
-			}
-
-			// Wait for all leeches to have downloaded the data from seeds
-			err = signalAndWaitForAll("transfer-complete-" + runID)
-			if err != nil {
-				return err
-			}
-
-			/// --- Report stats
-			err = testData.emitMetrics(runenv, meta, timeToFetch, tcpFetch, leechFails)
-			if err != nil {
-				return err
-			}
-			err = testData.emitMessageHistory(runenv, meta, testData.node.Host().ID().String())
-			if err != nil {
-				return err
-			}
-			runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
-
-			err = testData.cleanupRun(sctx, rootCid, runenv)
-			if err != nil {
-				return err
-			}
-		}
-		err = testData.cleanupFile(ctx, rootCid)
-		if err != nil {
-			return err
-		}
-	}
-	if h != nil {
-		err = h.Close()
-		if err != nil {
-			return err
-		}
-	}
-
-	runenv.RecordMessage("Ending testcase")
-	return nil
+	return libp2p.New(libp2p.Identity(privKey), libp2p.ListenAddrs(baseT.nConfig.AddrInfo.Addrs...))
 }
 
-func initializeGeneralNetwork(ctx context.Context, runenv *runtime.RunEnv, testvars *TestVars) (*TestData, error) {
+func initializeBaseNetwork(ctx context.Context, runenv *runtime.RunEnv) (*BaseTestData, error) {
 	client := sync.MustBoundClient(ctx, runenv)
 	nwClient := network.NewClient(client, runenv)
 
@@ -244,15 +48,37 @@ func initializeGeneralNetwork(ctx context.Context, runenv *runtime.RunEnv, testv
 	if err != nil {
 		return nil, err
 	}
+
+	return &BaseTestData{client, nwClient, nConfig, seq}, nil
+}
+
+func initializeNodeTypeAndPeers(
+	ctx context.Context,
+	runenv *runtime.RunEnv,
+	testvars *TestVars,
+	baseTestData *BaseTestData,
+	eavesdropperCount int,
+) (*TestData, error) {
 	// Type of node and identifiers assigned.
-	grpseq, nodetp, tpindex, err := parseType(ctx, runenv, client, nConfig.AddrInfo, seq)
+	grpseq, nodetp, tpindex, err := parseType(
+		ctx,
+		runenv,
+		baseTestData.client,
+		baseTestData.nConfig.AddrInfo,
+		baseTestData.seq,
+		eavesdropperCount,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	peerInfos := sync.NewTopic("peerInfos", &utils.PeerInfo{})
+	peerInfos := sync.NewTopic(fmt.Sprintf("peerInfos-%d", eavesdropperCount), &utils.PeerInfo{})
 	// Publish peer info for dialing
-	_, err = client.Publish(ctx, peerInfos, &utils.PeerInfo{Addr: *nConfig.AddrInfo, Nodetp: nodetp})
+	_, err = baseTestData.client.Publish(
+		ctx,
+		peerInfos,
+		&utils.PeerInfo{Addr: *baseTestData.nConfig.AddrInfo, Nodetp: nodetp},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -268,11 +94,11 @@ func initializeGeneralNetwork(ctx context.Context, runenv *runtime.RunEnv, testv
 			// If we're not running in group mode, calculate the seed index as
 			// the sequence number minus the other types of node (leech / passive).
 			// Note: sequence number starts from 1 (not 0)
-			seedIndex = seq - int64(testvars.LeechCount+testvars.PassiveCount) - 1
+			seedIndex = baseTestData.seq - int64(testvars.LeechCount+testvars.PassiveCount) - 1
 		} else {
 			// If we are in group mode, signal other seed nodes to work out the
 			// seed index
-			seedSeq, err := getNodeSetSeq(ctx, client, nConfig.AddrInfo, "seeds")
+			seedSeq, err := getNodeSetSeq(ctx, baseTestData.client, baseTestData.nConfig.AddrInfo, "seeds")
 			if err != nil {
 				return nil, err
 			}
@@ -280,12 +106,12 @@ func initializeGeneralNetwork(ctx context.Context, runenv *runtime.RunEnv, testv
 			seedIndex = seedSeq - 1
 		}
 	}
-	runenv.RecordMessage("Seed index %v for: %v", &nConfig.AddrInfo.ID, seedIndex)
+	runenv.RecordMessage("Seed index %v for: %v", &baseTestData.nConfig.AddrInfo.ID, seedIndex)
 
 	// Get addresses of all peers
 	peerCh := make(chan *utils.PeerInfo)
 	sctx, cancelSub := context.WithCancel(ctx)
-	if _, err := client.Subscribe(sctx, peerInfos, peerCh); err != nil {
+	if _, err := baseTestData.client.Subscribe(sctx, peerInfos, peerCh); err != nil {
 		cancelSub()
 		return nil, err
 	}
@@ -302,16 +128,27 @@ func initializeGeneralNetwork(ctx context.Context, runenv *runtime.RunEnv, testv
 	// Signal that this node is in the given state, and wait for all peers to
 	// send the same signal
 	signalAndWaitForAll := func(state string) error {
-		_, err := client.SignalAndWait(ctx, sync.State(state), runenv.TestInstanceCount)
+		_, err := baseTestData.client.SignalAndWait(
+			ctx,
+			sync.State(state),
+			runenv.TestInstanceCount,
+		)
 		return err
 	}
 
-	return &TestData{client, nwClient,
-		nConfig, infos, dialFn, signalAndWaitForAll,
-		seq, grpseq, nodetp, tpindex, seedIndex}, nil
+	return &TestData{baseTestData,
+		infos, dialFn, signalAndWaitForAll,
+		grpseq, nodetp, tpindex, seedIndex}, nil
 }
 
-func initializeBitswapNetwork(ctx context.Context, runenv *runtime.RunEnv, testvars *TestVars, baseT *TestData, h host.Host, delay time.Duration) (*NodeTestData, error) {
+func initializeBitswapNetwork(
+	ctx context.Context,
+	runenv *runtime.RunEnv,
+	testvars *TestVars,
+	baseT *TestData,
+	h host.Host,
+	delay time.Duration,
+) (*NetworkTestData, error) {
 	// Use the same blockstore on all runs for the seed node
 	bstoreDelay := time.Duration(runenv.IntParam("bstore_delay_ms")) * time.Millisecond
 
@@ -319,7 +156,11 @@ func initializeBitswapNetwork(ctx context.Context, runenv *runtime.RunEnv, testv
 	if err != nil {
 		return nil, err
 	}
-	runenv.RecordMessage("created data store %T with params disk_store=%b", dStore, testvars.DiskStore)
+	runenv.RecordMessage(
+		"created data store %T with params disk_store=%b",
+		dStore,
+		testvars.DiskStore,
+	)
 	bstore, err := utils.CreateBlockstore(ctx, dStore)
 	if err != nil {
 		return nil, err
@@ -330,15 +171,332 @@ func initializeBitswapNetwork(ctx context.Context, runenv *runtime.RunEnv, testv
 		return nil, err
 	}
 
-	return &NodeTestData{baseT, bsnode, &h}, nil
+	return &NetworkTestData{baseT, bsnode, &h}, nil
 }
 
-func makeHost(baseT *TestData) (host.Host, error) {
-	// Create libp2p node
-	privKey, err := crypto.UnmarshalPrivateKey(baseT.nConfig.PrivKey)
+// Launch bitswap nodes and connect them to each other.
+func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error {
+	testvars, err := getEnvVars(runenv)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	//logging.SetLogLevel("bitswap", "DEBUG")
+	//logging.SetLogLevel("messagequeue", "DEBUG")
+	//logging.SetLogLevel("*", "DEBUG")
+
+	/// --- Set up
+	ctx, cancel := context.WithTimeout(context.Background(), testvars.Timeout)
+	defer cancel()
+
+	baseTestData, err := initializeBaseNetwork(ctx, runenv)
+	if err != nil {
+		return err
 	}
 
-	return libp2p.New(libp2p.Identity(privKey), libp2p.ListenAddrs(baseT.nConfig.AddrInfo.Addrs...))
+	globalInfoRecorder := newGlobalInfoRecorder(runenv)
+
+	// Run test with different topologies
+	for _, eavesdropperCount := range testvars.EavesdropperCount {
+		runenv.RecordMessage("Running test with %v eavesdroppers", eavesdropperCount)
+		testData, err := initializeNodeTypeAndPeers(
+			ctx,
+			runenv,
+			testvars,
+			baseTestData,
+			eavesdropperCount,
+		)
+		if err != nil {
+			return err
+		}
+
+		// Initialize libp2p host
+		// This has to be done closed and re-initialized for each test run of eavesdroppers, since the dialed connections of the host change
+		h, err := makeHost(baseTestData)
+		if err != nil {
+			return err
+		}
+		runenv.RecordMessage("I am %s with addrs: %v", h.ID(), h.Addrs())
+
+		var tcpFetch int64
+
+		// For each test permutation found in the test
+		for pIndex, testParams := range testvars.Permutations {
+			runenv.RecordMessage("Running test permutation %d", pIndex)
+
+			// Initialize the bitswap node with trickling delay of test permutation
+			tricklingDelay := testParams.TricklingDelay
+			nodeTestData, err := initializeBitswapNetwork(
+				ctx,
+				runenv,
+				testvars,
+				testData,
+				h,
+				tricklingDelay,
+			)
+			transferNode := nodeTestData.node
+			signalAndWaitForAll := nodeTestData.signalAndWaitForAll
+			// Start still alive process if enabled
+			nodeTestData.stillAlive(runenv, testvars)
+
+			// Log node info
+			globalInfoRecorder.RecordNodeInfo(
+				fmt.Sprintf(
+					"\"topology\": \"%s\", \"nodeId\": \"%s\", \"nodeType\": \"%s\"",
+					CreateTopologyString(
+						runenv.TestInstanceCount,
+						testvars.LeechCount,
+						testvars.PassiveCount,
+						eavesdropperCount,
+					),
+					h.ID().String(),
+					nodeTestData.nodetp.String(),
+				),
+			)
+
+			// Set up network (with traffic shaping)
+			if err := utils.SetupNetwork(ctx, runenv, nodeTestData.nwClient, nodeTestData.nodetp, nodeTestData.tpindex, testParams.Latency,
+				testParams.Bandwidth, testParams.JitterPct); err != nil {
+				return fmt.Errorf("Failed to set up network: %v", err)
+			}
+
+			// Accounts for every file that couldn't be found.
+			var leechFails int64
+			var rootCid cid.Cid
+
+			// Wait for all nodes to be ready to start the run
+			err = signalAndWaitForAll(fmt.Sprintf("start-file-%d-%d", eavesdropperCount, pIndex))
+			if err != nil {
+				return err
+			}
+
+			switch nodeTestData.nodetp {
+			case utils.Seed:
+				rootCid, err = nodeTestData.addPublishFile(
+					ctx,
+					pIndex,
+					testParams.File,
+					runenv,
+					testvars,
+				)
+			case utils.Leech:
+				logging.SetLogLevel("bs:peermgr", "DEBUG")
+				rootCid, err = nodeTestData.readFile(ctx, pIndex, runenv, testvars)
+			}
+			if err != nil {
+				return err
+			}
+
+			runenv.RecordMessage("File injest complete...")
+			// Wait for all nodes to be ready to dial
+			err = signalAndWaitForAll(
+				fmt.Sprintf("injest-complete-%d-%d", eavesdropperCount, pIndex),
+			)
+			if err != nil {
+				return err
+			}
+
+			if testvars.TCPEnabled {
+				runenv.RecordMessage("Running TCP test...")
+				switch nodeTestData.nodetp {
+				case utils.Seed:
+					err = nodeTestData.runTCPServer(
+						ctx,
+						pIndex,
+						0,
+						testParams.File,
+						runenv,
+						testvars,
+					)
+				case utils.Leech:
+					tcpFetch, err = nodeTestData.runTCPFetch(ctx, pIndex, 0, runenv, testvars)
+				}
+				if err != nil {
+					return err
+				}
+			}
+
+			runenv.RecordMessage("Starting %s Fetch...")
+
+			for runNum := 1; runNum < testvars.RunCount+1; runNum++ {
+				// Reset the timeout for each run
+				sctx, cancel := context.WithTimeout(ctx, testvars.RunTimeout)
+				defer cancel()
+
+				// Used for logging
+				meta := CreateMetaFromParams(
+					runenv,
+					runNum,
+					eavesdropperCount,
+					nodeTestData.seq,
+					nodeTestData.grpseq,
+					testParams.Latency,
+					testParams.Bandwidth,
+					int(testParams.File.Size()),
+					nodeTestData.nodetp,
+					nodeTestData.tpindex,
+					testvars.MaxConnectionRate,
+					pIndex,
+					tricklingDelay,
+				)
+
+				runID := fmt.Sprintf("%d-%d", pIndex, runNum)
+
+				// Wait for all nodes to be ready to start the run
+				err = signalAndWaitForAll(
+					fmt.Sprintf("start-run-%d-%d-%s", eavesdropperCount, pIndex, runID),
+				)
+				if err != nil {
+					return err
+				}
+
+				runenv.RecordMessage(
+					"Starting run %d / %d (%d bytes)",
+					runNum,
+					testvars.RunCount,
+					testParams.File.Size(),
+				)
+
+				if nodeTestData.nodetp != utils.Eavesdropper {
+					dialed, err := nodeTestData.dialFn(
+						sctx,
+						transferNode.Host(),
+						nodeTestData.nodetp,
+						nodeTestData.peerInfos,
+						testvars.MaxConnectionRate,
+					)
+					runenv.RecordMessage(
+						"%s Dialed %d other nodes",
+						nodeTestData.nodetp.String(),
+						len(dialed),
+					)
+					if err != nil {
+						return err
+					}
+				}
+
+				// Wait for normal nodes to be connected
+				err = signalAndWaitForAll(
+					fmt.Sprintf(
+						"connect-normal-complete-%d-%d-%s",
+						eavesdropperCount,
+						pIndex,
+						runID,
+					),
+				)
+				if err != nil {
+					return err
+				}
+
+				if nodeTestData.nodetp == utils.Eavesdropper {
+					// Let eavesdropper nodes dial all peers
+					// we do this separately from the other call because of a TCP error when many instances are running
+					dialed, err := dialer.DialAllPeers(
+						sctx,
+						transferNode.Host(),
+						nodeTestData.peerInfos,
+					)
+					runenv.RecordMessage(
+						"%s Dialed %d other nodes",
+						nodeTestData.nodetp.String(),
+						len(dialed),
+					)
+					if err != nil {
+						return err
+					}
+				}
+				// Wait for eavesdropper nodes to be connected
+				err = signalAndWaitForAll(
+					fmt.Sprintf(
+						"connect-eavesdropper-complete-%d-%d-%s",
+						eavesdropperCount,
+						pIndex,
+						runID,
+					),
+				)
+				if err != nil {
+					return err
+				}
+
+				/// --- Start test
+				var timeToFetch time.Duration
+				if nodeTestData.nodetp == utils.Leech {
+					globalInfoRecorder.RecordInfoWithMeta(
+						meta,
+						fmt.Sprintf(
+							"\"peer\": \"%s\", \"lookingFor\": \"%s\"",
+							nodeTestData.node.Host().ID().String(),
+							rootCid.String(),
+						),
+					)
+					runenv.RecordMessage(
+						"Starting to leech %d / %d (%d bytes)",
+						runNum,
+						testvars.RunCount,
+						testParams.File.Size(),
+					)
+					start := time.Now()
+					ctxFetch, cancel := context.WithTimeout(sctx, testvars.RunTimeout/2)
+					rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, nodeTestData.peerInfos)
+					if err != nil {
+						runenv.RecordMessage("Error fetching data: %v", err)
+						leechFails++
+					} else {
+						runenv.RecordMessage("Fetch complete, proceeding")
+						err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(nodeTestData.tpindex)+time.Now().String())
+						if err != nil {
+							cancel()
+							return err
+						}
+						timeToFetch = time.Since(start)
+						s, _ := rcvFile.Size()
+						runenv.RecordMessage("Leech fetch of %d complete (%d ns)", s, timeToFetch)
+					}
+					cancel()
+				}
+
+				// Wait for all leeches to have downloaded the data from seeds
+				err = signalAndWaitForAll(
+					fmt.Sprintf("transfer-complete-%d-%d-%s", eavesdropperCount, pIndex, runID),
+				)
+				if err != nil {
+					return err
+				}
+
+				/// --- Report stats
+				err = nodeTestData.emitMetrics(runenv, meta, timeToFetch, tcpFetch, leechFails)
+				if err != nil {
+					return err
+				}
+				err = nodeTestData.emitMessageHistory(
+					runenv,
+					meta,
+					nodeTestData.node.Host().ID().String(),
+				)
+				if err != nil {
+					return err
+				}
+				runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
+
+				err = nodeTestData.cleanupRun(sctx, rootCid, runenv)
+				if err != nil {
+					return err
+				}
+			}
+			err = nodeTestData.cleanupFile(ctx, rootCid)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Close host at end of eavesdropper test permutation
+		if h != nil {
+			err = h.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	runenv.RecordMessage("Ending testcase")
+	return nil
 }

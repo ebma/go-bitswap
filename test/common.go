@@ -40,6 +40,7 @@ type TestVars struct {
 	RunTimeout        time.Duration
 	LeechCount        int
 	PassiveCount      int
+	EavesdropperCount []int
 	RequestStagger    time.Duration
 	RunCount          int
 	MaxConnectionRate int
@@ -54,14 +55,18 @@ type TestVars struct {
 	DiskStore         bool
 }
 
+type BaseTestData struct {
+	client   *sync.DefaultClient
+	nwClient *network.Client
+	nConfig  *utils.NodeConfig
+	seq      int64
+}
+
 type TestData struct {
-	client              *sync.DefaultClient
-	nwClient            *network.Client
-	nConfig             *utils.NodeConfig
+	*BaseTestData
 	peerInfos           []utils.PeerInfo
 	dialFn              dialer.Dialer
 	signalAndWaitForAll func(state string) error
-	seq                 int64
 	grpseq              int64
 	nodetp              utils.NodeType
 	tpindex             int
@@ -84,6 +89,15 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	}
 	if runenv.IsParamSet("seed_count") {
 		tv.PassiveCount = runenv.IntParam("seed_count")
+	}
+	if runenv.IsParamSet("eavesdropper_count") {
+		eavesdropperCount, err := utils.ParseIntArray(runenv.StringParam("eavesdropper_count"))
+		if err != nil {
+			return nil, err
+		}
+		for _, count := range eavesdropperCount {
+			tv.EavesdropperCount = append(tv.EavesdropperCount, int(count)) // convert uint64 to int
+		}
 	}
 	if runenv.IsParamSet("request_stagger") {
 		tv.RequestStagger = time.Duration(runenv.IntParam("request_stagger")) * time.Millisecond
@@ -155,91 +169,6 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	}
 
 	return tv, nil
-}
-
-func InitializeTest(ctx context.Context, runenv *runtime.RunEnv, testvars *TestVars) (*TestData, error) {
-	client := sync.MustBoundClient(ctx, runenv)
-	nwClient := network.NewClient(client, runenv)
-
-	nConfig, err := utils.GenerateAddrInfo(nwClient.MustGetDataNetworkIP().String())
-	if err != nil {
-		runenv.RecordMessage("Error generating node config")
-		return nil, err
-	}
-
-	peers := sync.NewTopic("peers", &peer.AddrInfo{})
-
-	// Get sequence number of this host
-	seq, err := client.Publish(ctx, peers, *nConfig.AddrInfo)
-	if err != nil {
-		return nil, err
-	}
-	// Type of node and identifiers assigned.
-	grpseq, nodetp, tpindex, err := parseType(ctx, runenv, client, nConfig.AddrInfo, seq)
-	if err != nil {
-		return nil, err
-	}
-
-	peerInfos := sync.NewTopic("peerInfos", &utils.PeerInfo{})
-	// Publish peer info for dialing
-	_, err = client.Publish(ctx, peerInfos, &utils.PeerInfo{Addr: *nConfig.AddrInfo, Nodetp: nodetp})
-	if err != nil {
-		return nil, err
-	}
-
-	var dialFn dialer.Dialer = dialer.DialOtherPeers
-	if testvars.Dialer == "sparse" {
-		dialFn = dialer.SparseDial
-	}
-
-	var seedIndex int64
-	if nodetp == utils.Seed {
-		if runenv.TestGroupID == "" {
-			// If we're not running in group mode, calculate the seed index as
-			// the sequence number minus the other types of node (leech / passive).
-			// Note: sequence number starts from 1 (not 0)
-			seedIndex = seq - int64(testvars.LeechCount+testvars.PassiveCount) - 1
-		} else {
-			// If we are in group mode, signal other seed nodes to work out the
-			// seed index
-			seedSeq, err := getNodeSetSeq(ctx, client, nConfig.AddrInfo, "seeds")
-			if err != nil {
-				return nil, err
-			}
-			// Sequence number starts from 1 (not 0)
-			seedIndex = seedSeq - 1
-		}
-	}
-	runenv.RecordMessage("Seed index %v for: %v", &nConfig.AddrInfo.ID, seedIndex)
-
-	// Get addresses of all peers
-	peerCh := make(chan *utils.PeerInfo)
-	sctx, cancelSub := context.WithCancel(ctx)
-	if _, err := client.Subscribe(sctx, peerInfos, peerCh); err != nil {
-		cancelSub()
-		return nil, err
-	}
-	infos, err := dialer.PeerInfosFromChan(peerCh, runenv.TestInstanceCount)
-	if err != nil {
-		cancelSub()
-		return nil, fmt.Errorf("no addrs in %d seconds", testvars.Timeout/time.Second)
-	}
-	cancelSub()
-	runenv.RecordMessage("Got all addresses from other peers and network setup")
-
-	/// --- Warm up
-
-	// Signal that this node is in the given state, and wait for all peers to
-	// send the same signal
-	signalAndWaitForAll := func(state string) error {
-		runenv.RecordMessage("Signaling %v", state)
-		_, err := client.SignalAndWait(ctx, sync.State(state), runenv.TestInstanceCount)
-		return err
-	}
-
-	return &TestData{client, nwClient,
-		nConfig, infos, dialFn, signalAndWaitForAll,
-		seq, grpseq, nodetp, tpindex, seedIndex}, nil
 }
 
 func (t *TestData) publishFile(ctx context.Context, fIndex int, cid *cid.Cid, runenv *runtime.RunEnv) error {
@@ -334,13 +263,13 @@ func (t *TestData) runTCPFetch(ctx context.Context, fIndex int, runNum int, rune
 	return tcpFetch, t.signalAndWaitForAll(fmt.Sprintf("tcp-fetch-%d-%d", fIndex, runNum))
 }
 
-type NodeTestData struct {
+type NetworkTestData struct {
 	*TestData
 	node utils.Node
 	host *host.Host
 }
 
-func (t *NodeTestData) stillAlive(runenv *runtime.RunEnv, v *TestVars) {
+func (t *NetworkTestData) stillAlive(runenv *runtime.RunEnv, v *TestVars) {
 	// starting liveness process for long-lasting experiments.
 	if v.LlEnabled {
 		go func(n utils.Node, runenv *runtime.RunEnv) {
@@ -352,7 +281,7 @@ func (t *NodeTestData) stillAlive(runenv *runtime.RunEnv, v *TestVars) {
 	}
 }
 
-func (t *NodeTestData) addPublishFile(ctx context.Context, fIndex int, f utils.TestFile, runenv *runtime.RunEnv, testvars *TestVars) (cid.Cid, error) {
+func (t *NetworkTestData) addPublishFile(ctx context.Context, fIndex int, f utils.TestFile, runenv *runtime.RunEnv, testvars *TestVars) (cid.Cid, error) {
 	rate := float64(testvars.SeederRate) / 100
 	seeders := runenv.TestInstanceCount - (testvars.LeechCount + testvars.PassiveCount)
 	toSeed := int(math.Ceil(float64(seeders) * rate))
@@ -373,7 +302,7 @@ func (t *NodeTestData) addPublishFile(ctx context.Context, fIndex int, f utils.T
 	}
 	return cid.Undef, nil
 }
-func (t *NodeTestData) cleanupRun(ctx context.Context, rootCid cid.Cid, runenv *runtime.RunEnv) error {
+func (t *NetworkTestData) cleanupRun(ctx context.Context, rootCid cid.Cid, runenv *runtime.RunEnv) error {
 	// Disconnect peers
 	for _, c := range t.node.Host().Network().Conns() {
 		err := c.Close()
@@ -394,7 +323,7 @@ func (t *NodeTestData) cleanupRun(ctx context.Context, rootCid cid.Cid, runenv *
 	return nil
 }
 
-func (t *NodeTestData) cleanupFile(ctx context.Context, rootCid cid.Cid) error {
+func (t *NetworkTestData) cleanupFile(ctx context.Context, rootCid cid.Cid) error {
 	if t.nodetp == utils.Seed {
 		// Between every file close the seed Node.
 		// ipfsNode.Close()
@@ -406,14 +335,14 @@ func (t *NodeTestData) cleanupFile(ctx context.Context, rootCid cid.Cid) error {
 	return nil
 }
 
-func (t *NodeTestData) close() error {
+func (t *NetworkTestData) close() error {
 	if t.host == nil {
 		return nil
 	}
 	return (*t.host).Close()
 }
 
-func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, meta string,
+func (t *NetworkTestData) emitMetrics(runenv *runtime.RunEnv, meta string,
 	timeToFetch time.Duration, tcpFetch int64, leechFails int64) error {
 
 	recorder := newMetricsRecorder(runenv, meta)
@@ -426,7 +355,7 @@ func (t *NodeTestData) emitMetrics(runenv *runtime.RunEnv, meta string,
 	return t.node.EmitMetrics(recorder)
 }
 
-func (t *NodeTestData) emitMessageHistory(runenv *runtime.RunEnv, meta string, host string) error {
+func (t *NetworkTestData) emitMessageHistory(runenv *runtime.RunEnv, meta string, host string) error {
 	recorder := newMessageHistoryRecorder(runenv, meta, host)
 	return t.node.EmitMessageHistory(recorder)
 }
@@ -451,10 +380,10 @@ func generateAndAdd(ctx context.Context, runenv *runtime.RunEnv, node utils.Node
 	return &cid, err
 }
 
-func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.DefaultClient, addrInfo *peer.AddrInfo, seq int64) (int64, utils.NodeType, int, error) {
+func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.DefaultClient, addrInfo *peer.AddrInfo, seq int64, edCount int) (int64, utils.NodeType, int, error) {
 	leechCount := runenv.IntParam("leech_count")
 	seedCount := runenv.IntParam("seed_count")
-	eavesdropperCount := runenv.IntParam("eavesdropper_count")
+	eavesdropperCount := edCount
 
 	grpCountOverride := false
 	if runenv.TestGroupID != "" {
@@ -592,17 +521,21 @@ func getTCPAddrTopic(id int, run int) *sync.Topic {
 	return sync.NewTopic(fmt.Sprintf("tcp-addr-%d-%d", id, run), "")
 }
 
-func CreateMetaFromParams(runenv *runtime.RunEnv, runNum int, seq int64, grpseq int64,
+func CreateTopologyString(totalInstances, leechCount int, passiveCount int, eavesdropperCount int) string {
+	// (seeder-count:leech-count:passive-count:eavesdropper-count)
+	return fmt.Sprintf("(%d-%d-%d-%d)", totalInstances-leechCount-passiveCount-eavesdropperCount, leechCount, passiveCount, eavesdropperCount)
+}
+
+func CreateMetaFromParams(runenv *runtime.RunEnv, runNum int, edCount int, seq int64, grpseq int64,
 	latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
 	maxConnectionRate int, pIndex int, tricklingDelay time.Duration) string {
 
 	instance := runenv.TestInstanceCount
 	leechCount := runenv.IntParam("leech_count")
 	passiveCount := runenv.IntParam("seed_count")
-	eavesdropperCount := runenv.IntParam("eavesdropper_count")
 
-	id := fmt.Sprintf("topology:(%d-%d-%d-%d)/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/groupName:%s/groupSeq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
-		instance-leechCount-passiveCount-eavesdropperCount, leechCount, passiveCount, eavesdropperCount, maxConnectionRate,
+	id := fmt.Sprintf("topology:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/groupName:%s/groupSeq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
+		CreateTopologyString(instance, leechCount, passiveCount, edCount), maxConnectionRate,
 		latency.Milliseconds(), bandwidthMB, runNum, seq, runenv.TestGroupID, grpseq, fileSize, nodetp, tpindex, pIndex, tricklingDelay.Milliseconds())
 	return id
 }
