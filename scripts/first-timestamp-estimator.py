@@ -81,7 +81,7 @@ class FirstTimestampEstimator:
         return prediction
 
 
-def plot_prediction_accuracy(prediction_results):
+def plot_prediction_accuracy(topology, prediction_results):
     prediction_results.sort(key=lambda x: x['latency'])
 
     plt.figure()
@@ -95,7 +95,7 @@ def plot_prediction_accuracy(prediction_results):
         accuracy = [r['prediction_rate'] for r in latency_results]
         plt.plot(delays, accuracy, label=f"latency: {latency}ms")
 
-    plt.title("Prediction accuracy")
+    plt.title("Prediction accuracy for topology " + topology)
     plt.xlabel("Trickling Delay (ms)")
     plt.ylabel("Prediction rate")
     plt.grid(True)
@@ -143,24 +143,32 @@ if __name__ == "__main__":
         else:
             leech_target['predictionCorrect'] = False
 
-    prediction_results = list()
-    # split by latency
-    unique_latencies = list(set([item['latencyMS'] for item in leech_target_items]))
-    unique_latencies.sort()
-    for latency in unique_latencies:
-        latency_items = [item for item in leech_target_items if item['latencyMS'] == latency]
-        correct_predictions = len([item for item in latency_items if item['predictionCorrect']])
-        prediction_rate = correct_predictions / len(latency_items)
-        print("Prediction rate for latency", latency, ":", prediction_rate)
+    print("Overall prediction rate: ", correct_predictions, "/",
+          len(leech_target_items), "=", correct_predictions / len(leech_target_items))
 
-        # split by delay
-        unique_delays = list(set([item['tricklingDelay'] for item in latency_items]))
-        for delay in unique_delays:
-            delay_items = [item for item in latency_items if item['tricklingDelay'] == delay]
-            correct_predictions = len([item for item in delay_items if item['predictionCorrect']])
-            prediction_rate = correct_predictions / len(delay_items)
-            print("Prediction rate for latency", latency, "with delay", delay, ":", prediction_rate)
+    unique_topologies = list(set([item['topology'] for item in leech_target_items]))
+    for topology in unique_topologies:
+        prediction_results = list()
+        # split by latency
+        unique_latencies = list(set([item['latencyMS'] for item in leech_target_items]))
+        unique_latencies.sort()
 
-            prediction_results.append({'latency': latency, 'delay': delay, 'prediction_rate': prediction_rate})
+        leech_target_items_for_topology = [item for item in leech_target_items if item['topology'] == topology]
+        for latency in unique_latencies:
+            latency_items = [item for item in leech_target_items_for_topology if item['latencyMS'] == latency]
+            correct_predictions = len([item for item in latency_items if item['predictionCorrect']])
+            prediction_rate = correct_predictions / len(latency_items)
+            print("Prediction rate for topology", topology, "with latency", latency, ":", prediction_rate)
 
-    plot_prediction_accuracy(prediction_results)
+            # split by delay
+            unique_delays = list(set([item['tricklingDelay'] for item in latency_items]))
+            for delay in unique_delays:
+                delay_items = [item for item in latency_items if item['tricklingDelay'] == delay]
+                correct_predictions = len([item for item in delay_items if item['predictionCorrect']])
+                prediction_rate = correct_predictions / len(delay_items)
+                print("Prediction rate for topology", topology, "with latency", latency, "with delay", delay, ":",
+                      prediction_rate)
+
+                prediction_results.append({'latency': latency, 'delay': delay, 'prediction_rate': prediction_rate})
+
+        plot_prediction_accuracy(topology, prediction_results)
