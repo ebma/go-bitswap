@@ -29,7 +29,13 @@ func PeerInfosFromChan(peerCh chan *utils.PeerInfo, count int) ([]utils.PeerInfo
 type Dialer func(ctx context.Context, self core.Host, selfType utils.NodeType, ais []utils.PeerInfo, maxConnectionRate int) ([]peer.AddrInfo, error)
 
 // SparseDial connects to a set of peers in the experiment, but only those with the correct node type
-func SparseDial(ctx context.Context, self core.Host, selfType utils.NodeType, ais []utils.PeerInfo, maxConnectionRate int) ([]peer.AddrInfo, error) {
+func SparseDial(
+	ctx context.Context,
+	self core.Host,
+	selfType utils.NodeType,
+	ais []utils.PeerInfo,
+	maxConnectionRate int,
+) ([]peer.AddrInfo, error) {
 	// Grab list of other peers that are available for this Run
 	var toDial []peer.AddrInfo
 	for _, inf := range ais {
@@ -80,7 +86,12 @@ func SparseDial(ctx context.Context, self core.Host, selfType utils.NodeType, ai
 }
 
 // DialOtherPeers connects to a set of peers in the experiment, dialing all of them
-func DialOtherPeers(ctx context.Context, self core.Host, selfType utils.NodeType, ais []utils.PeerInfo, maxConnectionRate int) ([]peer.AddrInfo, error) {
+func DialOtherPeers(
+	ctx context.Context,
+	self core.Host,
+	ais []utils.PeerInfo,
+	maxConnectionRate int,
+) ([]peer.AddrInfo, error) {
 	// Grab list of other peers that are available for this Run
 	var toDial []peer.AddrInfo
 	for _, inf := range ais {
@@ -92,16 +103,7 @@ func DialOtherPeers(ctx context.Context, self core.Host, selfType utils.NodeType
 		// connect (known to fail) by only dialing peers whose peer ID
 		// is smaller than ours.
 		if bytes.Compare(id1, id2) < 0 {
-			switch selfType {
-			// don't dial other eavesdropper nodes
-			case utils.Eavesdropper:
-				if inf.Nodetp != utils.Eavesdropper {
-					toDial = append(toDial, ai)
-				}
-			default:
-				toDial = append(toDial, ai)
-			}
-
+			toDial = append(toDial, ai)
 		}
 	}
 
@@ -128,7 +130,12 @@ func DialOtherPeers(ctx context.Context, self core.Host, selfType utils.NodeType
 }
 
 // DialAllPeers connects to all peers, ignoring the possible tcp error
-func DialAllPeers(ctx context.Context, self core.Host, ais []utils.PeerInfo) ([]peer.AddrInfo, error) {
+func DialAllPeers(
+	ctx context.Context,
+	self core.Host,
+	selfType utils.NodeType,
+	ais []utils.PeerInfo,
+) ([]peer.AddrInfo, error) {
 	// Dial to all the other peers
 	var toDial []peer.AddrInfo
 	for _, inf := range ais {
@@ -138,7 +145,15 @@ func DialAllPeers(ctx context.Context, self core.Host, ais []utils.PeerInfo) ([]
 
 		// skip over dialing ourselves
 		if bytes.Compare(id1, id2) != 0 {
-			toDial = append(toDial, ai)
+			switch selfType {
+			// don't dial other eavesdropper nodes
+			case utils.Eavesdropper:
+				if inf.Nodetp != utils.Eavesdropper {
+					toDial = append(toDial, ai)
+				}
+			default:
+				toDial = append(toDial, ai)
+			}
 		}
 	}
 	g, ctx := errgroup.WithContext(ctx)
