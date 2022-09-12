@@ -60,11 +60,8 @@ func initializeNodeTypeAndPeers(
 	eavesdropperCount int,
 ) (*TestData, error) {
 	// Type of node and identifiers assigned.
-	grpseq, nodetp, tpindex, err := parseType(
-		ctx,
+	seq, nodetp, tpindex, err := parseType(
 		runenv,
-		baseTestData.client,
-		baseTestData.nConfig.AddrInfo,
 		baseTestData.seq,
 		eavesdropperCount,
 	)
@@ -90,21 +87,10 @@ func initializeNodeTypeAndPeers(
 
 	var seedIndex int64
 	if nodetp == utils.Seed {
-		if runenv.TestGroupID == "" {
-			// If we're not running in group mode, calculate the seed index as
-			// the sequence number minus the other types of node (leech / passive).
-			// Note: sequence number starts from 1 (not 0)
-			seedIndex = baseTestData.seq - int64(testvars.LeechCount+testvars.PassiveCount) - 1
-		} else {
-			// If we are in group mode, signal other seed nodes to work out the
-			// seed index
-			seedSeq, err := getNodeSetSeq(ctx, baseTestData.client, baseTestData.nConfig.AddrInfo, "seeds")
-			if err != nil {
-				return nil, err
-			}
-			// Sequence number starts from 1 (not 0)
-			seedIndex = seedSeq - 1
-		}
+		// If we're not running in group mode, calculate the seed index as
+		// the sequence number minus the other types of node (leech / passive).
+		// Note: sequence number starts from 1 (not 0)
+		seedIndex = baseTestData.seq - int64(testvars.LeechCount+testvars.PassiveCount) - 1
 	}
 	runenv.RecordMessage("Seed index %v for: %v", &baseTestData.nConfig.AddrInfo.ID, seedIndex)
 
@@ -138,7 +124,7 @@ func initializeNodeTypeAndPeers(
 
 	return &TestData{baseTestData,
 		infos, dialFn, signalAndWaitForAll,
-		grpseq, nodetp, tpindex, seedIndex}, nil
+		seq, nodetp, tpindex, seedIndex}, nil
 }
 
 func initializeBitswapNetwork(
@@ -210,7 +196,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 		}
 
 		// Initialize libp2p host
-		// This has to be done closed and re-initialized for each test run of eavesdroppers, since the dialed connections of the host change
+		// This has to be closed and re-initialized for each test run of eavesdroppers, since the dialed connections of the host change
 		h, err := makeHost(baseTestData)
 		if err != nil {
 			return err
@@ -328,7 +314,6 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 					runNum,
 					eavesdropperCount,
 					nodeTestData.seq,
-					nodeTestData.grpseq,
 					testParams.Latency,
 					testParams.Bandwidth,
 					int(testParams.File.Size()),

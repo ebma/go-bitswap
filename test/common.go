@@ -67,7 +67,7 @@ type TestData struct {
 	peerInfos           []utils.PeerInfo
 	dialFn              dialer.Dialer
 	signalAndWaitForAll func(state string) error
-	grpseq              int64
+	seq                 int64
 	nodetp              utils.NodeType
 	tpindex             int
 	seedIndex           int64
@@ -161,7 +161,16 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 				latency := time.Duration(l) * time.Millisecond
 				for _, j := range jitters {
 					for _, td := range tricklingDelays {
-						tv.Permutations = append(tv.Permutations, TestPermutation{File: f, Bandwidth: int(b), Latency: latency, JitterPct: int(j), TricklingDelay: time.Duration(td) * time.Millisecond})
+						tv.Permutations = append(
+							tv.Permutations,
+							TestPermutation{
+								File:           f,
+								Bandwidth:      int(b),
+								Latency:        latency,
+								JitterPct:      int(j),
+								TricklingDelay: time.Duration(td) * time.Millisecond,
+							},
+						)
 					}
 				}
 			}
@@ -171,7 +180,12 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	return tv, nil
 }
 
-func (t *TestData) publishFile(ctx context.Context, fIndex int, cid *cid.Cid, runenv *runtime.RunEnv) error {
+func (t *TestData) publishFile(
+	ctx context.Context,
+	fIndex int,
+	cid *cid.Cid,
+	runenv *runtime.RunEnv,
+) error {
 	// Create identifier for specific file size.
 	rootCidTopic := getRootCidTopic(fIndex)
 
@@ -183,7 +197,12 @@ func (t *TestData) publishFile(ctx context.Context, fIndex int, cid *cid.Cid, ru
 	return nil
 }
 
-func (t *TestData) readFile(ctx context.Context, fIndex int, runenv *runtime.RunEnv, testvars *TestVars) (cid.Cid, error) {
+func (t *TestData) readFile(
+	ctx context.Context,
+	fIndex int,
+	runenv *runtime.RunEnv,
+	testvars *TestVars,
+) (cid.Cid, error) {
 	// Create identifier for specific file size.
 	rootCidTopic := getRootCidTopic(fIndex)
 	// Get the root CID from a seed
@@ -203,7 +222,14 @@ func (t *TestData) readFile(ctx context.Context, fIndex int, runenv *runtime.Run
 	return rootCid, nil
 }
 
-func (t *TestData) runTCPServer(ctx context.Context, fIndex int, runNum int, f utils.TestFile, runenv *runtime.RunEnv, testvars *TestVars) error {
+func (t *TestData) runTCPServer(
+	ctx context.Context,
+	fIndex int,
+	runNum int,
+	f utils.TestFile,
+	runenv *runtime.RunEnv,
+	testvars *TestVars,
+) error {
 	// TCP variables
 	tcpAddrTopic := getTCPAddrTopic(fIndex, runNum)
 	runenv.RecordMessage("Starting TCP server in seed")
@@ -232,7 +258,13 @@ func (t *TestData) runTCPServer(ctx context.Context, fIndex int, runNum int, f u
 	return nil
 }
 
-func (t *TestData) runTCPFetch(ctx context.Context, fIndex int, runNum int, runenv *runtime.RunEnv, testvars *TestVars) (int64, error) {
+func (t *TestData) runTCPFetch(
+	ctx context.Context,
+	fIndex int,
+	runNum int,
+	runenv *runtime.RunEnv,
+	testvars *TestVars,
+) (int64, error) {
 	// TCP variables
 	tcpAddrTopic := getTCPAddrTopic(fIndex, runNum)
 	tcpAddrCh := make(chan *string, 1)
@@ -243,7 +275,10 @@ func (t *TestData) runTCPFetch(ctx context.Context, fIndex int, runNum int, rune
 
 	runenv.RecordMessage("Received tcp server %v", tcpAddrPtr)
 	if !ok {
-		return 0, fmt.Errorf("no tcp server addr received in %d seconds", testvars.Timeout/time.Second)
+		return 0, fmt.Errorf(
+			"no tcp server addr received in %d seconds",
+			testvars.Timeout/time.Second,
+		)
 	}
 	runenv.RecordMessage("Start fetching a TCP file from seed")
 	// open a connection
@@ -281,7 +316,13 @@ func (t *NetworkTestData) stillAlive(runenv *runtime.RunEnv, v *TestVars) {
 	}
 }
 
-func (t *NetworkTestData) addPublishFile(ctx context.Context, fIndex int, f utils.TestFile, runenv *runtime.RunEnv, testvars *TestVars) (cid.Cid, error) {
+func (t *NetworkTestData) addPublishFile(
+	ctx context.Context,
+	fIndex int,
+	f utils.TestFile,
+	runenv *runtime.RunEnv,
+	testvars *TestVars,
+) (cid.Cid, error) {
 	rate := float64(testvars.SeederRate) / 100
 	seeders := runenv.TestInstanceCount - (testvars.LeechCount + testvars.PassiveCount)
 	toSeed := int(math.Ceil(float64(seeders) * rate))
@@ -302,7 +343,12 @@ func (t *NetworkTestData) addPublishFile(ctx context.Context, fIndex int, f util
 	}
 	return cid.Undef, nil
 }
-func (t *NetworkTestData) cleanupRun(ctx context.Context, rootCid cid.Cid, runenv *runtime.RunEnv) error {
+
+func (t *NetworkTestData) cleanupRun(
+	ctx context.Context,
+	rootCid cid.Cid,
+	runenv *runtime.RunEnv,
+) error {
 	// Disconnect peers
 	for _, c := range t.node.Host().Network().Conns() {
 		err := c.Close()
@@ -355,12 +401,21 @@ func (t *NetworkTestData) emitMetrics(runenv *runtime.RunEnv, meta string,
 	return t.node.EmitMetrics(recorder)
 }
 
-func (t *NetworkTestData) emitMessageHistory(runenv *runtime.RunEnv, meta string, host string) error {
+func (t *NetworkTestData) emitMessageHistory(
+	runenv *runtime.RunEnv,
+	meta string,
+	host string,
+) error {
 	recorder := newMessageHistoryRecorder(runenv, meta, host)
 	return t.node.EmitMessageHistory(recorder)
 }
 
-func generateAndAdd(ctx context.Context, runenv *runtime.RunEnv, node utils.Node, f utils.TestFile) (*cid.Cid, error) {
+func generateAndAdd(
+	ctx context.Context,
+	runenv *runtime.RunEnv,
+	node utils.Node,
+	f utils.TestFile,
+) (*cid.Cid, error) {
 	// Generate the file
 	inputData := runenv.StringParam("input_data")
 	runenv.RecordMessage("Starting to generate file for inputData: %s and file %v", inputData, f)
@@ -380,75 +435,58 @@ func generateAndAdd(ctx context.Context, runenv *runtime.RunEnv, node utils.Node
 	return &cid, err
 }
 
-func parseType(ctx context.Context, runenv *runtime.RunEnv, client *sync.DefaultClient, addrInfo *peer.AddrInfo, seq int64, edCount int) (int64, utils.NodeType, int, error) {
+func parseType(
+	runenv *runtime.RunEnv,
+	seq int64,
+	edCount int,
+) (int64, utils.NodeType, int, error) {
 	leechCount := runenv.IntParam("leech_count")
 	seedCount := runenv.IntParam("seed_count")
 	eavesdropperCount := edCount
 
-	grpCountOverride := false
-	if runenv.TestGroupID != "" {
-		grpLchLabel := runenv.TestGroupID + "_leech_count"
-		if runenv.IsParamSet(grpLchLabel) {
-			leechCount = runenv.IntParam(grpLchLabel)
-			grpCountOverride = true
-		}
-		grpSeedLabel := runenv.TestGroupID + "_seed_count"
-		if runenv.IsParamSet(grpSeedLabel) {
-			seedCount = runenv.IntParam(grpSeedLabel)
-			grpCountOverride = true
-		}
-		grpEavsLabel := runenv.TestGroupID + "_eavesdropper_count"
-		if runenv.IsParamSet(grpEavsLabel) {
-			eavesdropperCount = runenv.IntParam(grpSeedLabel)
-			grpCountOverride = true
-		}
-	}
-
 	var nodetp utils.NodeType
 	var tpindex int
-	grpseq := seq
 	seqstr := fmt.Sprintf("- seq %d / %d", seq, runenv.TestInstanceCount)
-	grpPrefix := ""
-	if grpCountOverride {
-		grpPrefix = runenv.TestGroupID + " "
-
-		var err error
-		grpseq, err = getNodeSetSeq(ctx, client, addrInfo, runenv.TestGroupID)
-		if err != nil {
-			return grpseq, nodetp, tpindex, err
-		}
-
-		seqstr = fmt.Sprintf("%s (%d / %d of %s)", seqstr, grpseq, runenv.TestGroupInstanceCount, runenv.TestGroupID)
-	}
 
 	// Note: seq starts at 1 (not 0)
 	switch {
-	case grpseq <= int64(leechCount):
+	case seq <= int64(leechCount):
 		nodetp = utils.Leech
-		tpindex = int(grpseq) - 1
-	case grpseq > int64(leechCount) && grpseq <= int64(leechCount+eavesdropperCount):
+		tpindex = int(seq) - 1
+	case seq > int64(leechCount) && seq <= int64(leechCount+eavesdropperCount):
 		nodetp = utils.Eavesdropper
-		tpindex = int(grpseq) - 1 - (leechCount + eavesdropperCount)
-	case grpseq > int64(leechCount+seedCount+eavesdropperCount):
+		tpindex = int(seq) - 1 - (leechCount + eavesdropperCount)
+	case seq > int64(leechCount+seedCount+eavesdropperCount):
 		nodetp = utils.Passive
-		tpindex = int(grpseq) - 1 - (leechCount + seedCount + eavesdropperCount)
+		tpindex = int(seq) - 1 - (leechCount + seedCount + eavesdropperCount)
 	default:
 		nodetp = utils.Seed
-		tpindex = int(grpseq) - 1 - leechCount
+		tpindex = int(seq) - 1 - leechCount
 	}
 
-	runenv.RecordMessage("I am %s %d %s", grpPrefix+nodetp.String(), tpindex, seqstr)
+	runenv.RecordMessage("I am %s %d %s", nodetp.String(), tpindex, seqstr)
 
-	return grpseq, nodetp, tpindex, nil
+	return seq, nodetp, tpindex, nil
 }
 
-func getNodeSetSeq(ctx context.Context, client *sync.DefaultClient, addrInfo *peer.AddrInfo, setID string) (int64, error) {
+func getNodeSetSeq(
+	ctx context.Context,
+	client *sync.DefaultClient,
+	addrInfo *peer.AddrInfo,
+	setID string,
+) (int64, error) {
 	topic := sync.NewTopic("nodes"+setID, &peer.AddrInfo{})
 
 	return client.Publish(ctx, topic, addrInfo)
 }
 
-func fractionalDAG(ctx context.Context, runenv *runtime.RunEnv, seedIndex int, c cid.Cid, dserv ipld.DAGService) error {
+func fractionalDAG(
+	ctx context.Context,
+	runenv *runtime.RunEnv,
+	seedIndex int,
+	c cid.Cid,
+	dserv ipld.DAGService,
+) error {
 	//TODO: Explore this seed_fraction parameter.
 	if !runenv.IsParamSet("seed_fraction") {
 		return nil
@@ -488,7 +526,13 @@ func fractionalDAG(ctx context.Context, runenv *runtime.RunEnv, seedIndex int, c
 		return err
 	}
 
-	runenv.RecordMessage("Retained %d / %d of blocks from seed, removed %d / %d blocks", numerator, denominator, len(del), len(nodes))
+	runenv.RecordMessage(
+		"Retained %d / %d of blocks from seed, removed %d / %d blocks",
+		numerator,
+		denominator,
+		len(del),
+		len(nodes),
+	)
 	return nil
 }
 
@@ -521,12 +565,22 @@ func getTCPAddrTopic(id int, run int) *sync.Topic {
 	return sync.NewTopic(fmt.Sprintf("tcp-addr-%d-%d", id, run), "")
 }
 
-func CreateTopologyString(totalInstances, leechCount int, passiveCount int, eavesdropperCount int) string {
+func CreateTopologyString(
+	totalInstances, leechCount int,
+	passiveCount int,
+	eavesdropperCount int,
+) string {
 	// (seeder-count:leech-count:passive-count:eavesdropper-count)
-	return fmt.Sprintf("(%d-%d-%d-%d)", totalInstances-leechCount-passiveCount-eavesdropperCount, leechCount, passiveCount, eavesdropperCount)
+	return fmt.Sprintf(
+		"(%d-%d-%d-%d)",
+		totalInstances-leechCount-passiveCount-eavesdropperCount,
+		leechCount,
+		passiveCount,
+		eavesdropperCount,
+	)
 }
 
-func CreateMetaFromParams(runenv *runtime.RunEnv, runNum int, edCount int, seq int64, grpseq int64,
+func CreateMetaFromParams(runenv *runtime.RunEnv, runNum int, edCount int, seq int64,
 	latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
 	maxConnectionRate int, pIndex int, tricklingDelay time.Duration) string {
 
@@ -534,9 +588,20 @@ func CreateMetaFromParams(runenv *runtime.RunEnv, runNum int, edCount int, seq i
 	leechCount := runenv.IntParam("leech_count")
 	passiveCount := runenv.IntParam("seed_count")
 
-	id := fmt.Sprintf("topology:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/groupName:%s/groupSeq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
-		CreateTopologyString(instance, leechCount, passiveCount, edCount), maxConnectionRate,
-		latency.Milliseconds(), bandwidthMB, runNum, seq, runenv.TestGroupID, grpseq, fileSize, nodetp, tpindex, pIndex, tricklingDelay.Milliseconds())
+	id := fmt.Sprintf(
+		"topology:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
+		CreateTopologyString(instance, leechCount, passiveCount, edCount),
+		maxConnectionRate,
+		latency.Milliseconds(),
+		bandwidthMB,
+		runNum,
+		seq,
+		fileSize,
+		nodetp,
+		tpindex,
+		pIndex,
+		tricklingDelay.Milliseconds(),
+	)
 	return id
 }
 
@@ -575,7 +640,14 @@ func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHis
 
 	}
 	msgObjectString := fmt.Sprintf("\"wants\": [%s]", wantlistString)
-	logString := fmt.Sprintf("{ \"meta\": \"%s\", \"receiver\": \"%s\", \"ts\": \"%d\", \"sender\": \"%s\", \"message\": { %s } }", m.meta, m.host, msg.Timestamp.UnixNano(), msg.Peer, msgObjectString)
+	logString := fmt.Sprintf(
+		"{ \"meta\": \"%s\", \"receiver\": \"%s\", \"ts\": \"%d\", \"sender\": \"%s\", \"message\": { %s } }",
+		m.meta,
+		m.host,
+		msg.Timestamp.UnixNano(),
+		msg.Peer,
+		msgObjectString,
+	)
 	_, err := fmt.Fprintln(m.file, logString)
 	if err != nil {
 		m.runenv.RecordMessage("Error writing message history entry: %s", err)
@@ -583,8 +655,16 @@ func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHis
 	}
 }
 
-func newMessageHistoryRecorder(runenv *runtime.RunEnv, meta string, host string) utils.MessageHistoryRecorder {
-	file, err := os.OpenFile(runenv.TestOutputsPath+"/messageHistory.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+func newMessageHistoryRecorder(
+	runenv *runtime.RunEnv,
+	meta string,
+	host string,
+) utils.MessageHistoryRecorder {
+	file, err := os.OpenFile(
+		runenv.TestOutputsPath+"/messageHistory.out",
+		os.O_WRONLY|os.O_CREATE|os.O_APPEND,
+		0755,
+	)
 	if err != nil {
 		runenv.RecordMessage("Error creating message history file: %s", err)
 		return nil
@@ -600,7 +680,13 @@ type globalInfoRecorder struct {
 
 func (g globalInfoRecorder) RecordInfoWithMeta(meta string, info string) {
 	infoType := "LeechInfo"
-	msgString := fmt.Sprintf("{ \"meta\": \"%s\", \"timestamp\": \"%d\", \"type\": \"%s\", %s }", meta, time.Now().UnixMicro(), infoType, info)
+	msgString := fmt.Sprintf(
+		"{ \"meta\": \"%s\", \"timestamp\": \"%d\", \"type\": \"%s\", %s }",
+		meta,
+		time.Now().UnixMicro(),
+		infoType,
+		info,
+	)
 	_, err := fmt.Fprintln(g.file, msgString)
 	if err != nil {
 		g.runenv.RecordMessage("Error writing global info: %s", err)
@@ -610,7 +696,12 @@ func (g globalInfoRecorder) RecordInfoWithMeta(meta string, info string) {
 
 func (g globalInfoRecorder) RecordNodeInfo(info string) {
 	infoType := "NodeInfo"
-	msgString := fmt.Sprintf("{ \"timestamp\": \"%d\", \"type\": \"%s\", %s }", time.Now().UnixMicro(), infoType, info)
+	msgString := fmt.Sprintf(
+		"{ \"timestamp\": \"%d\", \"type\": \"%s\", %s }",
+		time.Now().UnixMicro(),
+		infoType,
+		info,
+	)
 	_, err := fmt.Fprintln(g.file, msgString)
 	if err != nil {
 		g.runenv.RecordMessage("Error writing global info: %s", err)
@@ -619,7 +710,11 @@ func (g globalInfoRecorder) RecordNodeInfo(info string) {
 }
 
 func newGlobalInfoRecorder(runenv *runtime.RunEnv) utils.GlobalInfoRecorder {
-	file, err := os.OpenFile(runenv.TestOutputsPath+"/globalInfo.out", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	file, err := os.OpenFile(
+		runenv.TestOutputsPath+"/globalInfo.out",
+		os.O_WRONLY|os.O_CREATE|os.O_APPEND,
+		0755,
+	)
 	if err != nil {
 		runenv.RecordMessage("Error creating global info file: %s", err)
 		return nil
