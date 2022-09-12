@@ -543,8 +543,6 @@ github.com/ipfs/go-ipfs-posinfo v0.0.1/go.mod h1:SwyeVP+jCwiDu0C313l/8jg6ZxM0qqt
 github.com/ipfs/go-ipfs-pq v0.0.1/go.mod h1:LWIqQpqfRG3fNc5XsnIhz/wQ2XXGyugQwls7BgUmUfY=
 github.com/ipfs/go-ipfs-pq v0.0.2 h1:e1vOOW6MuOwG2lqxcLA+wEn93i/9laCY8sXAw76jFOY=
 github.com/ipfs/go-ipfs-pq v0.0.2/go.mod h1:LWIqQpqfRG3fNc5XsnIhz/wQ2XXGyugQwls7BgUmUfY=
-github.com/ipfs/go-ipfs-regression v0.0.1 h1:LX3lrYYgiCE9QmL/qlc4Mh0cewdOHRl5pArbeQRllsU=
-github.com/ipfs/go-ipfs-regression v0.0.1/go.mod h1:I9yKzBjbirC5D0ND0DBkiQ5PPSQ2R2YjhcqHPj8L28A=
 github.com/ipfs/go-ipfs-routing v0.1.0/go.mod h1:hYoUkJLyAUKhF58tysKpids8RNDPO42BVMgK5dNsoqY=
 github.com/ipfs/go-ipfs-routing v0.2.1 h1:E+whHWhJkdN9YeoHZNj5itzc+OR292AJ2uE9FFiW0BY=
 github.com/ipfs/go-ipfs-routing v0.2.1/go.mod h1:xiNNiwgjmLqPS1cimvAw6EyB9rkVDbiocA4yY+wRNLM=
