@@ -39,7 +39,7 @@ type TestVars struct {
 	Timeout           time.Duration
 	RunTimeout        time.Duration
 	LeechCount        int
-	PassiveCount      int
+	SeedCount         int
 	EavesdropperCount []int
 	RequestStagger    time.Duration
 	RunCount          int
@@ -88,7 +88,7 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 		tv.LeechCount = runenv.IntParam("leech_count")
 	}
 	if runenv.IsParamSet("seed_count") {
-		tv.PassiveCount = runenv.IntParam("seed_count")
+		tv.SeedCount = runenv.IntParam("seed_count")
 	}
 	if runenv.IsParamSet("eavesdropper_count") {
 		eavesdropperCount, err := utils.ParseIntArray(runenv.StringParam("eavesdropper_count"))
@@ -324,7 +324,7 @@ func (t *NetworkTestData) addPublishFile(
 	testvars *TestVars,
 ) (cid.Cid, error) {
 	rate := float64(testvars.SeederRate) / 100
-	seeders := runenv.TestInstanceCount - (testvars.LeechCount + testvars.PassiveCount)
+	seeders := runenv.TestInstanceCount - (testvars.LeechCount + testvars.SeedCount)
 	toSeed := int(math.Ceil(float64(seeders) * rate))
 
 	// If this is the first run for this file size.
@@ -438,35 +438,32 @@ func generateAndAdd(
 func parseType(
 	runenv *runtime.RunEnv,
 	seq int64,
-	edCount int,
+	leechCount int,
+	seedCount int,
+	eavesdropperCount int,
 ) (int64, utils.NodeType, int, error) {
-	leechCount := runenv.IntParam("leech_count")
-	seedCount := runenv.IntParam("seed_count")
-	eavesdropperCount := edCount
-
-	var nodetp utils.NodeType
-	var tpindex int
+	var nodeType utils.NodeType
+	var typeIndex int
 	seqstr := fmt.Sprintf("- seq %d / %d", seq, runenv.TestInstanceCount)
 
 	// Note: seq starts at 1 (not 0)
-	switch {
-	case seq <= int64(leechCount):
-		nodetp = utils.Leech
-		tpindex = int(seq) - 1
-	case seq > int64(leechCount) && seq <= int64(leechCount+eavesdropperCount):
-		nodetp = utils.Eavesdropper
-		tpindex = int(seq) - 1 - (leechCount + eavesdropperCount)
-	case seq > int64(leechCount+seedCount+eavesdropperCount):
-		nodetp = utils.Passive
-		tpindex = int(seq) - 1 - (leechCount + seedCount + eavesdropperCount)
-	default:
-		nodetp = utils.Seed
-		tpindex = int(seq) - 1 - leechCount
+	if seq <= int64(leechCount) {
+		nodeType = utils.Leech
+		typeIndex = int(seq) - 1
+	} else if seq <= int64(leechCount+seedCount) {
+		nodeType = utils.Seed
+		typeIndex = int(seq) - leechCount - 1
+	} else if seq <= int64(leechCount+seedCount+eavesdropperCount) {
+		nodeType = utils.Eavesdropper
+		typeIndex = int(seq) - (leechCount + seedCount) - 1
+	} else {
+		nodeType = utils.Passive
+		typeIndex = int(seq) - (leechCount + seedCount + eavesdropperCount) - 1
 	}
 
-	runenv.RecordMessage("I am %s %d %s", nodetp.String(), tpindex, seqstr)
+	runenv.RecordMessage("I am %s %d %s", nodeType.String(), typeIndex, seqstr)
 
-	return seq, nodetp, tpindex, nil
+	return seq, nodeType, typeIndex, nil
 }
 
 func getNodeSetSeq(
@@ -566,16 +563,17 @@ func getTCPAddrTopic(id int, run int) *sync.Topic {
 }
 
 func CreateTopologyString(
-	totalInstances, leechCount int,
-	passiveCount int,
+	totalInstances,
+	leechCount int,
+	seedCount int,
 	eavesdropperCount int,
 ) string {
 	// (seeder-count:leech-count:passive-count:eavesdropper-count)
 	return fmt.Sprintf(
 		"(%d-%d-%d-%d)",
-		totalInstances-leechCount-passiveCount-eavesdropperCount,
+		totalInstances-leechCount-seedCount-eavesdropperCount,
 		leechCount,
-		passiveCount,
+		seedCount,
 		eavesdropperCount,
 	)
 }
@@ -586,11 +584,11 @@ func CreateMetaFromParams(runenv *runtime.RunEnv, runNum int, edCount int, seq i
 
 	instance := runenv.TestInstanceCount
 	leechCount := runenv.IntParam("leech_count")
-	passiveCount := runenv.IntParam("seed_count")
+	seedCount := runenv.IntParam("seed_count")
 
 	id := fmt.Sprintf(
 		"topology:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
-		CreateTopologyString(instance, leechCount, passiveCount, edCount),
+		CreateTopologyString(instance, leechCount, seedCount, edCount),
 		maxConnectionRate,
 		latency.Milliseconds(),
 		bandwidthMB,

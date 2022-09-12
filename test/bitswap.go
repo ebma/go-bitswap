@@ -63,6 +63,8 @@ func initializeNodeTypeAndPeers(
 	seq, nodetp, tpindex, err := parseType(
 		runenv,
 		baseTestData.seq,
+		testvars.LeechCount,
+		testvars.SeedCount,
 		eavesdropperCount,
 	)
 	if err != nil {
@@ -90,7 +92,7 @@ func initializeNodeTypeAndPeers(
 		// If we're not running in group mode, calculate the seed index as
 		// the sequence number minus the other types of node (leech / passive).
 		// Note: sequence number starts from 1 (not 0)
-		seedIndex = baseTestData.seq - int64(testvars.LeechCount+testvars.PassiveCount) - 1
+		seedIndex = baseTestData.seq - int64(testvars.LeechCount+testvars.SeedCount) - 1
 	}
 	runenv.RecordMessage("Seed index %v for: %v", &baseTestData.nConfig.AddrInfo.ID, seedIndex)
 
@@ -231,7 +233,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 					CreateTopologyString(
 						runenv.TestInstanceCount,
 						testvars.LeechCount,
-						testvars.PassiveCount,
+						testvars.SeedCount,
 						eavesdropperCount,
 					),
 					h.ID().String(),
