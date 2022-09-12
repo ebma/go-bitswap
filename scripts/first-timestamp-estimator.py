@@ -81,10 +81,9 @@ class FirstTimestampEstimator:
         return prediction
 
 
-def plot_prediction_accuracy(topology, prediction_results):
+def plot_prediction_accuracy(topology, prediction_results, ax):
     prediction_results.sort(key=lambda x: x['latency'])
 
-    plt.figure()
     unique_latencies = list(set([r['latency'] for r in prediction_results]))
     for latency in unique_latencies:
         latency_results = [r for r in prediction_results if r['latency'] == latency]
@@ -93,14 +92,14 @@ def plot_prediction_accuracy(topology, prediction_results):
         delays = [r['delay'] for r in latency_results]
         # y-axis
         accuracy = [r['prediction_rate'] for r in latency_results]
-        plt.plot(delays, accuracy, label=f"latency: {latency}ms")
+        ax.plot(delays, accuracy, label=f"latency: {latency}ms")
 
-    plt.title("Prediction accuracy for topology " + topology)
-    plt.xlabel("Trickling Delay (ms)")
-    plt.ylabel("Prediction rate")
-    plt.grid(True)
-    plt.legend()
-    plt.show()
+    ax.set_title("Topology " + topology)
+    ax.set(xlabel='Trickling Delay (ms)', ylabel='Prediction rate')
+    # ax.xlabel("Trickling Delay (ms)")
+    # ax.ylabel("Prediction rate")
+    ax.grid(True)
+    ax.legend()
 
 
 if __name__ == "__main__":
@@ -146,8 +145,10 @@ if __name__ == "__main__":
     print("Overall prediction rate: ", correct_predictions, "/",
           len(leech_target_items), "=", correct_predictions / len(leech_target_items))
 
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5), sharey=True)
     unique_topologies = list(set([item['topology'] for item in leech_target_items]))
-    for topology in unique_topologies:
+    unique_topologies.sort(reverse=True)
+    for index, topology in enumerate(unique_topologies):
         prediction_results = list()
         # split by latency
         unique_latencies = list(set([item['latencyMS'] for item in leech_target_items]))
@@ -171,4 +172,6 @@ if __name__ == "__main__":
 
                 prediction_results.append({'latency': latency, 'delay': delay, 'prediction_rate': prediction_rate})
 
-        plot_prediction_accuracy(topology, prediction_results)
+        plot_prediction_accuracy(topology, prediction_results, axs[index])
+    fig.suptitle("Prediction accuracy for different topologies - (passive-leech-seed-eavesdropper)")
+    plt.show()
