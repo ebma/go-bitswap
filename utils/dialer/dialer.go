@@ -89,6 +89,7 @@ func SparseDial(
 func DialOtherPeers(
 	ctx context.Context,
 	self core.Host,
+	selfType utils.NodeType,
 	ais []utils.PeerInfo,
 	maxConnectionRate int,
 ) ([]peer.AddrInfo, error) {

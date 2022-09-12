@@ -68,8 +68,8 @@ type TestData struct {
 	dialFn              dialer.Dialer
 	signalAndWaitForAll func(state string) error
 	seq                 int64
-	nodetp              utils.NodeType
-	tpindex             int
+	nodeType            utils.NodeType
+	typeIndex           int
 	seedIndex           int64
 }
 
@@ -329,7 +329,7 @@ func (t *NetworkTestData) addPublishFile(
 
 	// If this is the first run for this file size.
 	// Only a rate of seeders add the file.
-	if t.tpindex <= toSeed {
+	if t.typeIndex <= toSeed {
 		// Generating and adding file to IPFS
 		c, err := generateAndAdd(ctx, runenv, t.node, f)
 		if err != nil {
@@ -358,7 +358,7 @@ func (t *NetworkTestData) cleanupRun(
 	}
 	runenv.RecordMessage("Closed Connections")
 
-	if t.nodetp == utils.Leech || t.nodetp == utils.Passive {
+	if t.nodeType == utils.Leech || t.nodeType == utils.Passive {
 		// Clearing datastore
 		// Also clean passive nodes so they don't store blocks from
 		// previous runs.
@@ -370,7 +370,7 @@ func (t *NetworkTestData) cleanupRun(
 }
 
 func (t *NetworkTestData) cleanupFile(ctx context.Context, rootCid cid.Cid) error {
-	if t.nodetp == utils.Seed {
+	if t.nodeType == utils.Seed {
 		// Between every file close the seed Node.
 		// ipfsNode.Close()
 		// runenv.RecordMessage("Closed Seed Node")
@@ -392,7 +392,7 @@ func (t *NetworkTestData) emitMetrics(runenv *runtime.RunEnv, meta string,
 	timeToFetch time.Duration, tcpFetch int64, leechFails int64) error {
 
 	recorder := newMetricsRecorder(runenv, meta)
-	if t.nodetp == utils.Leech {
+	if t.nodeType == utils.Leech {
 		recorder.Record("time_to_fetch", float64(timeToFetch))
 		recorder.Record("leech_fails", float64(leechFails))
 		recorder.Record("tcp_fetch", float64(tcpFetch))

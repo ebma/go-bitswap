@@ -92,7 +92,9 @@ func initializeNodeTypeAndPeers(
 		// If we're not running in group mode, calculate the seed index as
 		// the sequence number minus the other types of node (leech / passive).
 		// Note: sequence number starts from 1 (not 0)
-		seedIndex = baseTestData.seq - int64(testvars.LeechCount+testvars.SeedCount) - 1
+		seedIndex = baseTestData.seq - int64(
+			testvars.LeechCount+testvars.SeedCount+eavesdropperCount,
+		) - 1
 	}
 	runenv.RecordMessage("Seed index %v for: %v", &baseTestData.nConfig.AddrInfo.ID, seedIndex)
 
@@ -237,12 +239,12 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 						eavesdropperCount,
 					),
 					h.ID().String(),
-					nodeTestData.nodetp.String(),
+					nodeTestData.nodeType.String(),
 				),
 			)
 
 			// Set up network (with traffic shaping)
-			if err := utils.SetupNetwork(ctx, runenv, nodeTestData.nwClient, nodeTestData.nodetp, nodeTestData.tpindex, testParams.Latency,
+			if err := utils.SetupNetwork(ctx, runenv, nodeTestData.nwClient, nodeTestData.nodeType, nodeTestData.typeIndex, testParams.Latency,
 				testParams.Bandwidth, testParams.JitterPct); err != nil {
 				return fmt.Errorf("Failed to set up network: %v", err)
 			}
@@ -257,7 +259,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				return err
 			}
 
-			switch nodeTestData.nodetp {
+			switch nodeTestData.nodeType {
 			case utils.Seed:
 				rootCid, err = nodeTestData.addPublishFile(
 					ctx,
@@ -285,7 +287,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 			if testvars.TCPEnabled {
 				runenv.RecordMessage("Running TCP test...")
-				switch nodeTestData.nodetp {
+				switch nodeTestData.nodeType {
 				case utils.Seed:
 					err = nodeTestData.runTCPServer(
 						ctx,
@@ -319,8 +321,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 					testParams.Latency,
 					testParams.Bandwidth,
 					int(testParams.File.Size()),
-					nodeTestData.nodetp,
-					nodeTestData.tpindex,
+					nodeTestData.nodeType,
+					nodeTestData.typeIndex,
 					testvars.MaxConnectionRate,
 					pIndex,
 					tricklingDelay,
@@ -343,17 +345,17 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 					testParams.File.Size(),
 				)
 
-				if nodeTestData.nodetp != utils.Eavesdropper {
+				if nodeTestData.nodeType != utils.Eavesdropper {
 					dialed, err := nodeTestData.dialFn(
 						sctx,
 						transferNode.Host(),
-						nodeTestData.nodetp,
+						nodeTestData.nodeType,
 						nodeTestData.peerInfos,
 						testvars.MaxConnectionRate,
 					)
 					runenv.RecordMessage(
 						"%s Dialed %d other nodes",
-						nodeTestData.nodetp.String(),
+						nodeTestData.nodeType.String(),
 						len(dialed),
 					)
 					if err != nil {
@@ -374,17 +376,18 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 					return err
 				}
 
-				if nodeTestData.nodetp == utils.Eavesdropper {
+				if nodeTestData.nodeType == utils.Eavesdropper {
 					// Let eavesdropper nodes dial all peers
 					// we do this separately from the other call because of a TCP error when many instances are running
 					dialed, err := dialer.DialAllPeers(
 						sctx,
 						transferNode.Host(),
+						nodeTestData.nodeType,
 						nodeTestData.peerInfos,
 					)
 					runenv.RecordMessage(
 						"%s Dialed %d other nodes",
-						nodeTestData.nodetp.String(),
+						nodeTestData.nodeType.String(),
 						len(dialed),
 					)
 					if err != nil {
@@ -406,7 +409,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 				/// --- Start test
 				var timeToFetch time.Duration
-				if nodeTestData.nodetp == utils.Leech {
+				if nodeTestData.nodeType == utils.Leech {
 					globalInfoRecorder.RecordInfoWithMeta(
 						meta,
 						fmt.Sprintf(
@@ -429,7 +432,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 						leechFails++
 					} else {
 						runenv.RecordMessage("Fetch complete, proceeding")
-						err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(nodeTestData.tpindex)+time.Now().String())
+						err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(nodeTestData.typeIndex)+time.Now().String())
 						if err != nil {
 							cancel()
 							return err
