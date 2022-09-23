@@ -117,7 +117,6 @@ func initializeNodeTypeAndPeers(
 	// Signal that this node is in the given state, and wait for all peers to
 	// send the same signal
 	signalAndWaitForAll := func(state string) error {
-		runenv.RecordMessage("Signalling %s", state)
 		_, err := baseTestData.client.SignalAndWait(
 			ctx,
 			sync.State(state),
@@ -208,6 +207,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 	// For each test permutation found in the test
 	for pIndex, testParams := range testVars.Permutations {
+		pctx, pcancel := context.WithTimeout(ctx, testVars.Timeout)
+
 		runenv.RecordMessage(
 			"Running test permutation %d, with latency %d and delay %d",
 			pIndex,
@@ -218,7 +219,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 		// Initialize the bitswap node with trickling delay of test permutation
 		tricklingDelay := testParams.TricklingDelay
 		nodeTestData, err := initializeBitswapNetwork(
-			ctx,
+			pctx,
 			runenv,
 			testVars,
 			testData,
@@ -245,8 +246,10 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			),
 		)
 
+		// Create new network client because sometimes sidecar does not work
+		nwclient := network.NewClient(nodeTestData.client, runenv)
 		// Set up network (with traffic shaping)
-		if err := utils.SetupNetwork(ctx, runenv, nodeTestData.nwClient, nodeTestData.nodeType, nodeTestData.typeIndex, testParams.Latency,
+		if err := utils.SetupNetwork(pctx, runenv, nwclient, nodeTestData.nodeType, nodeTestData.typeIndex, testParams.Latency,
 			testParams.Bandwidth, testParams.JitterPct); err != nil {
 			return fmt.Errorf("Failed to set up network: %v", err)
 		}
@@ -264,7 +267,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 		switch nodeTestData.nodeType {
 		case utils.Seed:
 			rootCid, err = nodeTestData.addPublishFile(
-				ctx,
+				pctx,
 				pIndex,
 				testParams.File,
 				runenv,
@@ -272,7 +275,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			)
 		case utils.Leech:
 			logging.SetLogLevel("bs:peermgr", "DEBUG")
-			rootCid, err = nodeTestData.readFile(ctx, pIndex, runenv, testVars)
+			rootCid, err = nodeTestData.readFile(pctx, pIndex, runenv, testVars)
 		}
 		if err != nil {
 			return err
@@ -293,7 +296,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			switch nodeTestData.nodeType {
 			case utils.Seed:
 				err = nodeTestData.runTCPServer(
-					ctx,
+					pctx,
 					pIndex,
 					runNum,
 					testParams.File,
@@ -301,7 +304,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 					testVars,
 				)
 			case utils.Leech:
-				tcpFetch, err = nodeTestData.runTCPFetch(ctx, pIndex, runNum, runenv, testVars)
+				tcpFetch, err = nodeTestData.runTCPFetch(pctx, pIndex, runNum, runenv, testVars)
 			default:
 				err = nodeTestData.signalAndWaitForAll(
 					fmt.Sprintf("tcp-fetch-%d-%d", pIndex, runNum),
@@ -317,8 +320,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 		for runNum := 1; runNum < testVars.RunCount+1; runNum++ {
 			// Reset the timeout for each run
-			sctx, cancel := context.WithTimeout(ctx, testVars.RunTimeout)
-			defer cancel()
+			sctx, scancel := context.WithTimeout(pctx, testVars.RunTimeout)
+			defer scancel()
 
 			// Used for logging
 			meta := CreateMetaFromParams(
@@ -429,7 +432,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 					testParams.File.Size(),
 				)
 				start := time.Now()
-				ctxFetch, cancel := context.WithTimeout(sctx, testVars.RunTimeout/2)
+				ctxFetch, fetchCancel := context.WithTimeout(sctx, testVars.RunTimeout/2)
 				rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, nodeTestData.peerInfos)
 				if err != nil {
 					runenv.RecordMessage("Error fetching data: %v", err)
@@ -438,14 +441,14 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 					runenv.RecordMessage("Fetch complete, proceeding")
 					err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(nodeTestData.typeIndex)+time.Now().String())
 					if err != nil {
-						cancel()
+						fetchCancel()
 						return err
 					}
 					timeToFetch = time.Since(start)
 					s, _ := rcvFile.Size()
 					runenv.RecordMessage("Leech fetch of %d complete (%d ns)", s, timeToFetch)
 				}
-				cancel()
+				fetchCancel()
 			}
 
 			// Wait for all leeches to have downloaded the data from seeds
@@ -476,10 +479,13 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				return err
 			}
 		}
-		err = nodeTestData.cleanupFile(ctx, rootCid)
+		err = nodeTestData.cleanupFile(pctx, rootCid)
 		if err != nil {
 			return err
 		}
+
+		// cancel permutation context
+		pcancel()
 	}
 
 	// Close host at end of eavesdropper test permutation
