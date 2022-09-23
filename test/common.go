@@ -91,7 +91,7 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 		tv.SeedCount = runenv.IntParam("seed_count")
 	}
 	if runenv.IsParamSet("eavesdropper_count") {
-		tv.SeedCount = runenv.IntParam("eavesdropper_count")
+		tv.EavesdropperCount = runenv.IntParam("eavesdropper_count")
 	}
 	if runenv.IsParamSet("request_stagger") {
 		tv.RequestStagger = time.Duration(runenv.IntParam("request_stagger")) * time.Millisecond
@@ -352,7 +352,8 @@ func (t *NetworkTestData) cleanupRun(
 	}
 	runenv.RecordMessage("Closed Connections")
 
-	if t.nodeType == utils.Leech || t.nodeType == utils.Passive {
+	if t.nodeType == utils.Leech || t.nodeType == utils.Passive ||
+		t.nodeType == utils.Eavesdropper {
 		// Clearing datastore
 		// Also clean passive nodes so they don't store blocks from
 		// previous runs.

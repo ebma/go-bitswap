@@ -117,6 +117,7 @@ func initializeNodeTypeAndPeers(
 	// Signal that this node is in the given state, and wait for all peers to
 	// send the same signal
 	signalAndWaitForAll := func(state string) error {
+		runenv.RecordMessage("Signalling %s", state)
 		_, err := baseTestData.client.SignalAndWait(
 			ctx,
 			sync.State(state),
@@ -207,7 +208,12 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 	// For each test permutation found in the test
 	for pIndex, testParams := range testVars.Permutations {
-		runenv.RecordMessage("Running test permutation %d", pIndex)
+		runenv.RecordMessage(
+			"Running test permutation %d, with latency %d and delay %d",
+			pIndex,
+			testParams.Latency,
+			testParams.TricklingDelay,
+		)
 
 		// Initialize the bitswap node with trickling delay of test permutation
 		tricklingDelay := testParams.TricklingDelay
@@ -283,19 +289,25 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 		if testVars.TCPEnabled {
 			runenv.RecordMessage("Running TCP test...")
+			runNum := 0
 			switch nodeTestData.nodeType {
 			case utils.Seed:
 				err = nodeTestData.runTCPServer(
 					ctx,
 					pIndex,
-					0,
+					runNum,
 					testParams.File,
 					runenv,
 					testVars,
 				)
 			case utils.Leech:
-				tcpFetch, err = nodeTestData.runTCPFetch(ctx, pIndex, 0, runenv, testVars)
+				tcpFetch, err = nodeTestData.runTCPFetch(ctx, pIndex, runNum, runenv, testVars)
+			default:
+				err = nodeTestData.signalAndWaitForAll(
+					fmt.Sprintf("tcp-fetch-%d-%d", pIndex, runNum),
+				)
 			}
+
 			if err != nil {
 				return err
 			}
@@ -328,7 +340,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 			// Wait for all nodes to be ready to start the run
 			err = signalAndWaitForAll(
-				fmt.Sprintf("start-run-%d-%s", pIndex, runID),
+				fmt.Sprintf("start-run-%s", runID),
 			)
 			if err != nil {
 				return err
@@ -362,8 +374,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			// Wait for normal nodes to be connected
 			err = signalAndWaitForAll(
 				fmt.Sprintf(
-					"connect-normal-complete-%d-%s",
-					pIndex,
+					"connect-normal-complete-%s",
 					runID,
 				),
 			)
@@ -392,8 +403,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			// Wait for eavesdropper nodes to be connected
 			err = signalAndWaitForAll(
 				fmt.Sprintf(
-					"connect-eavesdropper-complete-%d-%s",
-					pIndex,
+					"connect-eavesdropper-complete-%s",
 					runID,
 				),
 			)
@@ -440,7 +450,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 			// Wait for all leeches to have downloaded the data from seeds
 			err = signalAndWaitForAll(
-				fmt.Sprintf("transfer-complete-%d-%s", pIndex, runID),
+				fmt.Sprintf("transfer-complete-%s", runID),
 			)
 			if err != nil {
 				return err
