@@ -93,6 +93,7 @@ def plot_prediction_accuracy(topology, prediction_results, ax):
         # y-axis
         accuracy = [r['prediction_rate'] for r in latency_results]
         ax.plot(delays, accuracy, label=f"latency: {latency}ms")
+        ax.scatter(delays, accuracy, s=100)
 
     ax.set_title("Topology " + topology)
     ax.set(xlabel='Trickling Delay (ms)', ylabel='Prediction rate')
@@ -145,10 +146,40 @@ if __name__ == "__main__":
     print("Overall prediction rate: ", correct_predictions, "/",
           len(leech_target_items), "=", correct_predictions / len(leech_target_items))
 
-    fig, axs = plt.subplots(1, 3, figsize=(15, 5), sharey=True)
     unique_topologies = list(set([item['topology'] for item in leech_target_items]))
     unique_topologies.sort(reverse=True)
-    for index, topology in enumerate(unique_topologies):
+
+    fig, axs = plt.subplots(1, len(unique_topologies), figsize=(15, 5), sharey=True)
+    if len(unique_topologies) > 1:
+        for index, topology in enumerate(unique_topologies):
+            prediction_results = list()
+            # split by latency
+            unique_latencies = list(set([item['latencyMS'] for item in leech_target_items]))
+            unique_latencies.sort()
+
+            leech_target_items_for_topology = [item for item in leech_target_items if item['topology'] == topology]
+            for latency in unique_latencies:
+                latency_items = [item for item in leech_target_items_for_topology if item['latencyMS'] == latency]
+                correct_predictions = len([item for item in latency_items if item['predictionCorrect']])
+                prediction_rate = correct_predictions / len(latency_items)
+                print("Prediction rate for topology", topology, "with latency", latency, ":", prediction_rate)
+
+                # split by delay
+                unique_delays = list(set([item['tricklingDelay'] for item in latency_items]))
+                for delay in unique_delays:
+                    delay_items = [item for item in latency_items if item['tricklingDelay'] == delay]
+                    correct_predictions = len([item for item in delay_items if item['predictionCorrect']])
+                    prediction_rate = correct_predictions / len(delay_items)
+                    print("Prediction rate for topology", topology, "with latency", latency, "with delay", delay, ":",
+                          prediction_rate)
+
+                    prediction_results.append({'latency': latency, 'delay': delay, 'prediction_rate': prediction_rate})
+
+            plot_prediction_accuracy(topology, prediction_results, axs[index])
+        fig.suptitle("Prediction accuracy for different topologies - (passive-leech-seed-eavesdropper)")
+        plt.show()
+    else:
+        topology = unique_topologies[0]
         prediction_results = list()
         # split by latency
         unique_latencies = list(set([item['latencyMS'] for item in leech_target_items]))
@@ -172,6 +203,7 @@ if __name__ == "__main__":
 
                 prediction_results.append({'latency': latency, 'delay': delay, 'prediction_rate': prediction_rate})
 
-        plot_prediction_accuracy(topology, prediction_results, axs[index])
-    fig.suptitle("Prediction accuracy for different topologies - (passive-leech-seed-eavesdropper)")
-    plt.show()
+        plot_prediction_accuracy(topology, prediction_results, axs)
+
+        fig.suptitle(f"Prediction accuracy for topology {topology} - (passive-leech-seed-eavesdropper)")
+        plt.show()
