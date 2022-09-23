@@ -40,7 +40,7 @@ type TestVars struct {
 	RunTimeout        time.Duration
 	LeechCount        int
 	SeedCount         int
-	EavesdropperCount []int
+	EavesdropperCount int
 	RequestStagger    time.Duration
 	RunCount          int
 	MaxConnectionRate int
@@ -91,13 +91,7 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 		tv.SeedCount = runenv.IntParam("seed_count")
 	}
 	if runenv.IsParamSet("eavesdropper_count") {
-		eavesdropperCount, err := utils.ParseIntArray(runenv.StringParam("eavesdropper_count"))
-		if err != nil {
-			return nil, err
-		}
-		for _, count := range eavesdropperCount {
-			tv.EavesdropperCount = append(tv.EavesdropperCount, int(count)) // convert uint64 to int
-		}
+		tv.SeedCount = runenv.IntParam("eavesdropper_count")
 	}
 	if runenv.IsParamSet("request_stagger") {
 		tv.RequestStagger = time.Duration(runenv.IntParam("request_stagger")) * time.Millisecond
