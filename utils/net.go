@@ -12,9 +12,14 @@ import (
 
 // SetupNetwork instructs the sidecar (if enabled) to setup the network for this
 // test case.
-func SetupNetwork(ctx context.Context, runenv *runtime.RunEnv,
-	nwClient *network.Client, nodetp NodeType, tpindex int, baseLatency time.Duration,
-	bandwidth int, jitterPct int) error {
+func SetupNetwork(
+	ctx context.Context,
+	runenv *runtime.RunEnv,
+	nwClient *network.Client,
+	latency time.Duration,
+	bandwidth int,
+	jitterPct int,
+) error {
 
 	if !runenv.TestSidecar {
 		return nil
@@ -22,11 +27,6 @@ func SetupNetwork(ctx context.Context, runenv *runtime.RunEnv,
 
 	// Wait for the network to be initialized.
 	if err := nwClient.WaitNetworkInitialized(ctx); err != nil {
-		return err
-	}
-
-	latency, err := getLatency(runenv, nodetp, tpindex, baseLatency)
-	if err != nil {
 		return err
 	}
 
@@ -43,13 +43,16 @@ func SetupNetwork(ctx context.Context, runenv *runtime.RunEnv,
 		CallbackTarget: runenv.TestInstanceCount,
 	}
 
-	runenv.RecordMessage("%s %d has %s latency (%d%% jitter) and %dMB bandwidth", nodetp, tpindex, latency, jitterPct, bandwidth)
-
 	return nwClient.ConfigureNetwork(ctx, cfg)
 }
 
 // If there's a latency specific to the node type, overwrite the default latency
-func getLatency(runenv *runtime.RunEnv, nodetp NodeType, tpindex int, baseLatency time.Duration) (time.Duration, error) {
+func getLatency(
+	runenv *runtime.RunEnv,
+	nodetp NodeType,
+	tpindex int,
+	baseLatency time.Duration,
+) (time.Duration, error) {
 	if nodetp == Seed {
 		return getTypeLatency(runenv, "seed_latency_ms", tpindex, baseLatency)
 	} else if nodetp == Leech {
@@ -66,7 +69,12 @@ func getLatency(runenv *runtime.RunEnv, nodetp NodeType, tpindex int, baseLatenc
 // - the second seed has 200ms latency
 // - the third seed has 400ms latency
 // - any subsequent seeds have defaultLatency
-func getTypeLatency(runenv *runtime.RunEnv, param string, tpindex int, baseLatency time.Duration) (time.Duration, error) {
+func getTypeLatency(
+	runenv *runtime.RunEnv,
+	param string,
+	tpindex int,
+	baseLatency time.Duration,
+) (time.Duration, error) {
 	// No type specific latency set, just return the default
 	if !runenv.IsParamSet(param) {
 		return baseLatency, nil

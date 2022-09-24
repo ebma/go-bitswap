@@ -41,6 +41,9 @@ type TestVars struct {
 	LeechCount        int
 	SeedCount         int
 	EavesdropperCount int
+	Latency           time.Duration
+	JitterPct         int
+	Bandwidth         int
 	RequestStagger    time.Duration
 	RunCount          int
 	MaxConnectionRate int
@@ -127,19 +130,17 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 		tv.DiskStore = runenv.BooleanParam("disk_store")
 	}
 
-	bandwidths, err := utils.ParseIntArray(runenv.StringParam("bandwidth_mb"))
-	if err != nil {
-		return nil, err
+	if runenv.IsParamSet("latency_ms") {
+		tv.Latency = time.Duration(runenv.IntParam("latency_ms")) * time.Millisecond
 	}
-	latencies, err := utils.ParseIntArray(runenv.StringParam("latency_ms"))
-	if err != nil {
-		return nil, err
+	if runenv.IsParamSet("jitter_pct") {
+		tv.JitterPct = runenv.IntParam("jitter_pct")
 	}
+	if runenv.IsParamSet("bandwidth_mb") {
+		tv.Bandwidth = runenv.IntParam("bandwidth_mb")
+	}
+
 	tricklingDelays, err := utils.ParseIntArray(runenv.StringParam("trickling_delay_ms"))
-	if err != nil {
-		return nil, err
-	}
-	jitters, err := utils.ParseIntArray(runenv.StringParam("jitter_pct"))
 	if err != nil {
 		return nil, err
 	}
@@ -150,24 +151,14 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	runenv.RecordMessage("Got file list: %v", testFiles)
 
 	for _, f := range testFiles {
-		for _, b := range bandwidths {
-			for _, l := range latencies {
-				latency := time.Duration(l) * time.Millisecond
-				for _, j := range jitters {
-					for _, td := range tricklingDelays {
-						tv.Permutations = append(
-							tv.Permutations,
-							TestPermutation{
-								File:           f,
-								Bandwidth:      int(b),
-								Latency:        latency,
-								JitterPct:      int(j),
-								TricklingDelay: time.Duration(td) * time.Millisecond,
-							},
-						)
-					}
-				}
-			}
+		for _, td := range tricklingDelays {
+			tv.Permutations = append(
+				tv.Permutations,
+				TestPermutation{
+					File:           f,
+					TricklingDelay: time.Duration(td) * time.Millisecond,
+				},
+			)
 		}
 	}
 

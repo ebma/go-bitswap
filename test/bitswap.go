@@ -205,6 +205,12 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 	var tcpFetch int64
 
+	// Set up network (with traffic shaping)
+	if err := utils.SetupNetwork(ctx, runenv, testData.nwClient, testVars.Latency,
+		testVars.Bandwidth, testVars.JitterPct); err != nil {
+		return fmt.Errorf("Failed to set up network: %v", err)
+	}
+
 	// For each test permutation found in the test
 	for pIndex, testParams := range testVars.Permutations {
 		pctx, pcancel := context.WithTimeout(ctx, testVars.Timeout)
@@ -245,14 +251,6 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				nodeTestData.nodeType.String(),
 			),
 		)
-
-		// Create new network client because sometimes sidecar does not work
-		nwclient := network.NewClient(nodeTestData.client, runenv)
-		// Set up network (with traffic shaping)
-		if err := utils.SetupNetwork(pctx, runenv, nwclient, nodeTestData.nodeType, nodeTestData.typeIndex, testParams.Latency,
-			testParams.Bandwidth, testParams.JitterPct); err != nil {
-			return fmt.Errorf("Failed to set up network: %v", err)
-		}
 
 		// Accounts for every file that couldn't be found.
 		var leechFails int64
