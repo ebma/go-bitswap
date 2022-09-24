@@ -77,6 +77,8 @@ class FirstTimestampEstimator:
         # filter messages related to target cid
         cid_messages = [m for m in run_messages if cid in m['message']['wants']]
         cid_messages.sort(key=lambda x: x['ts'])
+        if len(cid_messages) == 0:
+            return None
         prediction = cid_messages[0]['sender']
         return prediction
 
@@ -87,7 +89,7 @@ def plot_prediction_accuracy(topology, prediction_results, ax):
     unique_latencies = list(set([r['latency'] for r in prediction_results]))
     for latency in unique_latencies:
         latency_results = [r for r in prediction_results if r['latency'] == latency]
-        latency_results.sort(key=lambda x: x['delay'])
+        latency_results.sort(key=lambda x: int(x['delay']))
         # x-axis
         delays = [r['delay'] for r in latency_results]
         # y-axis
@@ -103,15 +105,7 @@ def plot_prediction_accuracy(topology, prediction_results, ax):
     ax.legend()
 
 
-if __name__ == "__main__":
-    args = parse_args()
-
-    results_dir = dir_path + '/results'
-    if args.dir:
-        results_dir = args.dir
-    elif args.rel_dir:
-        results_dir = dir_path + '/' + args.rel_dir
-
+def plot_estimate(results_dir):
     info_items = aggregate_global_info(results_dir)
     node_info_items = [item for item in info_items if item['type'] == 'NodeInfo']
     leech_target_items = [item for item in info_items if item['type'] == 'LeechInfo']
@@ -206,4 +200,16 @@ if __name__ == "__main__":
         plot_prediction_accuracy(topology, prediction_results, axs)
 
         fig.suptitle(f"Prediction accuracy for topology {topology} - (passive-leech-seed-eavesdropper)")
-        plt.show()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    results_dir = dir_path + '/results'
+    if args.dir:
+        results_dir = args.dir
+    elif args.rel_dir:
+        results_dir = dir_path + '/' + args.rel_dir
+
+    plot_estimate(results_dir)
+    plt.show()

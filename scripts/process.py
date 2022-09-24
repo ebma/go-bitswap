@@ -110,67 +110,58 @@ def plot_latency_no_comparision(byLatency, byBandwidth, byFileSize):
             tc = {}
 
 
-def plot_latency(byLatency, byTricklingDelay, byFileSize):
-    p1, p2 = len(byTricklingDelay), len(byLatency)
+def plot_trickling_delays(latency, byTricklingDelay):
     p_index = 1
     x = []
     y = {}
     tc = {}
 
-    fig = plt.figure(figsize=(10, 15))
-    for d in byTricklingDelay:
-        for l in byLatency:
-            ax = fig.add_subplot(p1, p2, p_index)
-            ax.set_title("latency: " + l + " trickling-delay: " + d)
-            ax.set_xlabel('File Size (MB)')
-            ax.set_ylabel('time_to_fetch (ms)')
+    fig = plt.figure(figsize=(10, 10))
+    plt.xlabel('Trickling Delay (ms)')
+    plt.ylabel('Time-to-Fetch (ms)')
 
-            for f in byFileSize:
-                x.append(int(f) / 1e6)
+    for f in byTricklingDelay:
+        x.append(int(f) / 1e6)
 
-                y[f] = []
-                tc[f] = []
-                for i in byFileSize[f]:
-                    if i["latencyMS"] == l and i["tricklingDelay"] == d and \
-                            i["nodeType"] == "Leech":
-                        if i["meta"] == "time_to_fetch":
-                            y[f].append(i["value"])
-                        if i["meta"] == "tcp_fetch":
-                            tc[f].append(i["value"])
+        y[f] = []
+        tc[f] = []
+        for i in byTricklingDelay[f]:
+            if i["nodeType"] == "Leech":
+                if i["meta"] == "time_to_fetch":
+                    y[f].append(i["value"])
+                if i["meta"] == "tcp_fetch":
+                    tc[f].append(i["value"])
 
-                avg = []
-                for i in y:
-                    scaled_y = [i / 1e6 for i in y[i]]
-                    ax.scatter([int(i) / 1e6] * len(y[i]), scaled_y, marker="+")
-                    if len(scaled_y) > 0:
-                        avg.append(sum(scaled_y) / len(scaled_y))
-                    else:
-                        avg.append(0)
-                avg_tc = []
-                for i in tc:
-                    scaled_tc = [i / 1e6 for i in tc[i]]
-                    ax.scatter([int(i) / 1e6] * len(tc[i]), scaled_tc, marker="*")
-                    if len(scaled_tc) > 0:
-                        avg_tc.append(sum(scaled_tc) / len(scaled_tc))
-                    else:
-                        avg_tc.append(0)
+        avg = []
+        for i in y:
+            scaled_y = [i / 1e6 for i in y[i]]
+            plt.scatter([int(i) / 1e6] * len(y[i]), scaled_y, marker="+")
+            if len(scaled_y) > 0:
+                avg.append(sum(scaled_y) / len(scaled_y))
+            else:
+                avg.append(0)
+        avg_tc = []
+        for i in tc:
+            scaled_tc = [i / 1e6 for i in tc[i]]
+            plt.scatter([int(i) / 1e6] * len(tc[i]), scaled_tc, marker="*")
+            if len(scaled_tc) > 0:
+                avg_tc.append(sum(scaled_tc) / len(scaled_tc))
+            else:
+                avg_tc.append(0)
 
-            # print(y)
-            ax.plot(x, avg, label="Protocol fetch")
-            ax.plot(x, avg_tc, label="TCP fetch")
+    # print(y)
+    plt.plot(x, avg, label="Protocol fetch")
+    plt.plot(x, avg_tc, label="TCP fetch")
 
-            ax.grid()
-            ax.legend()
+    plt.grid()
+    plt.legend()
 
-            p_index += 1
-            x = []
-            y = {}
-            tc = {}
+    p_index += 1
 
-    plt.suptitle("Time-to-Fetch for different Latency and Bandwidth")
-    plt.tight_layout(h_pad=4, w_pad=4)
+    plt.title(f"Time-to-Fetch for different trickling delays with latency {latency}")
+    # plt.tight_layout(h_pad=4, w_pad=4)
     # fig.tight_layout(rect=[0,0,.8,0.8])
-    plt.subplots_adjust(top=0.94)
+    # plt.subplots_adjust(top=0.94)
 
 
 def plot_tcp_latency(byLatency, byBandwidth, byFileSize):
@@ -626,7 +617,7 @@ if __name__ == "__main__":
 
     if args.plots is not None:
         if "latency" in args.plots:
-            plot_latency(byLatency, byBandwidth, byFileSize)
+            plot_trickling_delays(byLatency, byBandwidth, byFileSize)
         if "messages" in args.plots:
             plot_messages(byFileSize, byTopology)
         if "overhead" in args.plots:

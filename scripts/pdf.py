@@ -1,6 +1,7 @@
 import process
 import os
 import sys
+import first_timestamp_estimator
 from matplotlib.backends.backend_pdf import PdfPages
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -10,8 +11,9 @@ if len(sys.argv) == 2:
 
 
 with PdfPages(dir_path + "/../experiments/" + filename) as export_pdf:
+    results_dir = dir_path + "/../experiments/results"
 
-    agg, testcases = process.aggregate_results(dir_path + "/../experiments/results")
+    agg, testcases = process.aggregate_results(results_dir)
     byLatency = process.groupBy(agg, "latencyMS")
     byNodeType = process.groupBy(agg, "nodeType")
     byFileSize = process.groupBy(agg, "fileSize")
@@ -19,15 +21,13 @@ with PdfPages(dir_path + "/../experiments/" + filename) as export_pdf:
     byTopology = process.groupBy(agg, "topology")
     byTricklingDelay = process.groupBy(agg, "tricklingDelay")
 
-    process.plot_latency(byLatency, byTricklingDelay, byFileSize)
-    export_pdf.savefig(pad_inches=0.4, bbox_inches='tight')
+    # There will only be one latency in the results
+    latency = list(byLatency.keys())[0]
+
+    first_timestamp_estimator.plot_estimate(results_dir)
+    export_pdf.savefig()
+    process.plot_trickling_delays(latency, byTricklingDelay)
+    export_pdf.savefig()
+    # export_pdf.savefig(pad_inches=0.4, bbox_inches='tight')
     process.plot_messages(byFileSize, byTopology)
     export_pdf.savefig()
-    process.plot_bw_overhead(byFileSize, byTopology)
-    export_pdf.savefig()
-    # process.plot_througput(byLatency, byBandwidth, byFileSize, byTopology, testcases)
-    # export_pdf.savefig()
-    process.plot_want_messages(byFileSize, byTopology)
-    export_pdf.savefig()
-    # process.plot_tcp_latency(byLatency, byBandwidth, byFileSize)
-    # export_pdf.savefig()
