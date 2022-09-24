@@ -111,28 +111,21 @@ def plot_latency_no_comparision(byLatency, byBandwidth, byFileSize):
 
 
 def plot_latency(byLatency, byTricklingDelay, byFileSize):
-    p1, p2 = len(byLatency), len(byTricklingDelay)
-    p1_index = 0
-    p2_index = 0
+    p1, p2 = len(byTricklingDelay), len(byLatency)
+    p_index = 1
     x = []
     y = {}
     tc = {}
 
-    fig, axes = plt.subplots(p1, p2, figsize=(15, 15), sharey=True)
-    fig.suptitle("Time-to-Fetch for different Latency and Bandwidth")
-    fig.tight_layout(h_pad=4, w_pad=4)
-    # fig.tight_layout(rect=[0,0,.8,0.8])
-    plt.subplots_adjust(top=0.94)
-
-    for l in byLatency:
-        for d in byTricklingDelay:
-            ax = axes[p1_index, p2_index]
+    fig = plt.figure(figsize=(10, 15))
+    for d in byTricklingDelay:
+        for l in byLatency:
+            ax = fig.add_subplot(p1, p2, p_index)
             ax.set_title("latency: " + l + " trickling-delay: " + d)
             ax.set_xlabel('File Size (MB)')
             ax.set_ylabel('time_to_fetch (ms)')
 
             for f in byFileSize:
-
                 x.append(int(f) / 1e6)
 
                 y[f] = []
@@ -169,14 +162,15 @@ def plot_latency(byLatency, byTricklingDelay, byFileSize):
             ax.grid()
             ax.legend()
 
-            p2_index += 1
+            p_index += 1
             x = []
             y = {}
             tc = {}
 
-        p1_index +=1
-        # reset p2_index
-        p2_index = 0
+    plt.suptitle("Time-to-Fetch for different Latency and Bandwidth")
+    plt.tight_layout(h_pad=4, w_pad=4)
+    # fig.tight_layout(rect=[0,0,.8,0.8])
+    plt.subplots_adjust(top=0.94)
 
 
 def plot_tcp_latency(byLatency, byBandwidth, byFileSize):
