@@ -112,21 +112,21 @@ def plot_latency_no_comparision(byLatency, byBandwidth, byFileSize):
 
 def plot_latency(byLatency, byTricklingDelay, byFileSize):
     p1, p2 = len(byLatency), len(byTricklingDelay)
-    pindex = 1
+    p1_index = 0
+    p2_index = 0
     x = []
     y = {}
     tc = {}
 
-    fig, axes = plt.subplots(p1, p2, figsize=(10, 15))
+    fig, axes = plt.subplots(p1, p2, figsize=(15, 15), sharey=True)
     fig.suptitle("Time-to-Fetch for different Latency and Bandwidth")
-    fig.tight_layout(h_pad=3, w_pad=0)
+    fig.tight_layout(h_pad=4, w_pad=4)
     # fig.tight_layout(rect=[0,0,.8,0.8])
     plt.subplots_adjust(top=0.94)
 
     for l in byLatency:
-
         for d in byTricklingDelay:
-            ax = axes[pindex - 1]
+            ax = axes[p1_index, p2_index]
             ax.set_title("latency: " + l + " trickling-delay: " + d)
             ax.set_xlabel('File Size (MB)')
             ax.set_ylabel('time_to_fetch (ms)')
@@ -138,7 +138,7 @@ def plot_latency(byLatency, byTricklingDelay, byFileSize):
                 y[f] = []
                 tc[f] = []
                 for i in byFileSize[f]:
-                    if i["latencyMS"] == l and i["bandwidthMB"] == d and \
+                    if i["latencyMS"] == l and i["tricklingDelay"] == d and \
                             i["nodeType"] == "Leech":
                         if i["meta"] == "time_to_fetch":
                             y[f].append(i["value"])
@@ -166,12 +166,17 @@ def plot_latency(byLatency, byTricklingDelay, byFileSize):
             ax.plot(x, avg, label="Protocol fetch")
             ax.plot(x, avg_tc, label="TCP fetch")
 
+            ax.grid()
             ax.legend()
 
-            pindex += 1
+            p2_index += 1
             x = []
             y = {}
             tc = {}
+
+        p1_index +=1
+        # reset p2_index
+        p2_index = 0
 
 
 def plot_tcp_latency(byLatency, byBandwidth, byFileSize):
@@ -370,7 +375,9 @@ def plot_bw_overhead(byFileSize, byTopology):
         for f in byFileSize:
             # TODO: Considering a 5.5% overhead of TPC
             leechCount = t.replace("(", "").replace(")", "").split("-")[1]
+            print("Leech count: " + leechCount)
             TCP_BASELINE = int(leechCount) * 1.055 * int(f)
+            print("TCP baseline: " + str(TCP_BASELINE))
             labels.append(int(f) / 1e6)
             x = np.arange(len(labels))  # the label locations
             data_rcvd = block_data_rcvd = dup_data_rcvd = overhead = 0
