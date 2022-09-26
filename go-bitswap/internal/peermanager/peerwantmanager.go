@@ -57,7 +57,11 @@ type peerWant struct {
 
 // New creates a new peerWantManager with a Gauge that keeps track of the
 // number of active want-blocks (ie sent but no response received)
-func newPeerWantManager(wantGauge Gauge, wantBlockGauge Gauge, tricklingDelay time.Duration) *peerWantManager {
+func newPeerWantManager(
+	wantGauge Gauge,
+	wantBlockGauge Gauge,
+	tricklingDelay time.Duration,
+) *peerWantManager {
 	randSource := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return &peerWantManager{
 		broadcastWants: cid.NewSet(),
@@ -169,6 +173,9 @@ func (pwm *peerWantManager) broadcastWantHaves(wantHaves []cid.Cid) {
 
 		if len(peerUnsent) > 0 {
 			pwm.trickleExecution(func() {
+				log.Infof(
+					"sending broadcast want-haves",
+				)
 				pws.peerQueue.AddBroadcastWantHaves(peerUnsent)
 			})
 		}
@@ -176,10 +183,17 @@ func (pwm *peerWantManager) broadcastWantHaves(wantHaves []cid.Cid) {
 }
 
 func (pwm *peerWantManager) trickleExecution(trickledFunction func()) {
+	// If the trickling delay is 0, execute the function immediately
+	if pwm.tricklingDelay == 0 {
+		log.Infow("trickling delay is 0, executing immediately")
+		trickledFunction()
+		return
+	}
 	pwm.tricklingLock.Lock()
+	defer pwm.tricklingLock.Unlock()
 	trickledFunction()
+	log.Infof("trickling delay is not 0, executing after delay %d", pwm.tricklingDelay)
 	time.Sleep(pwm.tricklingDelay)
-	pwm.tricklingLock.Unlock()
 }
 
 // sendWants only sends the peer the want-blocks and want-haves that have not
@@ -192,7 +206,10 @@ func (pwm *peerWantManager) sendWants(p peer.ID, wantBlocks []cid.Cid, wantHaves
 	pws, ok := pwm.peerWants[p]
 	if !ok {
 		// In practice this should never happen
-		log.Errorf("sendWants() called with peer %s but peer not found in peerWantManager", string(p))
+		log.Errorf(
+			"sendWants() called with peer %s but peer not found in peerWantManager",
+			string(p),
+		)
 		return
 	}
 
@@ -408,7 +425,7 @@ func (pwm *peerWantManager) selectRandomSubset(registry *rs.RelayRegistry) map[p
 	return filteredPeers
 }
 
-// broadcastWantHaves sends want-haves that doen't have it yet.
+// broadcastWantHaves sends want-haves that don't have it yet.
 func (pwm *peerWantManager) broadcastRelayWants(wantHaves []cid.Cid, registry *rs.RelayRegistry) {
 	unsent := make([]cid.Cid, 0, len(wantHaves))
 	for _, c := range wantHaves {
@@ -453,6 +470,7 @@ func (pwm *peerWantManager) broadcastRelayWants(wantHaves []cid.Cid, registry *r
 		if len(peerUnsent) > 0 {
 			for _, c := range peerUnsent {
 				pwm.trickleExecution(func() {
+					log.Info("Sending relay want to peer", c)
 					pws.peerQueue.AddBroadcastWantHaves([]cid.Cid{c})
 				})
 			}
@@ -483,7 +501,11 @@ func (pwm *peerWantManager) wantPeerCounts(c cid.Cid) wantPeerCnts {
 	for p := range pwm.wantPeers[c] {
 		pws, ok := pwm.peerWants[p]
 		if !ok {
-			log.Errorf("reverse index has extra peer %s for key %s in peerWantManager", string(p), c)
+			log.Errorf(
+				"reverse index has extra peer %s for key %s in peerWantManager",
+				string(p),
+				c,
+			)
 			continue
 		}
 
@@ -575,7 +597,14 @@ func (pwm *peerWantManager) getWants() []cid.Cid {
 func (pwm *peerWantManager) String() string {
 	var b bytes.Buffer
 	for p, ws := range pwm.peerWants {
-		b.WriteString(fmt.Sprintf("Peer %s: %d want-have / %d want-block:\n", p, ws.wantHaves.Len(), ws.wantBlocks.Len()))
+		b.WriteString(
+			fmt.Sprintf(
+				"Peer %s: %d want-have / %d want-block:\n",
+				p,
+				ws.wantHaves.Len(),
+				ws.wantBlocks.Len(),
+			),
+		)
 		for _, c := range ws.wantHaves.Keys() {
 			b.WriteString(fmt.Sprintf("  want-have  %s\n", c))
 		}

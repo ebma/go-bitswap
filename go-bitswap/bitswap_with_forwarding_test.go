@@ -26,7 +26,13 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 )
 
-func addBlockCustom(t *testing.T, ctx context.Context, exchange *bitswap.Bitswap, bstore blockstore.Blockstore, blk blocks.Block) {
+func addBlockCustom(
+	t *testing.T,
+	ctx context.Context,
+	exchange *bitswap.Bitswap,
+	bstore blockstore.Blockstore,
+	blk blocks.Block,
+) {
 	t.Helper()
 	err := bstore.Put(ctx, blk)
 	if err != nil {
@@ -95,7 +101,10 @@ func TestRelaySession(t *testing.T) {
 	fmt.Println(peerB.Exchange.Stat())
 }
 
-func CreateBlockstore(ctx context.Context, bstoreDelay time.Duration) (blockstore.Blockstore, error) {
+func CreateBlockstore(
+	ctx context.Context,
+	bstoreDelay time.Duration,
+) (blockstore.Blockstore, error) {
 	bsdelay := delay.Fixed(bstoreDelay)
 	dstore := ds_sync.MutexWrap(delayed.New(ds.NewMapDatastore(), bsdelay))
 	return blockstore.CachedBlockstore(ctx,
@@ -117,7 +126,11 @@ func GenerateBlocksOfSize(n int, size int64) []blocks.Block {
 	return generatedBlocks
 }
 
-func CreateBitswapNode(ctx context.Context, h host.Host, opts []bitswap.Option) (*bitswap.Bitswap, blockstore.Blockstore, error) {
+func CreateBitswapNode(
+	ctx context.Context,
+	h host.Host,
+	opts []bitswap.Option,
+) (*bitswap.Bitswap, blockstore.Blockstore, error) {
 	bstore, err := CreateBlockstore(ctx, 4000)
 	if err != nil {
 		return nil, nil, err
@@ -127,7 +140,7 @@ func CreateBitswapNode(ctx context.Context, h host.Host, opts []bitswap.Option) 
 		return nil, nil, err
 	}
 	net := bsnet.NewFromIpfsHost(h, routing)
-	return bitswap.New(ctx, net, bstore, opts...).(*bitswap.Bitswap), bstore, nil
+	return bitswap.New(ctx, net, bstore, time.Second, opts...).(*bitswap.Bitswap), bstore, nil
 }
 
 func SetupConnections(ctx context.Context, self host.Host, others []host.Host) error {

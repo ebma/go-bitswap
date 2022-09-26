@@ -183,8 +183,13 @@ func WithTaskComparator(comparator TaskComparator) Option {
 // New initializes a BitSwap instance that communicates over the provided
 // BitSwapNetwork. This function registers the returned instance as the network
 // delegate. Runs until context is cancelled or bitswap.Close is called.
-func New(parent context.Context, network bsnet.BitSwapNetwork,
-	bstore blockstore.Blockstore, tricklingDelay time.Duration, options ...Option) exchange.Interface {
+func New(
+	parent context.Context,
+	network bsnet.BitSwapNetwork,
+	bstore blockstore.Blockstore,
+	tricklingDelay time.Duration,
+	options ...Option,
+) exchange.Interface {
 
 	// important to use provided parent context (since it may include important
 	// loggable data). It's probably not a good idea to allow bitswap to be
@@ -204,15 +209,19 @@ func New(parent context.Context, network bsnet.BitSwapNetwork,
 		" this bitswap").Histogram(metricsBuckets)
 
 	sendTimeHistogram := metrics.NewCtx(ctx, "send_times", "Histogram of how long it takes to send messages"+
-		" in this bitswap").Histogram(timeMetricsBuckets)
+		" in this bitswap").
+		Histogram(timeMetricsBuckets)
 
-	pendingEngineGauge := metrics.NewCtx(ctx, "pending_tasks", "Total number of pending tasks").Gauge()
+	pendingEngineGauge := metrics.NewCtx(ctx, "pending_tasks", "Total number of pending tasks").
+		Gauge()
 
 	activeEngineGauge := metrics.NewCtx(ctx, "active_tasks", "Total number of active tasks").Gauge()
 
-	pendingBlocksGauge := metrics.NewCtx(ctx, "pending_block_tasks", "Total number of pending blockstore tasks").Gauge()
+	pendingBlocksGauge := metrics.NewCtx(ctx, "pending_block_tasks", "Total number of pending blockstore tasks").
+		Gauge()
 
-	activeBlocksGauge := metrics.NewCtx(ctx, "active_block_tasks", "Total number of active blockstore tasks").Gauge()
+	activeBlocksGauge := metrics.NewCtx(ctx, "active_block_tasks", "Total number of active blockstore tasks").
+		Gauge()
 
 	px := process.WithTeardown(func() error {
 		return nil
@@ -252,13 +261,37 @@ func New(parent context.Context, network bsnet.BitSwapNetwork,
 		self peer.ID,
 		relay bool,
 		relayRegistry *rs.RelayRegistry) bssm.Session {
-		return bssession.New(sessctx, sessmgr, id, spm, pqm, sim, pm, bpm, notif, provSearchDelay, rebroadcastDelay, self, relay, relayRegistry)
+		return bssession.New(
+			sessctx,
+			sessmgr,
+			id,
+			spm,
+			pqm,
+			sim,
+			pm,
+			bpm,
+			notif,
+			provSearchDelay,
+			rebroadcastDelay,
+			self,
+			relay,
+			relayRegistry,
+		)
 	}
 	sessionPeerManagerFactory := func(ctx context.Context, id uint64) bssession.SessionPeerManager {
 		return bsspm.New(id, network.ConnectionManager())
 	}
 	notif := notifications.New()
-	sm = bssm.New(ctx, sessionFactory, sim, sessionPeerManagerFactory, bpm, pm, notif, network.Self())
+	sm = bssm.New(
+		ctx,
+		sessionFactory,
+		sim,
+		sessionPeerManagerFactory,
+		bpm,
+		pm,
+		notif,
+		network.Self(),
+	)
 
 	bs = &Bitswap{
 		blockstore:                       bstore,
@@ -450,7 +483,11 @@ type counters struct {
 // GetBlock attempts to retrieve a particular block from peers within the
 // deadline enforced by the context.
 func (bs *Bitswap) GetBlock(ctx context.Context, k cid.Cid) (blocks.Block, error) {
-	ctx, span := internal.StartSpan(ctx, "GetBlock", trace.WithAttributes(attribute.String("Key", k.String())))
+	ctx, span := internal.StartSpan(
+		ctx,
+		"GetBlock",
+		trace.WithAttributes(attribute.String("Key", k.String())),
+	)
 	defer span.End()
 	return bsgetter.SyncGetBlock(ctx, k, bs.GetBlocks)
 }
@@ -479,7 +516,11 @@ func (bs *Bitswap) LedgerForPeer(p peer.ID) *decision.Receipt {
 // resources, provide a context with a reasonably short deadline (ie. not one
 // that lasts throughout the lifetime of the server)
 func (bs *Bitswap) GetBlocks(ctx context.Context, keys []cid.Cid) (<-chan blocks.Block, error) {
-	ctx, span := internal.StartSpan(ctx, "GetBlocks", trace.WithAttributes(attribute.Int("NumKeys", len(keys))))
+	ctx, span := internal.StartSpan(
+		ctx,
+		"GetBlocks",
+		trace.WithAttributes(attribute.Int("NumKeys", len(keys))),
+	)
 	defer span.End()
 	session := bs.sm.NewSession(ctx, bs.provSearchDelay, bs.rebroadcastDelay)
 	return session.GetBlocks(ctx, keys)
@@ -532,8 +573,24 @@ func (bs *Bitswap) NotifyNewBlocks(ctx context.Context, blks ...blocks.Block) er
 }
 
 // receiveBlocksFrom process blocks received from the network
-func (bs *Bitswap) receiveBlocksFrom(ctx context.Context, from peer.ID, blks []blocks.Block, haves []cid.Cid, dontHaves []cid.Cid) error {
-	log.Debugw("in receiveBlocksFrom", "from", from, "blks", len(blks), "haves", haves, "dontHaves", dontHaves)
+func (bs *Bitswap) receiveBlocksFrom(
+	ctx context.Context,
+	from peer.ID,
+	blks []blocks.Block,
+	haves []cid.Cid,
+	dontHaves []cid.Cid,
+) error {
+	log.Debugw(
+		"in receiveBlocksFrom",
+		"from",
+		from,
+		"blks",
+		len(blks),
+		"haves",
+		haves,
+		"dontHaves",
+		dontHaves,
+	)
 	select {
 	case <-bs.process.Closing():
 		return errors.New("bitswap is closed")

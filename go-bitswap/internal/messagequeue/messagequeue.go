@@ -16,8 +16,6 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"go.uber.org/zap"
-
-	poisson "gonum.org/v1/gonum/stat/distuv"
 )
 
 var log = logging.Logger("messagequeue")
@@ -52,7 +50,11 @@ const (
 // sender.
 type MessageNetwork interface {
 	ConnectTo(context.Context, peer.ID) error
-	NewMessageSender(context.Context, peer.ID, *bsnet.MessageSenderOpts) (bsnet.MessageSender, error)
+	NewMessageSender(
+		context.Context,
+		peer.ID,
+		*bsnet.MessageSenderOpts,
+	) (bsnet.MessageSender, error)
 	Latency(peer.ID) time.Duration
 	Ping(context.Context, peer.ID) ping.Result
 	Self() peer.ID
@@ -215,14 +217,29 @@ type DontHaveTimeoutManager interface {
 }
 
 // New creates a new MessageQueue.
-func New(ctx context.Context, p peer.ID, network MessageNetwork, onDontHaveTimeout OnDontHaveTimeout) *MessageQueue {
+func New(
+	ctx context.Context,
+	p peer.ID,
+	network MessageNetwork,
+	onDontHaveTimeout OnDontHaveTimeout,
+) *MessageQueue {
 	onTimeout := func(ks []cid.Cid) {
 		log.Infow("Bitswap: timeout waiting for blocks", "cids", ks, "peer", p)
 		onDontHaveTimeout(p, ks)
 	}
 	clock := clock.New()
 	dhTimeoutMgr := newDontHaveTimeoutMgr(newPeerConnection(p, network), onTimeout, clock)
-	return newMessageQueue(ctx, p, network, maxMessageSize, sendErrorBackoff, maxValidLatency, dhTimeoutMgr, clock, nil)
+	return newMessageQueue(
+		ctx,
+		p,
+		network,
+		maxMessageSize,
+		sendErrorBackoff,
+		maxValidLatency,
+		dhTimeoutMgr,
+		clock,
+		nil,
+	)
 }
 
 type messageEvent int
@@ -541,7 +558,6 @@ func (mq *MessageQueue) sendMessage() {
 	mq.logOutgoingMessage(wantlist)
 
 	log.Debugw("Sending message to peer", "peer", mq.p, "message", message, "wantlist", wantlist)
-
 	if err := sender.SendMsg(mq.ctx, message); err != nil {
 		// If the message couldn't be sent, the networking layer will
 		// emit a Disconnect event and the MessageQueue will get cleaned up
@@ -562,18 +578,6 @@ func (mq *MessageQueue) sendMessage() {
 	if mq.hasPendingWork() {
 		mq.signalWorkReady()
 	}
-}
-
-// Delay execution by a random amount drawn from a poisson distribution.
-func awaitTricklingDelayPoisson(lambda float64) {
-	// Setting lambda to >= 10 will result in a distribution that is close to the normal distribution
-	p := poisson.Poisson{Lambda: lambda}
-	// Calculate the delay in milliseconds * 100
-	// p.Rand() returns an integer value
-	delay := float64(time.Millisecond) * p.Rand() * 100
-
-	log.Infof("Delaying message queue execution by %v seconds", delay)
-	time.Sleep(time.Duration(delay))
 }
 
 // If want-block times out, simulate a DONT_HAVE reponse.
