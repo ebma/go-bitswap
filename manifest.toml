@@ -36,15 +36,20 @@ enabled = true
 
 [runners."local:docker"]
 enabled = true
+run_timeout_min = 25
 
 [runners."local:exec"]
 enabled = true
+run_timeout_min = 25
 
 [runners."cluster:swarm"]
 enabled = true
 
 [runners."cluster:k8s"]
 enabled = true
+
+[daemon.scheduler]
+task_timeout_min = 25
 
 [[testcases]]
 name = "transfer"
@@ -75,7 +80,7 @@ parallel_gen_mb = { type = "int", desc = "maximum allowed size of seed data to g
 passive_count = { type = "int", desc = "number of passive nodes (neither leech nor seed)", unit = "peers", default = 0 }
 request_stagger = { type = "int", desc = "time between each leech's first request", unit = "ms", default = 0 }
 run_count = { type = "int", desc = "number of iterations of the test", unit = "iteration", default = 1 }
-run_timeout_secs = { type = "int", desc = "timeout for an individual run", unit = "seconds", default = 90000 }
 seeder_rate = { type = "int", desc = "percentage of nodes seeding the file", unit = "%", default = 100 }
 size = { type = "int", desc = "size of file to transfer, in human-friendly form", default = "1MiB" }
-timeout_secs = { type = "int", desc = "timeout", unit = "seconds", default = 400000 }#TODO: Decrease to 300 if not debugging. Bear this in mind while making long tests.
+run_timeout_secs = { type = "int", desc = "timeout for an individual run", unit = "seconds", default = 9000000000 }
+timeout_secs = { type = "int", desc = "timeout", unit = "seconds", default = 40000000000 }#TODO: Decrease to 300 if not debugging. Bear this in mind while making long tests.
