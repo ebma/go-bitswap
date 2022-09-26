@@ -119,9 +119,11 @@ def plot_trickling_delays(latency, byTricklingDelay):
     fig = plt.figure(figsize=(10, 10))
     plt.xlabel('Trickling Delay (ms)')
     plt.ylabel('Time-to-Fetch (ms)')
+    labels = []
 
     for f in byTricklingDelay:
-        x.append(int(f) / 1e6)
+        x.append(int(f))
+        labels.append(int(f))
 
         y[f] = []
         tc[f] = []
@@ -135,7 +137,7 @@ def plot_trickling_delays(latency, byTricklingDelay):
         avg = []
         for i in y:
             scaled_y = [i / 1e6 for i in y[i]]
-            plt.scatter([int(i) / 1e6] * len(y[i]), scaled_y, marker="+")
+            plt.scatter([int(i)] * len(y[i]), scaled_y, marker="+")
             if len(scaled_y) > 0:
                 avg.append(sum(scaled_y) / len(scaled_y))
             else:
@@ -143,7 +145,7 @@ def plot_trickling_delays(latency, byTricklingDelay):
         avg_tc = []
         for i in tc:
             scaled_tc = [i / 1e6 for i in tc[i]]
-            plt.scatter([int(i) / 1e6] * len(tc[i]), scaled_tc, marker="*")
+            plt.scatter([int(i)] * len(tc[i]), scaled_tc, marker="*")
             if len(scaled_tc) > 0:
                 avg_tc.append(sum(scaled_tc) / len(scaled_tc))
             else:
@@ -153,6 +155,7 @@ def plot_trickling_delays(latency, byTricklingDelay):
     plt.plot(x, avg, label="Protocol fetch")
     plt.plot(x, avg_tc, label="TCP fetch")
 
+    plt.xticks(ticks=x, labels=labels)
     plt.grid()
     plt.legend()
 
@@ -216,68 +219,65 @@ def autolabel(ax, rects):
                     ha='center', va='bottom')
 
 
-def plot_messages(byFileSize, byTopology):
+def plot_messages(topology, byTricklingDelay):
     # plt.figure()
 
-    for t in byTopology:
-        labels = []
-        arr_blks_sent = []
-        arr_blks_rcvd = []
-        arr_dup_blks_rcvd = []
-        arr_msgs_rcvd = []
-        for f in byFileSize:
-            labels.append(int(f) / 1e6)
-            x = np.arange(len(labels))  # the label locations
-            blks_sent = blks_rcvd = dup_blks_rcvd = msgs_rcvd = 0
-            blks_sent_n = blks_rcvd_n = dup_blks_rcvd_n = msgs_rcvd_n = 0
-            width = 1 / 4
+    plt.figure(figsize=(10, 10))
+    plt.xlabel("Trickling Delay (ms)")
+    plt.ylabel("Number of Messages")
 
-            for i in byFileSize[f]:
-                if i["topology"] == t:
-                    if i["meta"] == "blks_sent":
-                        blks_sent += i["value"]
-                        blks_sent_n += 1
-                    if i["meta"] == "blks_rcvd":
-                        blks_rcvd += i["value"]
-                        blks_rcvd_n += 1
-                    if i["meta"] == "dup_blks_rcvd":
-                        dup_blks_rcvd += i["value"]
-                        dup_blks_rcvd_n += 1
-                    if i["meta"] == "msgs_rcvd":
-                        msgs_rcvd += i["value"]
-                        msgs_rcvd_n += 1
+    labels = []
+    arr_blks_sent = []
+    arr_blks_rcvd = []
+    arr_dup_blks_rcvd = []
+    arr_msgs_rcvd = []
+    for f in byTricklingDelay:
+        labels.append(int(f))
+        x = np.arange(len(labels))  # the label locations
+        blks_sent = blks_rcvd = dup_blks_rcvd = msgs_rcvd = 0
+        blks_sent_n = blks_rcvd_n = dup_blks_rcvd_n = msgs_rcvd_n = 0
+        width = 1 / 4
 
-            # Computing averages
-            # Remove the division if you want to see total values
-            if blks_rcvd_n > 0:
-                arr_blks_rcvd.append(round(blks_rcvd / blks_rcvd_n, 1))
-            if blks_sent_n > 0:
-                arr_blks_sent.append(round(blks_sent / blks_sent_n, 1))
-            if dup_blks_rcvd_n > 0:
-                arr_dup_blks_rcvd.append(round(dup_blks_rcvd / dup_blks_rcvd_n, 1))
-            if msgs_rcvd_n > 0:
-                arr_msgs_rcvd.append(round(msgs_rcvd / msgs_rcvd_n, 1))
-            blks_sent = blks_rcvd = dup_blks_rcvd = msgs_rcvd = 0
-            blks_sent_n = blks_rcvd_n = dup_blks_rcvd_n = msgs_rcvd_n = 0
+        for i in byTricklingDelay[f]:
+            if i["meta"] == "blks_sent":
+                blks_sent += i["value"]
+                blks_sent_n += 1
+            if i["meta"] == "blks_rcvd":
+                blks_rcvd += i["value"]
+                blks_rcvd_n += 1
+            if i["meta"] == "dup_blks_rcvd":
+                dup_blks_rcvd += i["value"]
+                dup_blks_rcvd_n += 1
+            if i["meta"] == "msgs_rcvd":
+                msgs_rcvd += i["value"]
+                msgs_rcvd_n += 1
 
-        fig, ax = plt.subplots()
-        bar1 = ax.bar(x - (3 / 2) * width, arr_msgs_rcvd, width, label="Msgs Received")
-        bar2 = ax.bar(x - width / 2, arr_blks_rcvd, width, label="Blocks Rcv")
-        bar3 = ax.bar(x + width / 2, arr_blks_sent, width, label="Blocks Sent")
-        bar4 = ax.bar(x + (3 / 2) * width, arr_dup_blks_rcvd, width, label="Duplicates blocks")
+        # Computing averages
+        # Remove the division if you want to see total values
+        if blks_rcvd_n > 0:
+            arr_blks_rcvd.append(round(blks_rcvd / blks_rcvd_n, 1))
+        if blks_sent_n > 0:
+            arr_blks_sent.append(round(blks_sent / blks_sent_n, 1))
+        if dup_blks_rcvd_n > 0:
+            arr_dup_blks_rcvd.append(round(dup_blks_rcvd / dup_blks_rcvd_n, 1))
+        if msgs_rcvd_n > 0:
+            arr_msgs_rcvd.append(round(msgs_rcvd / msgs_rcvd_n, 1))
 
-        autolabel(ax, bar1)
-        autolabel(ax, bar2)
-        autolabel(ax, bar3)
-        autolabel(ax, bar4)
+    bar1 = plt.bar(x - (3 / 2) * width, arr_msgs_rcvd, width, label="Messages Received")
+    bar2 = plt.bar(x - width / 2, arr_blks_rcvd, width, label="Blocks Received")
+    bar3 = plt.bar(x + width / 2, arr_blks_sent, width, label="Blocks Sent")
+    bar4 = plt.bar(x + (3 / 2) * width, arr_dup_blks_rcvd, width, label="Duplicate blocks")
 
-        ax.set_ylabel('Number of messages')
-        ax.set_xlabel('File Size (MB)')
-        ax.set_title('Average number of messages exchanged ' + t)
-        ax.set_xticks(x)
-        ax.set_xticklabels(labels)
-        ax.legend()
-        fig.tight_layout()
+    autolabel(plt, bar1)
+    autolabel(plt, bar2)
+    autolabel(plt, bar3)
+    autolabel(plt, bar4)
+
+    plt.title('Average number of messages exchanged ' + topology)
+    plt.xticks(ticks=x, labels=labels)
+    plt.legend()
+    plt.grid()
+    plt.tight_layout()
 
 
 def plot_want_messages(byFileSize, byTopology):

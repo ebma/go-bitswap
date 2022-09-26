@@ -21,13 +21,14 @@ with PdfPages(dir_path + "/../experiments/" + filename) as export_pdf:
     byTopology = process.groupBy(agg, "topology")
     byTricklingDelay = process.groupBy(agg, "tricklingDelay")
 
-    # There will only be one latency in the results
+    # There will only be one latency and topology in the results
     latency = list(byLatency.keys())[0]
+    topology = list(byTopology.keys())[0]
 
     first_timestamp_estimator.plot_estimate(results_dir)
     export_pdf.savefig()
     process.plot_trickling_delays(latency, byTricklingDelay)
     export_pdf.savefig()
     # export_pdf.savefig(pad_inches=0.4, bbox_inches='tight')
-    process.plot_messages(byFileSize, byTopology)
+    process.plot_messages(topology, byTricklingDelay)
     export_pdf.savefig()
