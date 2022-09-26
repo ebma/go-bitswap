@@ -1,7 +1,7 @@
 #!/bin/bash
 
 TESTGROUND_BIN="testground"
-CMD="run $TESTCASE $INSTANCES $FILE_SIZE $RUN_COUNT $LATENCY $JITTER $PARALLEL_GEN $LEECH_COUNT $BANDWIDTH $INPUT_DATA $DATA_DIR $TCP_ENABLED $MAX_CONNECTION_RATE $SEED_COUNT $EAVESDROPPER_COUNT"
+CMD="run $TESTCASE $INSTANCES $FILE_SIZE $RUN_COUNT $LATENCY $JITTER $PARALLEL_GEN $LEECH_COUNT $BANDWIDTH $INPUT_DATA $DATA_DIR $TCP_ENABLED $MAX_CONNECTION_RATE $SEED_COUNT $EAVESDROPPER_COUNT $TRICKLING_DELAY_MS"
 # RUNNER="local:exec"
 # BUILDER="exec:go"
 
@@ -26,13 +26,14 @@ run_bitswap(){
         -tp enable_tcp=${12} \
         -tp max_connection_rate=${13} \
         -tp seed_count=${14} \
-        -tp eavesdropper_count=${15}
+        -tp eavesdropper_count=${15} \
+        -tp trickling_delay_ms=${16}
         # | tail -n 1 | awk -F 'run with ID: ' '{ print $2 }'
 }
 
 run() {
-    echo "Running test with ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${10}, ${11}, ${12}, ${13}, ${14}, ${15}) (TESTCASE, INSTANCES, FILE_SIZE, RUN_COUNT, LATENCY, JITTER, PARALLEL, LEECH, BANDWIDTH, INPUT_DATA, DATA_DIR, TCP_ENABLED, MAX_CONNECTION_RATE, SEED_COUNT, EAVESDROPPER_COUNT)"
-    TESTID=`run_bitswap $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} ${15}| tail -n 1 | awk -F 'run is queued with ID:' '{ print $2 }'`
+    echo "Running test with ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${10}, ${11}, ${12}, ${13}, ${14}, ${15}, ${16}) (TESTCASE, INSTANCES, FILE_SIZE, RUN_COUNT, LATENCY, JITTER, PARALLEL, LEECH, BANDWIDTH, INPUT_DATA, DATA_DIR, TCP_ENABLED, MAX_CONNECTION_RATE, SEED_COUNT, EAVESDROPPER_COUNT, TRICKLING_DELAY_MS)"
+    TESTID=`run_bitswap $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14} ${15} ${16}| tail -n 1 | awk -F 'run is queued with ID:' '{ print $2 }'`
     checkstatus $TESTID
     # `run_bitswap $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14}| tail -n 1 | awk -F 'run with ID: ' '{ print $2 }'`
     # echo $TESTID
