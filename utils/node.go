@@ -13,8 +13,10 @@ import (
 
 // PeerInfo provides all the neccessary information to dial a peer
 type PeerInfo struct {
-	Addr   peer.AddrInfo
-	Nodetp NodeType
+	Addr      peer.AddrInfo
+	Nodetp    NodeType
+	Seq       int64
+	TypeIndex int
 }
 
 type Node interface {

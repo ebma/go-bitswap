@@ -37,7 +37,7 @@ func SetupNetwork(
 		Default: network.LinkShape{
 			Latency:   latency,
 			Bandwidth: uint64(bandwidth) * 1024 * 1024,
-			Jitter:    (time.Duration(jitterPct) * latency) / 100,
+			//Jitter:    (time.Duration(jitterPct) * latency) / 100,
 		},
 		CallbackState:  sync.State("network-configured"),
 		CallbackTarget: runenv.TestInstanceCount,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
 	"math"
+	"sort"
 
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -66,6 +67,72 @@ func SparseDial(
 	// Limit max number of connections for the peer according to rate.
 	rate := float64(maxConnectionRate) / 100
 	toDial = toDial[:int(math.Ceil(float64(len(toDial))*rate))]
+
+	// Dial to all the other peers
+	g, ctx := errgroup.WithContext(ctx)
+	for _, ai := range toDial {
+		ai := ai
+		g.Go(func() error {
+			if err := self.Connect(ctx, ai); err != nil {
+				return fmt.Errorf("Error while dialing peer %v: %w", ai.Addrs, err)
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	return toDial, nil
+}
+
+// Dial nodes with certain rules to create a defined topology
+func DialFixedTopology(
+	ctx context.Context,
+	self core.Host,
+	selfType utils.NodeType,
+	typeIndex int,
+	ais []utils.PeerInfo,
+	degree int,
+) ([]peer.AddrInfo, error) {
+	// Grab list of other peers that are available for this Run
+	var toDial []peer.AddrInfo
+
+	// Passive nodes sorted by their typeIndex descending
+	var passives []utils.PeerInfo
+	for _, inf := range ais {
+		if inf.Nodetp == utils.Passive {
+			passives = append(passives, inf)
+		}
+	}
+	sort.Slice(passives, func(i, j int) bool {
+		return passives[i].TypeIndex < passives[j].TypeIndex
+	})
+
+	if selfType == utils.Seed {
+		// Connect Seed to first {degree-1} Passives
+		for _, inf := range passives[:degree-1] {
+			toDial = append(toDial, inf.Addr)
+		}
+	} else if selfType == utils.Leech {
+		// Connect Leech to last {degree-1} Passives
+		for _, inf := range passives[len(passives)-degree+1:] {
+			toDial = append(toDial, inf.Addr)
+		}
+	} else if selfType == utils.Passive {
+		// Connect Passives to each other
+
+		// Connect to Passive in same row
+		indexSameRow := (typeIndex+1)%degree + (typeIndex+1)/degree
+		if indexSameRow < len(passives) {
+			toDial = append(toDial, passives[indexSameRow].Addr)
+		}
+		// Connect to Passive in next row
+		indexNextRow := typeIndex + degree
+		if indexNextRow < len(passives) {
+			toDial = append(toDial, passives[indexNextRow].Addr)
+		}
+	}
 
 	// Dial to all the other peers
 	g, ctx := errgroup.WithContext(ctx)

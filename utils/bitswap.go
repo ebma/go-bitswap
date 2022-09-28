@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	bs "github.com/ipfs/go-bitswap"
@@ -112,7 +113,12 @@ func ClearBlockstore(ctx context.Context, bstore blockstore.Blockstore) error {
 	return g.Wait()
 }
 
-func CreateBitswapNode(ctx context.Context, h host.Host, bstore blockstore.Blockstore, tricklingDelay time.Duration) (*BitswapNode, error) {
+func CreateBitswapNode(
+	ctx context.Context,
+	h host.Host,
+	bstore blockstore.Blockstore,
+	tricklingDelay time.Duration,
+) (*BitswapNode, error) {
 	routing, err := nilrouting.ConstructNilRouting(ctx, nil, nil, nil)
 	if err != nil {
 		return nil, err
@@ -171,8 +177,13 @@ func (n *BitswapNode) EmitMessageHistory(recorder MessageHistoryRecorder) error 
 		return err
 	}
 
-	for _, msg := range stats.MessageHistory {
-		recorder.RecordMessageHistoryEntry(msg)
+	sort.Slice(stats.MessageHistory, func(i, j int) bool {
+		return stats.MessageHistory[i].Timestamp.Before(stats.MessageHistory[j].Timestamp)
+	})
+
+	// only record first message received to reduce data size
+	if len(stats.MessageHistory) > 0 {
+		recorder.RecordMessageHistoryEntry(stats.MessageHistory[0])
 	}
 
 	// Clear message history after recording them to prevent duplicates

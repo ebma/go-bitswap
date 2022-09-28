@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/ipfs/go-bitswap"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
-	"github.com/ipfs/testground/plans/trickle-bitswap/utils/dialer"
 	"math"
 	"net"
 	"os"
@@ -39,6 +38,7 @@ type TestVars struct {
 	SeedCount         int
 	EavesdropperCount int
 	Latency           time.Duration
+	Degree            int
 	JitterPct         int
 	Bandwidth         int
 	RequestStagger    time.Duration
@@ -65,7 +65,6 @@ type BaseTestData struct {
 type TestData struct {
 	*BaseTestData
 	peerInfos           []utils.PeerInfo
-	dialFn              dialer.Dialer
 	signalAndWaitForAll func(state string) error
 	seq                 int64
 	nodeType            utils.NodeType
@@ -125,6 +124,9 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	}
 	if runenv.IsParamSet("disk_store") {
 		tv.DiskStore = runenv.BooleanParam("disk_store")
+	}
+	if runenv.IsParamSet("degree") {
+		tv.Degree = runenv.IntParam("degree")
 	}
 
 	if runenv.IsParamSet("latency_ms") {

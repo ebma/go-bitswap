@@ -58,7 +58,7 @@ func initializeNodeTypeAndPeers(
 	baseTestData *BaseTestData,
 ) (*TestData, error) {
 	// Type of node and identifiers assigned.
-	seq, nodetp, tpindex, err := parseType(
+	seq, nodeType, typeIndex, err := parseType(
 		runenv,
 		baseTestData.seq,
 		testvars.LeechCount,
@@ -74,19 +74,19 @@ func initializeNodeTypeAndPeers(
 	_, err = baseTestData.client.Publish(
 		ctx,
 		peerInfos,
-		&utils.PeerInfo{Addr: *baseTestData.nConfig.AddrInfo, Nodetp: nodetp},
+		&utils.PeerInfo{
+			Addr:      *baseTestData.nConfig.AddrInfo,
+			Nodetp:    nodeType,
+			Seq:       seq,
+			TypeIndex: typeIndex,
+		},
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	var dialFn dialer.Dialer = dialer.DialOtherPeers
-	if testvars.Dialer == "sparse" {
-		dialFn = dialer.SparseDial
-	}
-
 	var seedIndex int64
-	if nodetp == utils.Seed {
+	if nodeType == utils.Seed {
 		// If we're not running in group mode, calculate the seed index as
 		// the sequence number minus the other types of node (leech / passive).
 		// Note: sequence number starts from 1 (not 0)
@@ -125,8 +125,8 @@ func initializeNodeTypeAndPeers(
 	}
 
 	return &TestData{baseTestData,
-		infos, dialFn, signalAndWaitForAll,
-		seq, nodetp, tpindex, seedIndex}, nil
+		infos, signalAndWaitForAll,
+		seq, nodeType, typeIndex, seedIndex}, nil
 }
 
 func initializeBitswapNetwork(
@@ -355,12 +355,13 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			}
 
 			if nodeTestData.nodeType != utils.Eavesdropper {
-				dialed, err := nodeTestData.dialFn(
+				dialed, err := dialer.DialFixedTopology(
 					sctx,
 					transferNode.Host(),
 					nodeTestData.nodeType,
+					nodeTestData.typeIndex,
 					nodeTestData.peerInfos,
-					testVars.MaxConnectionRate,
+					testVars.Degree,
 				)
 				runenv.RecordMessage(
 					"%s Dialed %d other nodes",
@@ -472,6 +473,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			}
 			runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
 
+			// Disconnect and clear data
 			err = nodeTestData.cleanupRun(sctx, rootCid, runenv)
 			if err != nil {
 				return err
