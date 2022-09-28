@@ -27,10 +27,7 @@ import (
 
 type TestPermutation struct {
 	File           utils.TestFile
-	Bandwidth      int
-	Latency        time.Duration
 	TricklingDelay time.Duration
-	JitterPct      int
 }
 
 // TestVars testing variables

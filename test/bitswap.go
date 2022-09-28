@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
-	logging "github.com/ipfs/go-log"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils/dialer"
 	"github.com/libp2p/go-libp2p"
@@ -218,7 +217,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 		runenv.RecordMessage(
 			"Running test permutation %d, with latency %d and delay %d",
 			pIndex,
-			testParams.Latency,
+			testVars.Latency,
 			testParams.TricklingDelay,
 		)
 
@@ -272,7 +271,6 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				testVars,
 			)
 		case utils.Leech:
-			logging.SetLogLevel("bs:peermgr", "DEBUG")
 			rootCid, err = nodeTestData.readFile(pctx, pIndex, runenv, testVars)
 		}
 		if err != nil {
@@ -327,8 +325,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				runNum,
 				testVars.EavesdropperCount,
 				nodeTestData.seq,
-				testParams.Latency,
-				testParams.Bandwidth,
+				testVars.Latency,
+				testVars.Bandwidth,
 				int(testParams.File.Size()),
 				nodeTestData.nodeType,
 				nodeTestData.typeIndex,
@@ -347,12 +345,14 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				return err
 			}
 
-			runenv.RecordMessage(
-				"Starting run %d / %d (%d bytes)",
-				runNum,
-				testVars.RunCount,
-				testParams.File.Size(),
-			)
+			if nodeTestData.nodeType == utils.Leech {
+				runenv.RecordMessage(
+					"Starting run %d / %d (%d bytes)",
+					runNum,
+					testVars.RunCount,
+					testParams.File.Size(),
+				)
+			}
 
 			if nodeTestData.nodeType != utils.Eavesdropper {
 				dialed, err := nodeTestData.dialFn(
