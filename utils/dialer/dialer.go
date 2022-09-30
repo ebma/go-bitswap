@@ -93,7 +93,6 @@ func DialFixedTopology(
 	selfType utils.NodeType,
 	typeIndex int,
 	ais []utils.PeerInfo,
-	degree int,
 ) ([]peer.AddrInfo, error) {
 	// Grab list of other peers that are available for this Run
 	var toDial []peer.AddrInfo
@@ -109,26 +108,36 @@ func DialFixedTopology(
 		return passives[i].TypeIndex < passives[j].TypeIndex
 	})
 
+	// degree of leech and seed node
+	degree := 3
+	gridSize := 3
+
 	if selfType == utils.Seed {
-		// Connect Seed to first {degree-1} Passives
-		for _, inf := range passives[:degree-1] {
+		// Connect Seed to first 3 Passives
+		for _, inf := range passives[:degree] {
 			toDial = append(toDial, inf.Addr)
 		}
 	} else if selfType == utils.Leech {
-		// Connect Leech to last {degree-1} Passives
-		for _, inf := range passives[len(passives)-degree+1:] {
+		// Connect Leech to last 3 Passives
+		for _, inf := range passives[len(passives)-degree:] {
 			toDial = append(toDial, inf.Addr)
 		}
 	} else if selfType == utils.Passive {
-		// Connect Passives to each other
+		// Connect Passives to each other in a grid of {gridSize}x{gridSize}
 
-		// Connect to Passive in same row
-		indexSameRow := (typeIndex+1)%degree + (typeIndex+1)/degree
+		// Connect to Passive in same row to the right
+		var indexSameRow int
+		if (typeIndex+1)%gridSize == 0 {
+			// wrap around same row
+			indexSameRow = typeIndex + 1 - gridSize
+		} else {
+			indexSameRow = typeIndex + 1
+		}
 		if indexSameRow < len(passives) {
 			toDial = append(toDial, passives[indexSameRow].Addr)
 		}
 		// Connect to Passive in next row
-		indexNextRow := typeIndex + degree
+		indexNextRow := typeIndex + gridSize
 		if indexNextRow < len(passives) {
 			toDial = append(toDial, passives[indexNextRow].Addr)
 		}

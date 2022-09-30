@@ -312,7 +312,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			}
 		}
 
-		runenv.RecordMessage("Starting %s Fetch...")
+		runenv.RecordMessage("Starting Fetch...")
 
 		for runNum := 1; runNum < testVars.RunCount+1; runNum++ {
 			// Reset the timeout for each run
@@ -324,6 +324,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				runenv,
 				runNum,
 				testVars.EavesdropperCount,
+				testVars.LeechCount,
+				testVars.SeedCount,
 				nodeTestData.seq,
 				testVars.Latency,
 				testVars.Bandwidth,
@@ -361,7 +363,6 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 					nodeTestData.nodeType,
 					nodeTestData.typeIndex,
 					nodeTestData.peerInfos,
-					testVars.Degree,
 				)
 				runenv.RecordMessage(
 					"%s Dialed %d other nodes",

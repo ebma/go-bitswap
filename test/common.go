@@ -85,9 +85,13 @@ func getEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	}
 	if runenv.IsParamSet("leech_count") {
 		tv.LeechCount = runenv.IntParam("leech_count")
+	} else {
+		tv.LeechCount = 1
 	}
 	if runenv.IsParamSet("seed_count") {
 		tv.SeedCount = runenv.IntParam("seed_count")
+	} else {
+		tv.SeedCount = 1
 	}
 	if runenv.IsParamSet("eavesdropper_count") {
 		tv.EavesdropperCount = runenv.IntParam("eavesdropper_count")
@@ -563,13 +567,24 @@ func CreateTopologyString(
 	)
 }
 
-func CreateMetaFromParams(runenv *runtime.RunEnv, runNum int, edCount int, seq int64,
-	latency time.Duration, bandwidthMB int, fileSize int, nodetp utils.NodeType, tpindex int,
-	maxConnectionRate int, pIndex int, tricklingDelay time.Duration) string {
+func CreateMetaFromParams(
+	runenv *runtime.RunEnv,
+	runNum int,
+	edCount int,
+	leechCount int,
+	seedCount int,
+	seq int64,
+	latency time.Duration,
+	bandwidthMB int,
+	fileSize int,
+	nodeType utils.NodeType,
+	typeIndex int,
+	maxConnectionRate int,
+	pIndex int,
+	tricklingDelay time.Duration,
+) string {
 
 	instance := runenv.TestInstanceCount
-	leechCount := runenv.IntParam("leech_count")
-	seedCount := runenv.IntParam("seed_count")
 
 	id := fmt.Sprintf(
 		"topology:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
@@ -580,8 +595,8 @@ func CreateMetaFromParams(runenv *runtime.RunEnv, runNum int, edCount int, seq i
 		runNum,
 		seq,
 		fileSize,
-		nodetp,
-		tpindex,
+		nodeType,
+		typeIndex,
 		pIndex,
 		tricklingDelay.Milliseconds(),
 	)
