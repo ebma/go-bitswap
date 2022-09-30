@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	bssm "github.com/ipfs/go-bitswap/client/sessionmanager"
 	"sort"
 	"sync"
 	"time"
@@ -71,6 +72,10 @@ type Server struct {
 	hasBlockBufferSize int
 	// whether or not to make provide announcements
 	provideEnabled bool
+}
+
+func (bs *Server) SetSessionManager(sm *bssm.SessionManager) {
+	bs.engine.SetSessionManager(sm)
 }
 
 func New(
@@ -518,8 +523,8 @@ func (bs *Server) ReceiveMessage(ctx context.Context, p peer.ID, incoming messag
 // ReceivedBlocks notify the decision engine that a peer is well behaving
 // and gave us usefull data, potentially increasing it's score and making us
 // send them more data in exchange.
-func (bs *Server) ReceivedBlocks(from peer.ID, blks []blocks.Block) {
-	bs.engine.ReceivedBlocks(from, blks)
+func (bs *Server) ReceivedBlocks(from peer.ID, blks []blocks.Block, haves []cid.Cid) {
+	bs.engine.ReceivedBlocks(from, blks, haves)
 }
 
 func (*Server) ReceiveError(err error) {

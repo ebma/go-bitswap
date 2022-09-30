@@ -5,6 +5,8 @@ package client
 import (
 	"context"
 	"errors"
+	rs "github.com/ipfs/go-bitswap/client/relaysession"
+	bssm "github.com/ipfs/go-bitswap/client/sessionmanager"
 
 	"sync"
 	"time"
@@ -21,7 +23,6 @@ import (
 	bspqm "github.com/ipfs/go-bitswap/client/internal/providerquerymanager"
 	bssession "github.com/ipfs/go-bitswap/client/internal/session"
 	bssim "github.com/ipfs/go-bitswap/client/internal/sessioninterestmanager"
-	bssm "github.com/ipfs/go-bitswap/client/internal/sessionmanager"
 	bsspm "github.com/ipfs/go-bitswap/client/internal/sessionpeermanager"
 	"github.com/ipfs/go-bitswap/internal"
 	"github.com/ipfs/go-bitswap/internal/defaults"
@@ -60,6 +61,12 @@ func RebroadcastDelay(newRebroadcastDelay delay.D) Option {
 	}
 }
 
+func SetTricklingDelay(delay time.Duration) Option {
+	return func(bs *Client) {
+		bs.pm.SetTricklingDelay(delay)
+	}
+}
+
 func SetSimulateDontHavesOnTimeout(send bool) Option {
 	return func(bs *Client) {
 		bs.simulateDontHavesOnTimeout = send
@@ -85,7 +92,7 @@ type BlockReceivedNotifier interface {
 	// ReceivedBlocks notifies the decision engine that a peer is well-behaving
 	// and gave us useful data, potentially increasing its score and making us
 	// send them more data in exchange.
-	ReceivedBlocks(peer.ID, []blocks.Block)
+	ReceivedBlocks(peer.ID, []blocks.Block, []cid.Cid)
 }
 
 // New initializes a Bitswap client that runs until client.Close is called.
@@ -139,7 +146,9 @@ func New(
 		notif notifications.PubSub,
 		provSearchDelay time.Duration,
 		rebroadcastDelay delay.D,
-		self peer.ID) bssm.Session {
+		self peer.ID,
+		relay bool,
+		relayRegistry *rs.RelayRegistry) bssm.Session {
 		return bssession.New(
 			sessctx,
 			sessmgr,
@@ -153,6 +162,8 @@ func New(
 			provSearchDelay,
 			rebroadcastDelay,
 			self,
+			relay,
+			relayRegistry,
 		)
 	}
 	sessionPeerManagerFactory := func(ctx context.Context, id uint64) bssession.SessionPeerManager {
@@ -176,7 +187,7 @@ func New(
 		process:                    px,
 		pm:                         pm,
 		pqm:                        pqm,
-		sm:                         sm,
+		Sm:                         sm,
 		sim:                        sim,
 		notif:                      notif,
 		counters:                   new(counters),
@@ -238,7 +249,7 @@ type Client struct {
 	tracer tracer.Tracer
 
 	// the SessionManager routes requests to interested sessions
-	sm *bssm.SessionManager
+	Sm *bssm.SessionManager
 
 	// the SessionInterestManager keeps track of which sessions are interested
 	// in which CIDs
@@ -290,7 +301,7 @@ func (bs *Client) GetBlocks(ctx context.Context, keys []cid.Cid) (<-chan blocks.
 		trace.WithAttributes(attribute.Int("NumKeys", len(keys))),
 	)
 	defer span.End()
-	session := bs.sm.NewSession(ctx, bs.provSearchDelay, bs.rebroadcastDelay)
+	session := bs.Sm.NewSession(ctx, bs.provSearchDelay, bs.rebroadcastDelay)
 	return session.GetBlocks(ctx, keys)
 }
 
@@ -314,7 +325,7 @@ func (bs *Client) NotifyNewBlocks(ctx context.Context, blks ...blocks.Block) err
 
 	// Send all block keys (including duplicates) to any sessions that want them.
 	// (The duplicates are needed by sessions for accounting purposes)
-	bs.sm.ReceiveFrom(ctx, "", blkCids, nil, nil)
+	bs.Sm.ReceiveFrom(ctx, "", blkCids, nil, nil)
 
 	// Publish the block to any Bitswap clients that had requested blocks.
 	// (the sessions use this pubsub mechanism to inform clients of incoming
@@ -343,6 +354,15 @@ func (bs *Client) receiveBlocksFrom(
 		log.Debugf("[recv] block not in wantlist; cid=%s, peer=%s", b.Cid(), from)
 	}
 
+	// Put blocks to the blockstore so that they can be retrieved and forwarded
+	if len(wanted) > 0 {
+		err := bs.blockstore.PutMany(ctx, wanted)
+		if err != nil {
+			log.Errorf("Error writing %d blocks to datastore: %s", len(wanted), err)
+			return err
+		}
+	}
+
 	allKs := make([]cid.Cid, 0, len(blks))
 	for _, b := range blks {
 		allKs = append(allKs, b.Cid())
@@ -356,10 +376,10 @@ func (bs *Client) receiveBlocksFrom(
 	bs.pm.ResponseReceived(from, combined)
 
 	// Send all block keys (including duplicates) to any sessions that want them for accounting purpose.
-	bs.sm.ReceiveFrom(ctx, from, allKs, haves, dontHaves)
+	bs.Sm.ReceiveFrom(ctx, from, allKs, haves, dontHaves)
 
 	if bs.blockReceivedNotifier != nil {
-		bs.blockReceivedNotifier.ReceivedBlocks(from, wanted)
+		bs.blockReceivedNotifier.ReceivedBlocks(from, wanted, haves)
 	}
 
 	// Publish the block to any Bitswap clients that had requested blocks.
@@ -516,5 +536,5 @@ func (bs *Client) IsOnline() bool {
 func (bs *Client) NewSession(ctx context.Context) exchange.Fetcher {
 	ctx, span := internal.StartSpan(ctx, "NewSession")
 	defer span.End()
-	return bs.sm.NewSession(ctx, bs.provSearchDelay, bs.rebroadcastDelay)
+	return bs.Sm.NewSession(ctx, bs.provSearchDelay, bs.rebroadcastDelay)
 }

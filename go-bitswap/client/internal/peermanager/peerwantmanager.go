@@ -3,6 +3,10 @@ package peermanager
 import (
 	"bytes"
 	"fmt"
+	"github.com/ipfs/go-bitswap/internal/defaults"
+	"math/rand"
+	"sync"
+	"time"
 
 	cid "github.com/ipfs/go-cid"
 	peer "github.com/libp2p/go-libp2p/core/peer"
@@ -34,6 +38,11 @@ type peerWantManager struct {
 	wantGauge Gauge
 	// Keeps track of the number of active want-blocks
 	wantBlockGauge Gauge
+
+	// tricklingLock is used to delay the execution of the trickling function
+	tricklingLock  sync.Mutex
+	tricklingDelay time.Duration
+	seededRand     rand.Rand
 }
 
 type peerWant struct {
@@ -45,13 +54,17 @@ type peerWant struct {
 // New creates a new peerWantManager with a Gauge that keeps track of the
 // number of active want-blocks (ie sent but no response received)
 func newPeerWantManager(wantGauge Gauge, wantBlockGauge Gauge) *peerWantManager {
+	randSource := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return &peerWantManager{
 		broadcastWants: cid.NewSet(),
 		peerWants:      make(map[peer.ID]*peerWant),
 		wantPeers:      make(map[cid.Cid]map[peer.ID]struct{}),
 		wantGauge:      wantGauge,
 		wantBlockGauge: wantBlockGauge,
-	}
+
+		tricklingLock:  sync.Mutex{},
+		tricklingDelay: defaults.TricklingDelay,
+		seededRand:     *randSource}
 }
 
 // addPeer adds a peer whose wants we need to keep track of. It sends the
@@ -114,6 +127,35 @@ func (pwm *peerWantManager) removePeer(p peer.ID) {
 	delete(pwm.peerWants, p)
 }
 
+func (pwm *peerWantManager) trickleExecution(trickledFunction func()) {
+	// If the trickling delay is 0, execute the function immediately
+	if pwm.tricklingDelay == 0 {
+		log.Infow("trickling delay is 0, executing immediately")
+		trickledFunction()
+		return
+	}
+	pwm.tricklingLock.Lock()
+	defer pwm.tricklingLock.Unlock()
+	trickledFunction()
+	log.Infof("trickling delay is not 0, executing after delay %d", pwm.tricklingDelay)
+	time.Sleep(pwm.tricklingDelay)
+}
+
+// Shuffles the peerWants array to randomize the order in which peers are send messages to
+func (pwm *peerWantManager) getShuffledPeerWants(peerWants map[peer.ID]*peerWant) []*peerWant {
+	var pwsArr []*peerWant
+	for _, pws := range peerWants {
+		pwsArr = append(pwsArr, pws)
+	}
+	// re-use random source to prevent always having the same permutations
+	permutation := pwm.seededRand.Perm(len(pwsArr))
+	shuffledPwsArr := make([]*peerWant, len(pwsArr))
+	for i, v := range permutation {
+		shuffledPwsArr[v] = pwsArr[i]
+	}
+	return shuffledPwsArr
+}
+
 // broadcastWantHaves sends want-haves to any peers that have not yet been sent them.
 func (pwm *peerWantManager) broadcastWantHaves(wantHaves []cid.Cid) {
 	unsent := make([]cid.Cid, 0, len(wantHaves))
@@ -140,7 +182,8 @@ func (pwm *peerWantManager) broadcastWantHaves(wantHaves []cid.Cid) {
 	bcstWantsBuffer := make([]cid.Cid, 0, len(unsent))
 
 	// Send broadcast wants to each peer
-	for _, pws := range pwm.peerWants {
+	shuffledPwsArr := pwm.getShuffledPeerWants(pwm.peerWants)
+	for _, pws := range shuffledPwsArr {
 		peerUnsent := bcstWantsBuffer[:0]
 		for _, c := range unsent {
 			// If we've already sent a want to this peer, skip them.
@@ -150,7 +193,9 @@ func (pwm *peerWantManager) broadcastWantHaves(wantHaves []cid.Cid) {
 		}
 
 		if len(peerUnsent) > 0 {
-			pws.peerQueue.AddBroadcastWantHaves(peerUnsent)
+			pwm.trickleExecution(func() {
+				pws.peerQueue.AddBroadcastWantHaves(peerUnsent)
+			})
 		}
 	}
 }

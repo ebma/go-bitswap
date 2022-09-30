@@ -24,4 +24,7 @@ const (
 	// provideCollector even before they are actually provided.
 	// TODO: Does this need to be this large givent that?
 	HasBlockBufferSize = 256
+
+	// Set default trickling delay to 0
+	TricklingDelay = time.Millisecond * 0
 )

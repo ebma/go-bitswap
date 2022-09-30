@@ -69,6 +69,10 @@ func SetSimulateDontHavesOnTimeout(send bool) Option {
 	return Option{client.SetSimulateDontHavesOnTimeout(send)}
 }
 
+func SetTricklingDelay(delay time.Duration) Option {
+	return Option{client.SetTricklingDelay(delay)}
+}
+
 func WithTracer(tap tracer.Tracer) Option {
 	// Only trace the server, both receive the same messages anyway
 	return Option{

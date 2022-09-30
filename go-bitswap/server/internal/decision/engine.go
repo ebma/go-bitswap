@@ -4,6 +4,10 @@ package decision
 import (
 	"context"
 	"fmt"
+	rs "github.com/ipfs/go-bitswap/client/relaysession"
+	bssm "github.com/ipfs/go-bitswap/client/sessionmanager"
+	delay "github.com/ipfs/go-ipfs-delay"
+	"math"
 	"sync"
 	"time"
 
@@ -77,6 +81,12 @@ const (
 	// maxBlockSizeReplaceHasWithBlock is the maximum size of the block in
 	// bytes up to which we will replace a want-have with a want-block
 	maxBlockSizeReplaceHasWithBlock = 1024
+
+	// Priority used for all blocks in relay sessions
+	defaultPriorityRelaySessions = math.MaxInt32 - 5
+
+	// Default ProvSearchDelay relay sessions
+	defaultProvSearchDelay = time.Second
 )
 
 // Envelope contains a message for a Peer.
@@ -187,6 +197,9 @@ type Engine struct {
 
 	bstoreWorkerCount          int
 	maxOutstandingBytesPerPeer int
+
+	sm           *bssm.SessionManager
+	relaySession *rs.RelaySession
 }
 
 // TaskInfo represents the details of a request from a peer.
@@ -301,6 +314,10 @@ func wrapTaskComparator(tc TaskComparator) peertask.QueueTaskComparator {
 	}
 }
 
+func (e *Engine) SetSessionManager(sm *bssm.SessionManager) {
+	e.sm = sm
+}
+
 // NewEngine creates a new block sending engine for the given block store.
 // maxOutstandingBytesPerPeer hints to the peer task queue not to give a peer more tasks if it has some maximum
 // work already outstanding.
@@ -348,6 +365,8 @@ func newEngine(
 		targetMessageSize:               defaultTargetMessageSize,
 		tagQueued:                       fmt.Sprintf(tagFormat, "queued", uuid.New().String()),
 		tagUseful:                       fmt.Sprintf(tagFormat, "useful", uuid.New().String()),
+		sm:                              nil,
+		relaySession:                    rs.NewRelaySession(),
 	}
 
 	for _, opt := range opts {
@@ -712,8 +731,16 @@ func (e *Engine) MessageReceived(ctx context.Context, p peer.ID, m bsmsg.BitSwap
 
 	var activeEntries []peertask.Task
 
-	// Remove cancelled blocks from the queue
 	for _, entry := range cancels {
+		// If there is an active relay session
+		if e.relaySession.Session != nil {
+			log.Debugf(
+				"local: %v Removing key from received cancels in relay session registry",
+				e.self,
+			)
+			e.relaySession.RemoveInterest(entry.Cid, p)
+		}
+		// Remove cancelled blocks from the queue
 		log.Debugw("Bitswap engine <- cancel", "local", e.self, "from", p, "cid", entry.Cid)
 		if l.CancelWant(entry.Cid) {
 			e.peerRequestQueue.Remove(entry.Cid, p)
@@ -762,6 +789,8 @@ func (e *Engine) MessageReceived(ctx context.Context, p peer.ID, m bsmsg.BitSwap
 		sendDontHave(entry)
 	}
 
+	relayKs := rs.NewKeyTracker(p)
+
 	// For each want-have / want-block
 	for _, entry := range wants {
 		c := entry.Cid
@@ -783,6 +812,18 @@ func (e *Engine) MessageReceived(ctx context.Context, p peer.ID, m bsmsg.BitSwap
 				"sendDontHave",
 				entry.SendDontHave,
 			)
+			log.Debugf(
+				"Updating tracker to start a new relay session for %s, %d",
+				entry.Cid,
+				entry.Priority,
+			)
+			relayKs.UpdateTracker(entry.Cid)
+			// We always send a DON'T HAVE right away to minimize duplicates
+			// --even if we end up triggering a lookup in the relaySession--.
+			// If the relay session
+			// ends up finding the block it will send a HAVE message and update
+			// the requested accordingly. DON'T HAVEs are updatable through new
+			// BlockPresence information.
 			sendDontHave(entry)
 		} else {
 			// The block was found, add it to the queue
@@ -812,6 +853,22 @@ func (e *Engine) MessageReceived(ctx context.Context, p peer.ID, m bsmsg.BitSwap
 				},
 			})
 		}
+	}
+	// If there are relayKs
+	if len(relayKs.T) > 0 {
+		// if the relaySession hasn't been started then start it.
+		if e.relaySession.Session == nil {
+			log.Debugf("local: %v Starting relaySession %v", e.self, p)
+			if e.sm != nil {
+				e.relaySession.Session = e.sm.StartRelaySession(ctx,
+					defaultProvSearchDelay,
+					delay.Fixed(time.Minute),
+					e.relaySession.Registry)
+			}
+		}
+		// Update relaySession with new keys. This function start new GetBlocks
+		// if there is no active search for any of the keys.
+		e.relaySession.UpdateSession(ctx, relayKs)
 	}
 
 	// Push entries onto the request queue
@@ -860,17 +917,49 @@ func (e *Engine) splitWantsDenials(
 
 // ReceivedBlocks is called when new blocks are received from the network.
 // This function also updates the receive side of the ledger.
-func (e *Engine) ReceivedBlocks(from peer.ID, blks []blocks.Block) {
+func (e *Engine) ReceivedBlocks(from peer.ID, blks []blocks.Block, haves []cid.Cid) {
 	if len(blks) == 0 {
 		return
 	}
 
 	l := e.findOrCreate(from)
 
+	var work bool
+
+	// Get the size of each block
+	blockSizes := make(map[cid.Cid]int, len(blks))
+	for _, blk := range blks {
+		blockSizes[blk.Cid()] = len(blk.RawData())
+	}
+
 	// Record how many bytes were received in the ledger
 	l.lk.Lock()
 	defer l.lk.Unlock()
 	for _, blk := range blks {
+		// Track who have sent a block for this CID to prevent sending it back
+		// to him if in my interested list.
+		e.relaySession.BlockSeen(blk.Cid(), from)
+		// Forward every block received to peers from relay sessions
+		// interested in them.
+		interestedPeers := e.relaySession.InterestedPeers(blk.Cid())
+		for ip := range interestedPeers {
+			work = true
+			log.Debugf("local: %v Sending block to relay session: %v", e.self, blk.Cid())
+			// Remove interest of peers for which blocks are being sent.
+			e.relaySession.RemoveInterest(blk.Cid(), ip)
+			e.peerRequestQueue.PushTasks(ip, peertask.Task{
+				Topic:    blk.Cid(),
+				Priority: defaultPriorityRelaySessions,
+				Work:     blockSizes[blk.Cid()],
+				Data: &taskData{
+					BlockSize:    blockSizes[blk.Cid()],
+					HaveBlock:    true, // I have the block
+					IsWantBlock:  true, // I want to forward the actual block
+					SendDontHave: false,
+				},
+			})
+		}
+
 		log.Debugw(
 			"Bitswap engine <- block",
 			"local",
@@ -883,6 +972,32 @@ func (e *Engine) ReceivedBlocks(from peer.ID, blks []blocks.Block) {
 			len(blk.RawData()),
 		)
 		e.scoreLedger.AddToReceivedBytes(l.Partner, len(blk.RawData()))
+	}
+
+	// Forward every have message of relay sessions to its source.
+	// TODO find the proper place and fix this. The ReceiveFrom() function does not provide `haves` anymore
+	for _, h := range haves {
+		work = true
+		interestedPeers := e.relaySession.InterestedPeers(h)
+		// Entrysize of block presence
+		entrySize := bsmsg.BlockPresenceSize(h)
+		for ip := range interestedPeers {
+			log.Debug("Forwarding HAVE message to source %v", ip)
+			e.peerRequestQueue.PushTasks(ip, peertask.Task{
+				Topic:    h,
+				Priority: defaultPriorityRelaySessions, // We could also track the right priority in relaySession
+				Work:     entrySize,
+				Data: &taskData{
+					// BlockSize:    0, // Not sending a block, forwarding a have message. So don't have size.
+					HaveBlock:    true,
+					IsWantBlock:  false, // I am forwarding a HAVE
+					SendDontHave: false,
+				},
+			})
+		}
+	}
+	if work {
+		e.signalNewWork()
 	}
 }
 

@@ -100,6 +100,8 @@ func New(
 		net,
 		bstore,
 		append(clientOptions, client.WithBlockReceivedNotifier(bs.Server))...)
+	// Hand session manager to server so that the engine can use it to start relay sessions
+	bs.Server.SetSessionManager(bs.Client.Sm)
 	net.Start(bs) // use the polyfill receiver to log received errors and trace messages only once
 
 	return bs

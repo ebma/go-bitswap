@@ -3,6 +3,7 @@ package sessionmanager
 import (
 	"context"
 	"fmt"
+	rs "github.com/ipfs/go-bitswap/client/relaysession"
 	"sync"
 	"testing"
 	"time"
@@ -96,7 +97,9 @@ func sessionFactory(ctx context.Context,
 	notif notifications.PubSub,
 	provSearchDelay time.Duration,
 	rebroadcastDelay delay.D,
-	self peer.ID) Session {
+	self peer.ID,
+	relay bool,
+	relayRegistry *rs.RelayRegistry) Session {
 	fs := &fakeSession{
 		id:    id,
 		pm:    sprm.(*fakeSesPeerManager),

@@ -3,6 +3,7 @@ package peermanager
 import (
 	"context"
 	"sync"
+	"time"
 
 	logging "github.com/ipfs/go-log"
 	"github.com/ipfs/go-metrics-interface"
@@ -249,4 +250,8 @@ func (pm *PeerManager) signalAvailability(p peer.ID, isConnected bool) {
 			s.SignalAvailability(p, isConnected)
 		}
 	}
+}
+
+func (pm *PeerManager) SetTricklingDelay(delay time.Duration) {
+	pm.pwm.tricklingDelay = delay
 }
