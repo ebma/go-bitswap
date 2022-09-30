@@ -118,7 +118,10 @@ func (pqm *ProviderQueryManager) SetFindProviderTimeout(findProviderTimeout time
 }
 
 // FindProvidersAsync finds providers for the given block.
-func (pqm *ProviderQueryManager) FindProvidersAsync(sessionCtx context.Context, k cid.Cid) <-chan peer.ID {
+func (pqm *ProviderQueryManager) FindProvidersAsync(
+	sessionCtx context.Context,
+	k cid.Cid,
+) <-chan peer.ID {
 	inProgressRequestChan := make(chan inProgressRequest)
 
 	select {
@@ -152,7 +155,11 @@ func (pqm *ProviderQueryManager) FindProvidersAsync(sessionCtx context.Context, 
 	return pqm.receiveProviders(sessionCtx, k, receivedInProgressRequest)
 }
 
-func (pqm *ProviderQueryManager) receiveProviders(sessionCtx context.Context, k cid.Cid, receivedInProgressRequest inProgressRequest) <-chan peer.ID {
+func (pqm *ProviderQueryManager) receiveProviders(
+	sessionCtx context.Context,
+	k cid.Cid,
+	receivedInProgressRequest inProgressRequest,
+) <-chan peer.ID {
 	// maintains an unbuffered queue for incoming providers for given request for a given session
 	// essentially, as a provider comes in, for a given CID, we want to immediately broadcast to all
 	// sessions that queried that CID, without worrying about whether the client code is actually
@@ -341,7 +348,11 @@ func (rpm *receivedProviderMessage) debugMessage() string {
 func (rpm *receivedProviderMessage) handle(pqm *ProviderQueryManager) {
 	requestStatus, ok := pqm.inProgressRequestStatuses[rpm.k]
 	if !ok {
-		log.Errorf("Received provider (%s) for cid (%s) not requested", rpm.p.String(), rpm.k.String())
+		log.Errorf(
+			"Received provider (%s) for cid (%s) not requested",
+			rpm.p.String(),
+			rpm.k.String(),
+		)
 		return
 	}
 	requestStatus.providersSoFar = append(requestStatus.providersSoFar, rpm.p)

@@ -242,6 +242,8 @@ func New(
 		return bsmq.New(ctx, p, network, onDontHaveTimeout)
 	}
 
+	// TODO maybe move options here
+
 	sim := bssim.New()
 	bpm := bsbpm.New()
 	pm := bspm.New(ctx, peerQueueFactory, network.Self(), tricklingDelay)
