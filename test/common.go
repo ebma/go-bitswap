@@ -570,6 +570,7 @@ func CreateTopologyString(
 func CreateMetaFromParams(
 	runenv *runtime.RunEnv,
 	runNum int,
+	experimentID string,
 	edCount int,
 	leechCount int,
 	seedCount int,
@@ -587,7 +588,8 @@ func CreateMetaFromParams(
 	instance := runenv.TestInstanceCount
 
 	id := fmt.Sprintf(
-		"topology:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
+		"experiment:%s/topology:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/seq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
+		experimentID,
 		CreateTopologyString(instance, leechCount, seedCount, edCount),
 		maxConnectionRate,
 		latency.Milliseconds(),
@@ -672,14 +674,16 @@ func newMessageHistoryRecorder(
 }
 
 type globalInfoRecorder struct {
-	runenv *runtime.RunEnv
-	file   *os.File
+	runenv       *runtime.RunEnv
+	file         *os.File
+	experimentID string
 }
 
 func (g globalInfoRecorder) RecordInfoWithMeta(meta string, info string) {
 	infoType := "LeechInfo"
 	msgString := fmt.Sprintf(
-		"{ \"meta\": \"%s\", \"timestamp\": \"%d\", \"type\": \"%s\", %s }",
+		"{ \"experiment\": \"%s\", \"meta\": \"%s\", \"timestamp\": \"%d\", \"type\": \"%s\", %s }",
+		g.experimentID,
 		meta,
 		time.Now().UnixMicro(),
 		infoType,
@@ -695,7 +699,8 @@ func (g globalInfoRecorder) RecordInfoWithMeta(meta string, info string) {
 func (g globalInfoRecorder) RecordNodeInfo(info string) {
 	infoType := "NodeInfo"
 	msgString := fmt.Sprintf(
-		"{ \"timestamp\": \"%d\", \"type\": \"%s\", %s }",
+		"{ \"experiment\": \"%s\", \"timestamp\": \"%d\", \"type\": \"%s\", %s }",
+		g.experimentID,
 		time.Now().UnixMicro(),
 		infoType,
 		info,
@@ -707,7 +712,7 @@ func (g globalInfoRecorder) RecordNodeInfo(info string) {
 	}
 }
 
-func newGlobalInfoRecorder(runenv *runtime.RunEnv) utils.GlobalInfoRecorder {
+func newGlobalInfoRecorder(runenv *runtime.RunEnv, experimentID string) utils.GlobalInfoRecorder {
 	file, err := os.OpenFile(
 		runenv.TestOutputsPath+"/globalInfo.out",
 		os.O_WRONLY|os.O_CREATE|os.O_APPEND,
@@ -717,5 +722,5 @@ func newGlobalInfoRecorder(runenv *runtime.RunEnv) utils.GlobalInfoRecorder {
 		runenv.RecordMessage("Error creating global info file: %s", err)
 		return nil
 	}
-	return &globalInfoRecorder{runenv, file}
+	return &globalInfoRecorder{runenv, file, experimentID}
 }

@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
@@ -176,12 +177,14 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 	ctx, cancel := context.WithTimeout(context.Background(), testVars.Timeout)
 	defer cancel()
 
+	experimentID := uuid.New().String()
+
 	baseTestData, err := initializeBaseNetwork(ctx, runenv)
 	if err != nil {
 		return err
 	}
 
-	globalInfoRecorder := newGlobalInfoRecorder(runenv)
+	globalInfoRecorder := newGlobalInfoRecorder(runenv, experimentID)
 
 	// Run test with different topologies
 	runenv.RecordMessage("Running test with %v eavesdroppers", testVars.EavesdropperCount)
@@ -323,6 +326,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			meta := CreateMetaFromParams(
 				runenv,
 				runNum,
+				experimentID,
 				testVars.EavesdropperCount,
 				testVars.LeechCount,
 				testVars.SeedCount,
