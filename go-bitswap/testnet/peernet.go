@@ -8,8 +8,8 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	mockrouting "github.com/ipfs/go-ipfs-routing/mock"
 
-	"github.com/libp2p/go-libp2p-core/peer"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
+	"github.com/libp2p/go-libp2p/core/peer"
 	mockpeernet "github.com/libp2p/go-libp2p/p2p/net/mock"
 )
 
@@ -19,7 +19,11 @@ type peernet struct {
 }
 
 // StreamNet is a testnet that uses libp2p's MockNet
-func StreamNet(ctx context.Context, net mockpeernet.Mocknet, rs mockrouting.Server) (Network, error) {
+func StreamNet(
+	ctx context.Context,
+	net mockpeernet.Mocknet,
+	rs mockrouting.Server,
+) (Network, error) {
 	return &peernet{net, rs}, nil
 }
 

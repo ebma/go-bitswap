@@ -9,16 +9,17 @@ import (
 	"time"
 
 	bsmsg "github.com/ipfs/go-bitswap/message"
+	"github.com/ipfs/go-bitswap/network/internal"
 
 	cid "github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log"
-	"github.com/libp2p/go-libp2p-core/connmgr"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	peerstore "github.com/libp2p/go-libp2p-core/peerstore"
-	"github.com/libp2p/go-libp2p-core/protocol"
-	"github.com/libp2p/go-libp2p-core/routing"
+	"github.com/libp2p/go-libp2p/core/connmgr"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	peerstore "github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	msgio "github.com/libp2p/go-msgio"
 	ma "github.com/multiformats/go-multiaddr"
@@ -54,14 +55,7 @@ func NewFromIpfsHost(host host.Host, r routing.ContentRouting, opts ...NetOpt) B
 }
 
 func processSettings(opts ...NetOpt) Settings {
-	s := Settings{
-		SupportedProtocols: []protocol.ID{
-			ProtocolBitswap,
-			ProtocolBitswapOneOne,
-			ProtocolBitswapOneZero,
-			ProtocolBitswapNoVers,
-		},
-	}
+	s := Settings{SupportedProtocols: internal.DefaultProtocols}
 	for _, opt := range opts {
 		opt(&s)
 	}
@@ -90,7 +84,7 @@ type impl struct {
 	supportedProtocols []protocol.ID
 
 	// inbound messages from the network are forwarded to the receiver
-	receiver Receiver
+	receivers []Receiver
 }
 
 type streamMessageSender struct {
@@ -241,7 +235,12 @@ func (bsnet *impl) SupportsHave(proto protocol.ID) bool {
 	return true
 }
 
-func (bsnet *impl) msgToStream(ctx context.Context, s network.Stream, msg bsmsg.BitSwapMessage, timeout time.Duration) error {
+func (bsnet *impl) msgToStream(
+	ctx context.Context,
+	s network.Stream,
+	msg bsmsg.BitSwapMessage,
+	timeout time.Duration,
+) error {
 	deadline := time.Now().Add(timeout)
 	if dl, ok := ctx.Deadline(); ok && dl.Before(deadline) {
 		deadline = dl
@@ -277,7 +276,11 @@ func (bsnet *impl) msgToStream(ctx context.Context, s network.Stream, msg bsmsg.
 	return nil
 }
 
-func (bsnet *impl) NewMessageSender(ctx context.Context, p peer.ID, opts *MessageSenderOpts) (MessageSender, error) {
+func (bsnet *impl) NewMessageSender(
+	ctx context.Context,
+	p peer.ID,
+	opts *MessageSenderOpts,
+) (MessageSender, error) {
 	opts = setDefaultOpts(opts)
 
 	sender := &streamMessageSender{
@@ -349,9 +352,15 @@ func (bsnet *impl) newStreamToPeer(ctx context.Context, p peer.ID) (network.Stre
 	return bsnet.host.NewStream(ctx, p, bsnet.supportedProtocols...)
 }
 
-func (bsnet *impl) Start(r Receiver) {
-	bsnet.receiver = r
-	bsnet.connectEvtMgr = newConnectEventManager(r)
+func (bsnet *impl) Start(r ...Receiver) {
+	bsnet.receivers = r
+	{
+		connectionListeners := make([]ConnectionListener, len(r))
+		for i, v := range r {
+			connectionListeners[i] = v
+		}
+		bsnet.connectEvtMgr = newConnectEventManager(connectionListeners...)
+	}
 	for _, proto := range bsnet.supportedProtocols {
 		bsnet.host.SetStreamHandler(proto, bsnet.handleNewStream)
 	}
@@ -403,7 +412,7 @@ func (bsnet *impl) Provide(ctx context.Context, k cid.Cid) error {
 func (bsnet *impl) handleNewStream(s network.Stream) {
 	defer s.Close()
 
-	if bsnet.receiver == nil {
+	if len(bsnet.receivers) == 0 {
 		_ = s.Reset()
 		return
 	}
@@ -414,8 +423,14 @@ func (bsnet *impl) handleNewStream(s network.Stream) {
 		if err != nil {
 			if err != io.EOF {
 				_ = s.Reset()
-				bsnet.receiver.ReceiveError(err)
-				log.Debugf("bitswap net handleNewStream from %s error: %s", s.Conn().RemotePeer(), err)
+				for _, v := range bsnet.receivers {
+					v.ReceiveError(err)
+				}
+				log.Debugf(
+					"bitswap net handleNewStream from %s error: %s",
+					s.Conn().RemotePeer(),
+					err,
+				)
 			}
 			return
 		}
@@ -425,7 +440,9 @@ func (bsnet *impl) handleNewStream(s network.Stream) {
 		log.Debugf("bitswap net handleNewStream from %s", s.Conn().RemotePeer())
 		bsnet.connectEvtMgr.OnMessage(s.Conn().RemotePeer())
 		atomic.AddUint64(&bsnet.stats.MessagesRecvd, 1)
-		bsnet.receiver.ReceiveMessage(ctx, p, received)
+		for _, v := range bsnet.receivers {
+			v.ReceiveMessage(ctx, p, received)
+		}
 	}
 }
 

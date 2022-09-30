@@ -15,11 +15,11 @@ import (
 	delay "github.com/ipfs/go-ipfs-delay"
 	mockrouting "github.com/ipfs/go-ipfs-routing/mock"
 
-	"github.com/libp2p/go-libp2p-core/connmgr"
-	"github.com/libp2p/go-libp2p-core/peer"
-	protocol "github.com/libp2p/go-libp2p-core/protocol"
-	"github.com/libp2p/go-libp2p-core/routing"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
+	"github.com/libp2p/go-libp2p/core/connmgr"
+	"github.com/libp2p/go-libp2p/core/peer"
+	protocol "github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/core/routing"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 )
@@ -45,7 +45,11 @@ type RateLimitGenerator interface {
 
 // RateLimitedVirtualNetwork generates a testnet instance where nodes are rate
 // limited in the upload/download speed.
-func RateLimitedVirtualNetwork(rs mockrouting.Server, d delay.D, rateLimitGenerator RateLimitGenerator) Network {
+func RateLimitedVirtualNetwork(
+	rs mockrouting.Server,
+	d delay.D,
+	rateLimitGenerator RateLimitGenerator,
+) Network {
 	return &network{
 		latencies:          make(map[peer.ID]map[peer.ID]time.Duration),
 		rateLimiters:       make(map[peer.ID]map[peer.ID]*mocknet.RateLimiter),
@@ -183,15 +187,44 @@ func (n *network) SendMessage(
 	return nil
 }
 
+var _ bsnet.Receiver = (*networkClient)(nil)
+
 type networkClient struct {
 	// These need to be at the top of the struct (allocated on the heap) for alignment on 32bit platforms.
 	stats bsnet.Stats
 
-	local peer.ID
-	bsnet.Receiver
+	local              peer.ID
+	receivers          []bsnet.Receiver
 	network            *network
 	routing            routing.Routing
 	supportedProtocols []protocol.ID
+}
+
+func (nc *networkClient) ReceiveMessage(
+	ctx context.Context,
+	sender peer.ID,
+	incoming bsmsg.BitSwapMessage,
+) {
+	for _, v := range nc.receivers {
+		v.ReceiveMessage(ctx, sender, incoming)
+	}
+}
+
+func (nc *networkClient) ReceiveError(e error) {
+	for _, v := range nc.receivers {
+		v.ReceiveError(e)
+	}
+}
+
+func (nc *networkClient) PeerConnected(p peer.ID) {
+	for _, v := range nc.receivers {
+		v.PeerConnected(p)
+	}
+}
+func (nc *networkClient) PeerDisconnected(p peer.ID) {
+	for _, v := range nc.receivers {
+		v.PeerDisconnected(p)
+	}
 }
 
 func (nc *networkClient) Self() peer.ID {
@@ -227,7 +260,11 @@ func (nc *networkClient) Stats() bsnet.Stats {
 }
 
 // FindProvidersAsync returns a channel of providers for the given key.
-func (nc *networkClient) FindProvidersAsync(ctx context.Context, k cid.Cid, max int) <-chan peer.ID {
+func (nc *networkClient) FindProvidersAsync(
+	ctx context.Context,
+	k cid.Cid,
+	max int,
+) <-chan peer.ID {
 	// NB: this function duplicates the AddrInfo -> ID transformation in the
 	// bitswap network adapter. Not to worry. This network client will be
 	// deprecated once the ipfsnet.Mock is added. The code below is only
@@ -286,7 +323,11 @@ func (mp *messagePasser) SupportsHave() bool {
 	return false
 }
 
-func (nc *networkClient) NewMessageSender(ctx context.Context, p peer.ID, opts *bsnet.MessageSenderOpts) (bsnet.MessageSender, error) {
+func (nc *networkClient) NewMessageSender(
+	ctx context.Context,
+	p peer.ID,
+	opts *bsnet.MessageSenderOpts,
+) (bsnet.MessageSender, error) {
 	return &messagePasser{
 		net:    nc,
 		target: p,
@@ -300,8 +341,8 @@ func (nc *networkClient) Provide(ctx context.Context, k cid.Cid) error {
 	return nc.routing.Provide(ctx, k, true)
 }
 
-func (nc *networkClient) Start(r bsnet.Receiver) {
-	nc.Receiver = r
+func (nc *networkClient) Start(r ...bsnet.Receiver) {
+	nc.receivers = r
 }
 
 func (nc *networkClient) Stop() {
@@ -325,7 +366,7 @@ func (nc *networkClient) ConnectTo(_ context.Context, p peer.ID) error {
 	nc.network.mu.Unlock()
 
 	otherClient.receiver.PeerConnected(nc.local)
-	nc.Receiver.PeerConnected(p)
+	nc.PeerConnected(p)
 	return nil
 }
 
@@ -346,7 +387,7 @@ func (nc *networkClient) DisconnectFrom(_ context.Context, p peer.ID) error {
 	delete(nc.network.conns, tag)
 
 	otherClient.receiver.PeerDisconnected(nc.local)
-	nc.Receiver.PeerDisconnected(p)
+	nc.PeerDisconnected(p)
 	return nil
 }
 

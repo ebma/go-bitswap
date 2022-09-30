@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	bitswap "github.com/ipfs/go-bitswap"
+	"github.com/ipfs/go-bitswap"
 	bsnet "github.com/ipfs/go-bitswap/network"
 	tn "github.com/ipfs/go-bitswap/testnet"
 	ds "github.com/ipfs/go-datastore"
@@ -12,14 +12,18 @@ import (
 	ds_sync "github.com/ipfs/go-datastore/sync"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	delay "github.com/ipfs/go-ipfs-delay"
-	peer "github.com/libp2p/go-libp2p-core/peer"
-	p2ptestutil "github.com/libp2p/go-libp2p-netutil"
 	tnet "github.com/libp2p/go-libp2p-testing/net"
+	p2ptestutil "github.com/libp2p/go-libp2p-testing/netutil"
+	peer "github.com/libp2p/go-libp2p/core/peer"
 )
 
 // NewTestInstanceGenerator generates a new InstanceGenerator for the given
 // testnet
-func NewTestInstanceGenerator(net tn.Network, netOptions []bsnet.NetOpt, bsOptions []bitswap.Option) InstanceGenerator {
+func NewTestInstanceGenerator(
+	net tn.Network,
+	netOptions []bsnet.NetOpt,
+	bsOptions []bitswap.Option,
+) InstanceGenerator {
 	ctx, cancel := context.WithCancel(context.Background())
 	return InstanceGenerator{
 		net:        net,
@@ -107,7 +111,13 @@ func (i *Instance) SetBlockstoreLatency(t time.Duration) time.Duration {
 // NB: It's easy make mistakes by providing the same peer ID to two different
 // instances. To safeguard, use the InstanceGenerator to generate instances. It's
 // just a much better idea.
-func NewInstance(ctx context.Context, net tn.Network, p tnet.Identity, netOptions []bsnet.NetOpt, bsOptions []bitswap.Option) Instance {
+func NewInstance(
+	ctx context.Context,
+	net tn.Network,
+	p tnet.Identity,
+	netOptions []bsnet.NetOpt,
+	bsOptions []bitswap.Option,
+) Instance {
 	bsdelay := delay.Fixed(0)
 
 	adapter := net.Adapter(p, netOptions...)
@@ -120,7 +130,7 @@ func NewInstance(ctx context.Context, net tn.Network, p tnet.Identity, netOption
 		panic(err.Error()) // FIXME perhaps change signature and return error.
 	}
 
-	bs := bitswap.New(ctx, adapter, bstore, bsOptions...).(*bitswap.Bitswap)
+	bs := bitswap.New(ctx, adapter, bstore, bsOptions...)
 
 	return Instance{
 		Adapter:         adapter,

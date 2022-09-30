@@ -9,9 +9,6 @@ const (
 	ProvideTimeout  = time.Minute * 3
 	ProvSearchDelay = time.Second
 
-	// Set default trickling delay to 0
-	TricklingDelay = time.Millisecond * 0
-
 	// Number of concurrent workers in decision engine that process requests to the blockstore
 	BitswapEngineBlockstoreWorkerCount = 128
 	// the total number of simultaneous threads sending outgoing messages
@@ -22,4 +19,9 @@ const (
 	BitswapMaxOutstandingBytesPerPeer = 1 << 20
 	// the number of bytes we attempt to make each outgoing bitswap message
 	BitswapEngineTargetMessageSize = 16 * 1024
+	// HasBlockBufferSize is the buffer size of the channel for new blocks
+	// that need to be provided. They should get pulled over by the
+	// provideCollector even before they are actually provided.
+	// TODO: Does this need to be this large givent that?
+	HasBlockBufferSize = 256
 )

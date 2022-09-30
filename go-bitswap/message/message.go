@@ -5,8 +5,8 @@ import (
 	"errors"
 	"io"
 
+	"github.com/ipfs/go-bitswap/client/wantlist"
 	pb "github.com/ipfs/go-bitswap/message/pb"
-	"github.com/ipfs/go-bitswap/wantlist"
 
 	blocks "github.com/ipfs/go-block-format"
 	cid "github.com/ipfs/go-cid"
@@ -14,7 +14,7 @@ import (
 	msgio "github.com/libp2p/go-msgio"
 
 	u "github.com/ipfs/go-ipfs-util"
-	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p/core/network"
 )
 
 // BitSwapMessage is the basic interface for interacting building, encoding,
@@ -38,7 +38,12 @@ type BitSwapMessage interface {
 	PendingBytes() int32
 
 	// AddEntry adds an entry to the Wantlist.
-	AddEntry(key cid.Cid, priority int32, wantType pb.Message_Wantlist_WantType, sendDontHave bool) int
+	AddEntry(
+		key cid.Cid,
+		priority int32,
+		wantType pb.Message_Wantlist_WantType,
+		sendDontHave bool,
+	) int
 
 	// Cancel adds a CANCEL for the given CID to the message
 	// Returns the size of the CANCEL entry in the protobuf
@@ -310,11 +315,22 @@ func (m *impl) Cancel(k cid.Cid) int {
 	return m.addEntry(k, 0, true, pb.Message_Wantlist_Block, false)
 }
 
-func (m *impl) AddEntry(k cid.Cid, priority int32, wantType pb.Message_Wantlist_WantType, sendDontHave bool) int {
+func (m *impl) AddEntry(
+	k cid.Cid,
+	priority int32,
+	wantType pb.Message_Wantlist_WantType,
+	sendDontHave bool,
+) int {
 	return m.addEntry(k, priority, false, wantType, sendDontHave)
 }
 
-func (m *impl) addEntry(c cid.Cid, priority int32, cancel bool, wantType pb.Message_Wantlist_WantType, sendDontHave bool) int {
+func (m *impl) addEntry(
+	c cid.Cid,
+	priority int32,
+	cancel bool,
+	wantType pb.Message_Wantlist_WantType,
+	sendDontHave bool,
+) int {
 	e, exists := m.wantlist[c]
 	if exists {
 		// Only change priority if want is of the same type

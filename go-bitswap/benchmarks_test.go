@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"os"
@@ -15,10 +14,9 @@ import (
 
 	"github.com/ipfs/go-bitswap/internal/testutil"
 	blocks "github.com/ipfs/go-block-format"
-	protocol "github.com/libp2p/go-libp2p-core/protocol"
+	protocol "github.com/libp2p/go-libp2p/core/protocol"
 
-	bitswap "github.com/ipfs/go-bitswap"
-	bssession "github.com/ipfs/go-bitswap/internal/session"
+	"github.com/ipfs/go-bitswap"
 	bsnet "github.com/ipfs/go-bitswap/network"
 	testinstance "github.com/ipfs/go-bitswap/testinstance"
 	tn "github.com/ipfs/go-bitswap/testnet"
@@ -111,12 +109,20 @@ func BenchmarkFixedDelay(b *testing.B) {
 
 	for _, bch := range benches {
 		b.Run(bch.name, func(b *testing.B) {
-			subtestDistributeAndFetch(b, bch.nodeCount, bch.blockCount, fixedDelay, bstoreLatency, bch.distFn, bch.fetchFn)
+			subtestDistributeAndFetch(
+				b,
+				bch.nodeCount,
+				bch.blockCount,
+				fixedDelay,
+				bstoreLatency,
+				bch.distFn,
+				bch.fetchFn,
+			)
 		})
 	}
 
 	out, _ := json.MarshalIndent(benchmarkLog, "", "  ")
-	_ = ioutil.WriteFile("tmp/benchmark.json", out, 0666)
+	_ = os.WriteFile("tmp/benchmark.json", out, 0666)
 	printResults(benchmarkLog)
 }
 
@@ -176,7 +182,15 @@ func BenchmarkFetchFromOldBitswap(b *testing.B) {
 			blocks[0] = rootBlock[0]
 
 			// Run the distribution
-			runDistributionMulti(b, instances[:fetcherCount], instances[fetcherCount:], blocks, bstoreLatency, bch.distFn, bch.fetchFn)
+			runDistributionMulti(
+				b,
+				instances[:fetcherCount],
+				instances[fetcherCount:],
+				blocks,
+				bstoreLatency,
+				bch.distFn,
+				bch.fetchFn,
+			)
 
 			newNodeGenerator.Close()
 			oldNodeGenerator.Close()
@@ -184,7 +198,7 @@ func BenchmarkFetchFromOldBitswap(b *testing.B) {
 	}
 
 	out, _ := json.MarshalIndent(benchmarkLog, "", "  ")
-	_ = ioutil.WriteFile("tmp/benchmark.json", out, 0666)
+	_ = os.WriteFile("tmp/benchmark.json", out, 0666)
 	printResults(benchmarkLog)
 }
 
@@ -219,30 +233,72 @@ func BenchmarkRealWorld(b *testing.B) {
 		mediumSpeed-fastSpeed, slowSpeed-fastSpeed,
 		0.0, 0.0, distribution, randomGen)
 	fastNetworkDelay := delay.Delay(fastSpeed, fastNetworkDelayGenerator)
-	fastBandwidthGenerator := tn.VariableRateLimitGenerator(fastBandwidth, fastBandwidthDeviation, randomGen)
+	fastBandwidthGenerator := tn.VariableRateLimitGenerator(
+		fastBandwidth,
+		fastBandwidthDeviation,
+		randomGen,
+	)
 	averageNetworkDelayGenerator := tn.InternetLatencyDelayGenerator(
 		mediumSpeed-fastSpeed, slowSpeed-fastSpeed,
 		0.3, 0.3, distribution, randomGen)
 	averageNetworkDelay := delay.Delay(fastSpeed, averageNetworkDelayGenerator)
-	averageBandwidthGenerator := tn.VariableRateLimitGenerator(mediumBandwidth, mediumBandwidthDeviation, randomGen)
+	averageBandwidthGenerator := tn.VariableRateLimitGenerator(
+		mediumBandwidth,
+		mediumBandwidthDeviation,
+		randomGen,
+	)
 	slowNetworkDelayGenerator := tn.InternetLatencyDelayGenerator(
 		mediumSpeed-fastSpeed, superSlowSpeed-fastSpeed,
 		0.3, 0.3, distribution, randomGen)
 	slowNetworkDelay := delay.Delay(fastSpeed, slowNetworkDelayGenerator)
-	slowBandwidthGenerator := tn.VariableRateLimitGenerator(slowBandwidth, slowBandwidthDeviation, randomGen)
+	slowBandwidthGenerator := tn.VariableRateLimitGenerator(
+		slowBandwidth,
+		slowBandwidthDeviation,
+		randomGen,
+	)
 	bstoreLatency := time.Duration(0)
 
 	b.Run("200Nodes-AllToAll-BigBatch-FastNetwork", func(b *testing.B) {
-		subtestDistributeAndFetchRateLimited(b, 300, 200, fastNetworkDelay, fastBandwidthGenerator, stdBlockSize, bstoreLatency, allToAll, batchFetchAll)
+		subtestDistributeAndFetchRateLimited(
+			b,
+			300,
+			200,
+			fastNetworkDelay,
+			fastBandwidthGenerator,
+			stdBlockSize,
+			bstoreLatency,
+			allToAll,
+			batchFetchAll,
+		)
 	})
 	b.Run("200Nodes-AllToAll-BigBatch-AverageVariableSpeedNetwork", func(b *testing.B) {
-		subtestDistributeAndFetchRateLimited(b, 300, 200, averageNetworkDelay, averageBandwidthGenerator, stdBlockSize, bstoreLatency, allToAll, batchFetchAll)
+		subtestDistributeAndFetchRateLimited(
+			b,
+			300,
+			200,
+			averageNetworkDelay,
+			averageBandwidthGenerator,
+			stdBlockSize,
+			bstoreLatency,
+			allToAll,
+			batchFetchAll,
+		)
 	})
 	b.Run("200Nodes-AllToAll-BigBatch-SlowVariableSpeedNetwork", func(b *testing.B) {
-		subtestDistributeAndFetchRateLimited(b, 300, 200, slowNetworkDelay, slowBandwidthGenerator, stdBlockSize, bstoreLatency, allToAll, batchFetchAll)
+		subtestDistributeAndFetchRateLimited(
+			b,
+			300,
+			200,
+			slowNetworkDelay,
+			slowBandwidthGenerator,
+			stdBlockSize,
+			bstoreLatency,
+			allToAll,
+			batchFetchAll,
+		)
 	})
 	out, _ := json.MarshalIndent(benchmarkLog, "", "  ")
-	_ = ioutil.WriteFile("tmp/rw-benchmark.json", out, 0666)
+	_ = os.WriteFile("tmp/rw-benchmark.json", out, 0666)
 	printResults(benchmarkLog)
 }
 
@@ -258,14 +314,28 @@ func BenchmarkDatacenter(b *testing.B) {
 		fastSpeed-datacenterSpeed, (fastSpeed-datacenterSpeed)/2,
 		0.0, 0.0, datacenterDistribution, randomGen)
 	datacenterNetworkDelay := delay.Delay(datacenterSpeed, datacenterNetworkDelayGenerator)
-	datacenterBandwidthGenerator := tn.VariableRateLimitGenerator(datacenterBandwidth, datacenterBandwidthDeviation, randomGen)
+	datacenterBandwidthGenerator := tn.VariableRateLimitGenerator(
+		datacenterBandwidth,
+		datacenterBandwidthDeviation,
+		randomGen,
+	)
 	bstoreLatency := time.Millisecond * 25
 
 	b.Run("3Nodes-Overlap3-UnixfsFetch", func(b *testing.B) {
-		subtestDistributeAndFetchRateLimited(b, 3, 100, datacenterNetworkDelay, datacenterBandwidthGenerator, largeBlockSize, bstoreLatency, allToAll, unixfsFileFetch)
+		subtestDistributeAndFetchRateLimited(
+			b,
+			3,
+			100,
+			datacenterNetworkDelay,
+			datacenterBandwidthGenerator,
+			largeBlockSize,
+			bstoreLatency,
+			allToAll,
+			unixfsFileFetch,
+		)
 	})
 	out, _ := json.MarshalIndent(benchmarkLog, "", "  ")
-	_ = ioutil.WriteFile("tmp/rb-benchmark.json", out, 0666)
+	_ = os.WriteFile("tmp/rb-benchmark.json", out, 0666)
 	printResults(benchmarkLog)
 }
 
@@ -281,7 +351,11 @@ func BenchmarkDatacenterMultiLeechMultiSeed(b *testing.B) {
 		fastSpeed-datacenterSpeed, (fastSpeed-datacenterSpeed)/2,
 		0.0, 0.0, datacenterDistribution, randomGen)
 	datacenterNetworkDelay := delay.Delay(datacenterSpeed, datacenterNetworkDelayGenerator)
-	datacenterBandwidthGenerator := tn.VariableRateLimitGenerator(datacenterBandwidth, datacenterBandwidthDeviation, randomGen)
+	datacenterBandwidthGenerator := tn.VariableRateLimitGenerator(
+		datacenterBandwidth,
+		datacenterBandwidthDeviation,
+		randomGen,
+	)
 	bstoreLatency := time.Millisecond * 25
 
 	b.Run("3Leech3Seed-AllToAll-UnixfsFetch", func(b *testing.B) {
@@ -306,11 +380,18 @@ func BenchmarkDatacenterMultiLeechMultiSeed(b *testing.B) {
 	})
 
 	out, _ := json.MarshalIndent(benchmarkLog, "", "  ")
-	_ = ioutil.WriteFile("tmp/rb-benchmark.json", out, 0666)
+	_ = os.WriteFile("tmp/rb-benchmark.json", out, 0666)
 	printResults(benchmarkLog)
 }
 
-func subtestDistributeAndFetch(b *testing.B, numnodes, numblks int, d delay.D, bstoreLatency time.Duration, df distFunc, ff fetchFunc) {
+func subtestDistributeAndFetch(
+	b *testing.B,
+	numnodes, numblks int,
+	d delay.D,
+	bstoreLatency time.Duration,
+	df distFunc,
+	ff fetchFunc,
+) {
 	for i := 0; i < b.N; i++ {
 		net := tn.VirtualNetwork(mockrouting.NewServer(), d)
 
@@ -325,7 +406,16 @@ func subtestDistributeAndFetch(b *testing.B, numnodes, numblks int, d delay.D, b
 	}
 }
 
-func subtestDistributeAndFetchRateLimited(b *testing.B, numnodes, numblks int, d delay.D, rateLimitGenerator tn.RateLimitGenerator, blockSize int64, bstoreLatency time.Duration, df distFunc, ff fetchFunc) {
+func subtestDistributeAndFetchRateLimited(
+	b *testing.B,
+	numnodes, numblks int,
+	d delay.D,
+	rateLimitGenerator tn.RateLimitGenerator,
+	blockSize int64,
+	bstoreLatency time.Duration,
+	df distFunc,
+	ff fetchFunc,
+) {
 	for i := 0; i < b.N; i++ {
 		net := tn.RateLimitedVirtualNetwork(mockrouting.NewServer(), d, rateLimitGenerator)
 
@@ -340,7 +430,15 @@ func subtestDistributeAndFetchRateLimited(b *testing.B, numnodes, numblks int, d
 	}
 }
 
-func runDistributionMulti(b *testing.B, fetchers []testinstance.Instance, seeds []testinstance.Instance, blocks []blocks.Block, bstoreLatency time.Duration, df distFunc, ff fetchFunc) {
+func runDistributionMulti(
+	b *testing.B,
+	fetchers []testinstance.Instance,
+	seeds []testinstance.Instance,
+	blocks []blocks.Block,
+	bstoreLatency time.Duration,
+	df distFunc,
+	ff fetchFunc,
+) {
 	// Distribute blocks to seed nodes
 	df(b, seeds, blocks)
 
@@ -392,7 +490,14 @@ func runDistributionMulti(b *testing.B, fetchers []testinstance.Instance, seeds 
 	// b.Logf("send/recv: %d / %d (dups: %d)", nst.MessagesSent, nst.MessagesRecvd, st.DupBlksReceived)
 }
 
-func runDistribution(b *testing.B, instances []testinstance.Instance, blocks []blocks.Block, bstoreLatency time.Duration, df distFunc, ff fetchFunc) {
+func runDistribution(
+	b *testing.B,
+	instances []testinstance.Instance,
+	blocks []blocks.Block,
+	bstoreLatency time.Duration,
+	df distFunc,
+	ff fetchFunc,
+) {
 	numnodes := len(instances)
 	fetcher := instances[numnodes-1]
 
@@ -498,7 +603,7 @@ func onePeerPerBlock(b *testing.B, provs []testinstance.Instance, blks []blocks.
 }
 
 func oneAtATime(b *testing.B, bs *bitswap.Bitswap, ks []cid.Cid) {
-	ses := bs.NewSession(context.Background()).(*bssession.Session)
+	ses := bs.NewSession(context.Background())
 	for _, c := range ks {
 		_, err := ses.GetBlock(context.Background(), c)
 		if err != nil {
