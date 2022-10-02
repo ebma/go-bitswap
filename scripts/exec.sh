@@ -68,7 +68,7 @@ run_composition() {
     $TESTGROUND_BIN collect --runner=$RUNNER $TESTID
     tar xzvf $TESTID.tgz
     rm $TESTID.tgz
-    mv $TESTID ./results/
+    mv $TESTID ../../experiments/results/
     echo "Collected results"
 }
 

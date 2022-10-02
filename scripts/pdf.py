@@ -10,8 +10,8 @@ if len(sys.argv) == 2:
     filename = sys.argv[1] + ".pdf"
 
 
-with PdfPages(dir_path + "/../experiments/" + filename) as export_pdf:
-    results_dir = dir_path + "/../experiments/results"
+with PdfPages(dir_path + "/../../../experiments/" + filename) as export_pdf:
+    results_dir = dir_path + "/../../../experiments/results"
 
     agg, testcases = process.aggregate_results(results_dir)
     byLatency = process.groupBy(agg, "latencyMS")
