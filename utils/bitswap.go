@@ -60,6 +60,11 @@ func (n *BitswapNode) Close() error {
 	return n.bitswap.Close()
 }
 
+func (n *BitswapNode) SetTracer(tracer tracer.Tracer) error {
+	n.bitswap.Server.Tracer = tracer
+	return nil
+}
+
 func CreateBlockstore(ctx context.Context, dStore ds.Batching) (blockstore.Blockstore, error) {
 	return blockstore.CachedBlockstore(ctx,
 		blockstore.NewBlockstore(dStore),
@@ -118,7 +123,6 @@ func CreateBitswapNode(
 	h host.Host,
 	bstore blockstore.Blockstore,
 	tricklingDelay time.Duration,
-	tracer tracer.Tracer,
 ) (*BitswapNode, error) {
 	routing, err := nilrouting.ConstructNilRouting(ctx, nil, nil, nil)
 	if err != nil {
@@ -126,9 +130,9 @@ func CreateBitswapNode(
 	}
 	net := bsnet.NewFromIpfsHost(h, routing)
 
-	tracerOption := bs.SetTracer(tracer)
+	//tracerOption := bs.SetTracer(tracer)
 	tricklingOption := bs.SetTricklingDelay(tricklingDelay)
-	options := []bs.Option{tricklingOption, tracerOption}
+	options := []bs.Option{tricklingOption}
 	bitswap := bs.New(ctx, net, bstore, options...)
 
 	bserv := blockservice.New(bstore, bitswap)

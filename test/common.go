@@ -651,15 +651,11 @@ func (m messageHistoryRecorder) MessageSent(pid peer.ID, msg bsmsg.BitSwapMessag
 
 }
 
-func (m messageHistoryRecorder) SetMeta(meta string) {
-	m.meta = meta
-}
-
-func (m messageHistoryRecorder) SetHost(host string) {
-	m.host = host
-}
-
-func newMessageHistoryRecorder(runenv *runtime.RunEnv) *messageHistoryRecorder {
+func newMessageHistoryRecorder(
+	runenv *runtime.RunEnv,
+	meta string,
+	host string,
+) *messageHistoryRecorder {
 	file, err := os.OpenFile(
 		runenv.TestOutputsPath+"/messageHistory.out",
 		os.O_WRONLY|os.O_CREATE|os.O_APPEND,
@@ -669,7 +665,7 @@ func newMessageHistoryRecorder(runenv *runtime.RunEnv) *messageHistoryRecorder {
 		runenv.RecordMessage("Error creating message history file: %s", err)
 		return nil
 	}
-	return &messageHistoryRecorder{runenv, file, "", ""}
+	return &messageHistoryRecorder{runenv, file, meta, host}
 
 }
 
