@@ -60,9 +60,8 @@ func (n *BitswapNode) Close() error {
 	return n.bitswap.Close()
 }
 
-func (n *BitswapNode) SetTracer(tracer tracer.Tracer) error {
+func (n *BitswapNode) SetTracer(tracer tracer.Tracer) {
 	n.bitswap.Server.Tracer = tracer
-	return nil
 }
 
 func CreateBlockstore(ctx context.Context, dStore ds.Batching) (blockstore.Blockstore, error) {
