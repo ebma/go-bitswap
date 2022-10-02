@@ -25,7 +25,7 @@ import (
 	ds_sync "github.com/ipfs/go-datastore/sync"
 	nilrouting "github.com/ipfs/go-ipfs-routing/none"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p/core/host"
 )
 
 func addBlockCustom(

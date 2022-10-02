@@ -8,8 +8,8 @@ import (
 	"math"
 	"sort"
 
-	core "github.com/libp2p/go-libp2p-core"
-	"github.com/libp2p/go-libp2p-core/peer"
+	core "github.com/libp2p/go-libp2p/core"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/sync/errgroup"
 )
 

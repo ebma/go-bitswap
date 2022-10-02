@@ -2,9 +2,9 @@ package utils
 
 import (
 	"context"
+	"github.com/ipfs/go-bitswap/tracer"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	bs "github.com/ipfs/go-bitswap"
@@ -23,7 +23,7 @@ import (
 	"github.com/ipfs/go-merkledag"
 	unixfile "github.com/ipfs/go-unixfs/file"
 	"github.com/ipfs/go-unixfs/importer/helpers"
-	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
@@ -118,13 +118,19 @@ func CreateBitswapNode(
 	h host.Host,
 	bstore blockstore.Blockstore,
 	tricklingDelay time.Duration,
+	tracer tracer.Tracer,
 ) (*BitswapNode, error) {
 	routing, err := nilrouting.ConstructNilRouting(ctx, nil, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 	net := bsnet.NewFromIpfsHost(h, routing)
-	bitswap := bs.New(ctx, net, bstore, tricklingDelay).(*bs.Bitswap)
+
+	tracerOption := bs.SetTracer(tracer)
+	tricklingOption := bs.SetTricklingDelay(tricklingDelay)
+	options := []bs.Option{tricklingOption, tracerOption}
+	bitswap := bs.New(ctx, net, bstore, options...)
+
 	bserv := blockservice.New(bstore, bitswap)
 	dserv := merkledag.NewDAGService(bserv)
 	return &BitswapNode{bitswap, bstore, dserv, h}, nil
@@ -167,28 +173,6 @@ func (n *BitswapNode) EmitMetrics(recorder MetricsRecorder) error {
 	recorder.Record("blks_sent", float64(stats.BlocksSent))
 	recorder.Record("blks_rcvd", float64(stats.BlocksReceived))
 	recorder.Record("dup_blks_rcvd", float64(stats.DupBlksReceived))
-	return err
-}
-
-func (n *BitswapNode) EmitMessageHistory(recorder MessageHistoryRecorder) error {
-	stats, err := n.bitswap.Stat()
-
-	if err != nil {
-		return err
-	}
-
-	sort.Slice(stats.MessageHistory, func(i, j int) bool {
-		return stats.MessageHistory[i].Timestamp.Before(stats.MessageHistory[j].Timestamp)
-	})
-
-	// only record first message received to reduce data size
-	if len(stats.MessageHistory) > 0 {
-		recorder.RecordMessageHistoryEntry(stats.MessageHistory[0])
-	}
-
-	// Clear message history after recording them to prevent duplicates
-	n.bitswap.ClearMessageHistory()
-
 	return err
 }
 

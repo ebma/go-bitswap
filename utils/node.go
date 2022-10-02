@@ -2,13 +2,11 @@ package utils
 
 import (
 	"context"
-	"github.com/ipfs/go-bitswap"
-
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
 	ipld "github.com/ipfs/go-ipld-format"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // PeerInfo provides all the neccessary information to dial a peer
@@ -27,7 +25,6 @@ type Node interface {
 	Host() host.Host
 	DAGService() ipld.DAGService
 	EmitKeepAlive(recorder MessageRecorder) error
-	EmitMessageHistory(recorder MessageHistoryRecorder) error
 }
 
 type MetricsRecorder interface {
@@ -41,8 +38,4 @@ type MessageRecorder interface {
 type GlobalInfoRecorder interface {
 	RecordNodeInfo(info string)
 	RecordInfoWithMeta(meta string, info string)
-}
-
-type MessageHistoryRecorder interface {
-	RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry)
 }

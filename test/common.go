@@ -3,7 +3,7 @@ package test
 import (
 	"context"
 	"fmt"
-	"github.com/ipfs/go-bitswap"
+	bsmsg "github.com/ipfs/go-bitswap/message"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
 	"math"
 	"net"
@@ -18,8 +18,8 @@ import (
 	"github.com/testground/sdk-go/runtime"
 	"github.com/testground/sdk-go/sync"
 
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/testground/sdk-go/network"
 )
@@ -390,15 +390,6 @@ func (t *NetworkTestData) emitMetrics(runenv *runtime.RunEnv, meta string,
 	return t.node.EmitMetrics(recorder)
 }
 
-func (t *NetworkTestData) emitMessageHistory(
-	runenv *runtime.RunEnv,
-	meta string,
-	host string,
-) error {
-	recorder := newMessageHistoryRecorder(runenv, meta, host)
-	return t.node.EmitMessageHistory(recorder)
-}
-
 func generateAndAdd(
 	ctx context.Context,
 	runenv *runtime.RunEnv,
@@ -625,27 +616,28 @@ type messageHistoryRecorder struct {
 	host   string
 }
 
-func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHistoryEntry) {
+func (m messageHistoryRecorder) MessageReceived(pid peer.ID, msg bsmsg.BitSwapMessage) {
+	timestamp := time.Now().UnixNano()
 	// don't log non-want-have messages
-	if len(msg.Message.Wantlist()) == 0 {
+	if len(msg.Wantlist()) == 0 {
 		return
 	}
 	wantlistString := ""
-	for index, entry := range msg.Message.Wantlist() {
+	for index, entry := range msg.Wantlist() {
 		if index > 0 {
 			wantlistString = wantlistString + fmt.Sprintf(", \"%s\"", entry.Cid)
 		} else {
 			wantlistString = wantlistString + fmt.Sprintf("\"%s\"", entry.Cid)
 		}
-
 	}
+
 	msgObjectString := fmt.Sprintf("\"wants\": [%s]", wantlistString)
 	logString := fmt.Sprintf(
 		"{ \"meta\": \"%s\", \"receiver\": \"%s\", \"ts\": \"%d\", \"sender\": \"%s\", \"message\": { %s } }",
 		m.meta,
 		m.host,
-		msg.Timestamp.UnixNano(),
-		msg.Peer,
+		timestamp,
+		pid.String(),
 		msgObjectString,
 	)
 	_, err := fmt.Fprintln(m.file, logString)
@@ -653,13 +645,21 @@ func (m messageHistoryRecorder) RecordMessageHistoryEntry(msg bitswap.MessageHis
 		m.runenv.RecordMessage("Error writing message history entry: %s", err)
 		return
 	}
+
+}
+func (m messageHistoryRecorder) MessageSent(pid peer.ID, msg bsmsg.BitSwapMessage) {
+
 }
 
-func newMessageHistoryRecorder(
-	runenv *runtime.RunEnv,
-	meta string,
-	host string,
-) utils.MessageHistoryRecorder {
+func (m messageHistoryRecorder) SetMeta(meta string) {
+	m.meta = meta
+}
+
+func (m messageHistoryRecorder) SetHost(host string) {
+	m.host = host
+}
+
+func newMessageHistoryRecorder(runenv *runtime.RunEnv) *messageHistoryRecorder {
 	file, err := os.OpenFile(
 		runenv.TestOutputsPath+"/messageHistory.out",
 		os.O_WRONLY|os.O_CREATE|os.O_APPEND,
@@ -669,7 +669,7 @@ func newMessageHistoryRecorder(
 		runenv.RecordMessage("Error creating message history file: %s", err)
 		return nil
 	}
-	return &messageHistoryRecorder{runenv, file, meta, host}
+	return &messageHistoryRecorder{runenv, file, "", ""}
 
 }
 

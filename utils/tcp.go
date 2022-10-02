@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	files "github.com/ipfs/go-ipfs-files"
-	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/testground/sdk-go/runtime"
 )
 

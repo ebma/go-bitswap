@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/ipfs/go-bitswap/tracer"
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils/dialer"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/testground/sdk-go/network"
 	"strconv"
 	"time"
@@ -137,6 +138,7 @@ func initializeBitswapNetwork(
 	baseT *TestData,
 	h host.Host,
 	delay time.Duration,
+	tracer tracer.Tracer,
 ) (*NetworkTestData, error) {
 	// Use the same blockstore on all runs for the seed node
 	bstoreDelay := time.Duration(runenv.IntParam("bstore_delay_ms")) * time.Millisecond
@@ -155,7 +157,7 @@ func initializeBitswapNetwork(
 		return nil, err
 	}
 	// Create a new bitswap node from the blockstore
-	bsnode, err := utils.CreateBitswapNode(ctx, h, bstore, delay)
+	bsnode, err := utils.CreateBitswapNode(ctx, h, bstore, delay, tracer)
 	if err != nil {
 		return nil, err
 	}
@@ -224,6 +226,10 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			testParams.TricklingDelay,
 		)
 
+		messageHistoryRecorder := newMessageHistoryRecorder(
+			runenv,
+		)
+
 		// Initialize the bitswap node with trickling delay of test permutation
 		tricklingDelay := testParams.TricklingDelay
 		nodeTestData, err := initializeBitswapNetwork(
@@ -233,6 +239,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			testData,
 			h,
 			tricklingDelay,
+			messageHistoryRecorder,
 		)
 		transferNode := nodeTestData.node
 		signalAndWaitForAll := nodeTestData.signalAndWaitForAll
@@ -340,6 +347,9 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				pIndex,
 				tricklingDelay,
 			)
+
+			messageHistoryRecorder.SetMeta(meta)
+			messageHistoryRecorder.SetHost(nodeTestData.node.Host().ID().String())
 
 			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
 
@@ -468,14 +478,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			if err != nil {
 				return err
 			}
-			err = nodeTestData.emitMessageHistory(
-				runenv,
-				meta,
-				nodeTestData.node.Host().ID().String(),
-			)
-			if err != nil {
-				return err
-			}
+
 			runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
 
 			// Disconnect and clear data
