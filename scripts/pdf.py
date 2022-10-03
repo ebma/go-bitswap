@@ -2,6 +2,7 @@ import process
 import os
 import sys
 import first_timestamp_estimator
+import prediction_analysis
 from matplotlib.backends.backend_pdf import PdfPages
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -9,10 +10,12 @@ filename = "result.pdf"
 if len(sys.argv) == 2:
     filename = sys.argv[1] + ".pdf"
 
+results_dir = dir_path + "/../../experiments/results"
 
-with PdfPages(dir_path + "/../../../experiments/" + filename) as export_pdf:
-    results_dir = dir_path + "/../../../experiments/results"
+with PdfPages(dir_path + "/../../experiments/prediction_rates.pdf") as export_pdf:
+    prediction_analysis.analyse_and_save_to_file(results_dir, export_pdf)
 
+with PdfPages(dir_path + "/../../experiments/" + filename) as export_pdf:
     agg, testcases = process.aggregate_results(results_dir)
     byLatency = process.groupBy(agg, "latencyMS")
     byNodeType = process.groupBy(agg, "nodeType")

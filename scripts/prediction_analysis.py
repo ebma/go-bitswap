@@ -1,23 +1,12 @@
-import os
-import sys
-
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 
 import first_timestamp_estimator
 import process
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
-filename = "prediction_rates.pdf"
-directory_path = dir_path + "/../../../experiments"
-if len(sys.argv) == 2:
-    directory_path = sys.argv[1]
 
-with PdfPages(directory_path + "/" + filename) as export_pdf:
-    results_dir = directory_path
-
+def analyse_and_save_to_file(results_dir, export_pdf):
     # Store results for each experiment and trickling delay in a dict
     results = list()
 
@@ -48,7 +37,6 @@ with PdfPages(directory_path + "/" + filename) as export_pdf:
                 # results[latency].append(
                 #     {'experiment': experiment, 'delay': delay, 'rate': rate})
 
-
     # artificially amend results
     def map_function(x, modifier, name):
         y = {}
@@ -57,7 +45,6 @@ with PdfPages(directory_path + "/" + filename) as export_pdf:
         y['delay'] = x['delay']
         y['latency'] = str(int(x['latency']) + 50)
         return y
-
 
     other_results = list(map(lambda x: map_function(x, 0.1, 'asdf'), results))
     results.extend(other_results)
