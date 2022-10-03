@@ -67,6 +67,12 @@ func SetTricklingDelay(delay time.Duration) Option {
 	}
 }
 
+func SetIsEavesdropper(isEavesdropper bool) Option {
+	return func(bs *Client) {
+		bs.pm.SetIsEavesdropper(isEavesdropper)
+	}
+}
+
 func SetSimulateDontHavesOnTimeout(send bool) Option {
 	return func(bs *Client) {
 		bs.simulateDontHavesOnTimeout = send

@@ -73,6 +73,14 @@ func SetTricklingDelay(delay time.Duration) Option {
 	return Option{client.SetTricklingDelay(delay)}
 }
 
+func SetEavesdropper(isEavesdropper bool) Option {
+	return Option{client.SetIsEavesdropper(isEavesdropper)}
+}
+
+func SetTracer(tap tracer.Tracer) Option {
+	return Option{server.WithTracer(tap)}
+}
+
 func WithTracer(tap tracer.Tracer) Option {
 	// Only trace the server, both receive the same messages anyway
 	return Option{

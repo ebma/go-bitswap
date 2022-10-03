@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
+	logging "github.com/ipfs/go-log"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils"
 	"github.com/ipfs/testground/plans/trickle-bitswap/utils/dialer"
 	"github.com/libp2p/go-libp2p"
@@ -136,6 +137,7 @@ func initializeBitswapNetwork(
 	baseT *TestData,
 	h host.Host,
 	delay time.Duration,
+	isEavesdropper bool,
 ) (*NetworkTestData, error) {
 	// Use the same blockstore on all runs for the seed node
 	bstoreDelay := time.Duration(runenv.IntParam("bstore_delay_ms")) * time.Millisecond
@@ -154,7 +156,7 @@ func initializeBitswapNetwork(
 		return nil, err
 	}
 	// Create a new bitswap node from the blockstore
-	bsnode, err := utils.CreateBitswapNode(ctx, h, bstore, delay)
+	bsnode, err := utils.CreateBitswapNode(ctx, h, bstore, delay, isEavesdropper)
 	if err != nil {
 		return nil, err
 	}
@@ -168,8 +170,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 	if err != nil {
 		return err
 	}
+	logging.SetLogLevel("bs:peermgr", "DEBUG")
 	//logging.SetLogLevel("bitswap", "DEBUG")
-	//logging.SetLogLevel("messagequeue", "DEBUG")
 	//logging.SetLogLevel("*", "DEBUG")
 
 	/// --- Set up
@@ -230,6 +232,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			testData,
 			h,
 			tricklingDelay,
+			testData.nodeType == utils.Eavesdropper,
 		)
 		transferNode := nodeTestData.node
 		signalAndWaitForAll := nodeTestData.signalAndWaitForAll

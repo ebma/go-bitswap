@@ -130,14 +130,12 @@ func (pwm *peerWantManager) removePeer(p peer.ID) {
 func (pwm *peerWantManager) trickleExecution(trickledFunction func()) {
 	// If the trickling delay is 0, execute the function immediately
 	if pwm.tricklingDelay == 0 {
-		log.Infow("trickling delay is 0, executing immediately")
 		trickledFunction()
 		return
 	}
 	pwm.tricklingLock.Lock()
 	defer pwm.tricklingLock.Unlock()
 	trickledFunction()
-	log.Infof("trickling delay is not 0, executing after delay %d", pwm.tricklingDelay)
 	time.Sleep(pwm.tricklingDelay)
 }
 

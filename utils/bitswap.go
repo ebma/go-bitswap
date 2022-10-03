@@ -122,6 +122,7 @@ func CreateBitswapNode(
 	h host.Host,
 	bstore blockstore.Blockstore,
 	tricklingDelay time.Duration,
+	isEavesdropper bool,
 ) (*BitswapNode, error) {
 	routing, err := nilrouting.ConstructNilRouting(ctx, nil, nil, nil)
 	if err != nil {
@@ -131,7 +132,8 @@ func CreateBitswapNode(
 
 	//tracerOption := bs.SetTracer(tracer)
 	tricklingOption := bs.SetTricklingDelay(tricklingDelay)
-	options := []bs.Option{tricklingOption}
+	eavesdropperOption := bs.SetEavesdropper(isEavesdropper)
+	options := []bs.Option{tricklingOption, eavesdropperOption}
 	bitswap := bs.New(ctx, net, bstore, options...)
 
 	bserv := blockservice.New(bstore, bitswap)

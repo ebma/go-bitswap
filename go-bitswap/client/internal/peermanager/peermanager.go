@@ -48,6 +48,9 @@ type PeerManager struct {
 	peerSessions map[peer.ID]map[uint64]struct{}
 
 	self peer.ID
+
+	// Determines whether to send messages to peers (or just listening)
+	isEavesdropper bool
 }
 
 // New creates a new PeerManager, given a context and a peerQueueFactory.
@@ -64,6 +67,8 @@ func New(ctx context.Context, createPeerQueue PeerQueueFactory, self peer.ID) *P
 
 		sessions:     make(map[uint64]Session),
 		peerSessions: make(map[peer.ID]map[uint64]struct{}),
+
+		isEavesdropper: false,
 	}
 }
 
@@ -140,6 +145,10 @@ func (pm *PeerManager) BroadcastWantHaves(ctx context.Context, wantHaves []cid.C
 	pm.pqLk.Lock()
 	defer pm.pqLk.Unlock()
 
+	if pm.isEavesdropper {
+		log.Infow("Eavesdropper mode: not sending want-haves", "wantHaves", wantHaves)
+		return
+	}
 	pm.pwm.broadcastWantHaves(wantHaves)
 }
 
@@ -154,6 +163,18 @@ func (pm *PeerManager) SendWants(
 	pm.pqLk.Lock()
 	defer pm.pqLk.Unlock()
 
+	if pm.isEavesdropper {
+		log.Infow(
+			"Eavesdropper mode: not sending wants",
+			"peer",
+			p,
+			"wantBlocks",
+			wantBlocks,
+			"wantHaves",
+			wantHaves,
+		)
+		return
+	}
 	if _, ok := pm.peerQueues[p]; ok {
 		pm.pwm.sendWants(p, wantBlocks, wantHaves)
 	}
@@ -165,6 +186,10 @@ func (pm *PeerManager) SendCancels(ctx context.Context, cancelKs []cid.Cid) {
 	pm.pqLk.Lock()
 	defer pm.pqLk.Unlock()
 
+	if pm.isEavesdropper {
+		log.Infow("Eavesdropper mode: not sending cancels")
+		return
+	}
 	// Send a CANCEL to each peer that has been sent a want-block or want-have
 	pm.pwm.sendCancels(cancelKs)
 }
@@ -254,4 +279,8 @@ func (pm *PeerManager) signalAvailability(p peer.ID, isConnected bool) {
 
 func (pm *PeerManager) SetTricklingDelay(delay time.Duration) {
 	pm.pwm.tricklingDelay = delay
+}
+
+func (pm *PeerManager) SetIsEavesdropper(isEavesdropper bool) {
+	pm.isEavesdropper = isEavesdropper
 }
