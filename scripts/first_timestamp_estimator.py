@@ -28,9 +28,10 @@ def aggregate_global_info(results_dir):
         for filename in files:
             filepath = subdir + os.sep + filename
             if filepath.split("/")[-1] == "globalInfo.out":
+                experiment_id = filepath.split("/")[-4]  # use testground experiment ID
                 result_file = open(filepath, 'r')
-                for l in result_file.readlines():
-                    aggregated_items.append(process_info_line(l))
+                for line in result_file.readlines():
+                    aggregated_items.append(process_info_line(line, experiment_id))
     return aggregated_items
 
 
@@ -40,31 +41,34 @@ def aggregate_message_histories(results_dir):
         for filename in files:
             filepath = subdir + os.sep + filename
             if filepath.split("/")[-1] == "messageHistory.out":
+                experiment_id = filepath.split("/")[-4]  # use testground experiment ID
                 result_file = open(filepath, 'r')
-                for l in result_file.readlines():
-                    aggregated_items.append(process_message_line(l))
+                for line in result_file.readlines():
+                    aggregated_items.append(process_message_line(line, experiment_id))
     return aggregated_items
 
 
-def process_info_line(l):
-    l = json.loads(l)
-    item = l
-    if 'meta' in l:
-        name = l['meta'].split("/")
+def process_info_line(line, experiment_id):
+    line = json.loads(line)
+    item = line
+    if 'meta' in line:
+        name = line['meta'].split("/")
         for attr in name:
             attr = attr.split(":")
             item[attr[0]] = attr[1]
+    item['experiment'] = experiment_id
     return item
 
 
-def process_message_line(l):
-    l = json.loads(l)
-    name = l['meta'].split("/")
-    item = l
+def process_message_line(line, experiment_id):
+    line = json.loads(line)
+    name = line['meta'].split("/")
+    item = line
     for attr in name:
         attr = attr.split(":")
         item[attr[0]] = attr[1]
-    item['ts'] = l['ts']
+    item['ts'] = line['ts']
+    item['experiment'] = experiment_id
     return item
 
 
@@ -103,6 +107,21 @@ def plot_prediction_accuracy(topology, prediction_results, ax):
     # ax.ylabel("Prediction rate")
     ax.grid(True)
     ax.legend()
+
+
+def get_prediction_rate(messages_with_delay, targets):
+    estimator = FirstTimestampEstimator(messages_with_delay)
+    correct_predictions = 0
+    for target in targets:
+        prediction = estimator.predict(target['permutationIndex'], target['run'], target['lookingFor'])
+        target['prediction'] = prediction
+        target['prediction_correct'] = prediction == target['peer']
+
+        if target['prediction_correct']:
+            correct_predictions += 1
+
+    # Return the prediction rate
+    return correct_predictions / len(targets)
 
 
 def plot_estimate(results_dir):
