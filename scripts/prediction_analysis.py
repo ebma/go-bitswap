@@ -9,15 +9,10 @@ import first_timestamp_estimator
 import process
 
 
-def analyse_and_save_to_file(results_dir, export_pdf):
+# The message_items are already filtered to only contain the Eavesdropper messages
+def analyse_and_save_to_file(topology, message_items, info_items, export_pdf):
     # Store results for each experiment and trickling delay in a dict
     results = list()
-
-    info_items = first_timestamp_estimator.aggregate_global_info(results_dir)
-    message_items = first_timestamp_estimator.aggregate_message_histories(results_dir)
-
-    # Only consider the messages received by Eavesdropper nodes
-    message_items = [item for item in message_items if item["nodeType"] == "Eavesdropper"]
 
     # Holds the items that describe the true target of the prediction
     prediction_targets = [item for item in info_items if item['type'] == 'LeechInfo']
@@ -52,7 +47,7 @@ def analyse_and_save_to_file(results_dir, export_pdf):
     sns.despine(offset=10, trim=False)
 
     splot.set(xlabel='Trickling delay (ms)', ylabel='Prediction rate',
-              title='Prediction rate for different trickling delays', ylim=(0, 1))
+              title=f'Prediction rate for different trickling delays with topology {topology}', ylim=(0, 1))
 
     plt.grid()
     export_pdf.savefig(splot.figure, pad_inches=0.4, bbox_inches='tight')
