@@ -134,7 +134,8 @@ def plot_estimate(results_dir):
     eavesdropper_nodes = [item for item in node_info_items if item['nodeType'] == 'Eavesdropper']
     eavesdropper_node_ids = [node['nodeId'] for node in eavesdropper_nodes]
     # message history of the eavesdropper nodes
-    eavesdropper_message_items = [item for item in message_items if item['receiver'] in eavesdropper_node_ids]
+    # eavesdropper_message_items = [item for item in message_items if item['receiver'] in eavesdropper_node_ids]
+    eavesdropper_message_items = [item for item in message_items if item['nodeType'] == 'Eavesdropper']
 
     estimator = FirstTimestampEstimator(eavesdropper_message_items)
 

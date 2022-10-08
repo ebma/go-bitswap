@@ -1,6 +1,9 @@
+import os
+
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 import first_timestamp_estimator
 import process
@@ -12,6 +15,9 @@ def analyse_and_save_to_file(results_dir, export_pdf):
 
     info_items = first_timestamp_estimator.aggregate_global_info(results_dir)
     message_items = first_timestamp_estimator.aggregate_message_histories(results_dir)
+
+    # Only consider the messages received by Eavesdropper nodes
+    message_items = [item for item in message_items if item["nodeType"] == "Eavesdropper"]
 
     # Holds the items that describe the true target of the prediction
     prediction_targets = [item for item in info_items if item['type'] == 'LeechInfo']
@@ -38,6 +44,8 @@ def analyse_and_save_to_file(results_dir, export_pdf):
 
     dd = pd.melt(df, id_vars=['Delay', 'Latency (ms)'], value_vars=['Rate'])
 
+    print(dd)
+
     plt.figure(figsize=(10, 10))
     sns.set_theme(style="ticks", palette="husl")
     splot = sns.boxplot(x='Delay', y='value', hue='Latency (ms)', data=dd)
@@ -48,3 +56,11 @@ def analyse_and_save_to_file(results_dir, export_pdf):
 
     plt.grid()
     export_pdf.savefig(splot.figure, pad_inches=0.4, bbox_inches='tight')
+
+
+if __name__ == '__main__':
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    results_dir = dir_path + "/../../experiments/results"
+    target_dir = dir_path + "/../../experiments"
+    with PdfPages(target_dir + "/" + "prediction_rates.pdf") as export_pdf:
+        analyse_and_save_to_file(results_dir, export_pdf)
