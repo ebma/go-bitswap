@@ -7,6 +7,8 @@ import sys
 import numpy as np
 from matplotlib import pyplot as plt
 
+import process
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -110,7 +112,75 @@ def plot_latency_no_comparision(byLatency, byBandwidth, byFileSize):
             tc = {}
 
 
-def plot_trickling_delays(latency, byTricklingDelay):
+def plot_time_to_fetch_grouped(byLatency):
+    p1, p2 = len(byLatency), 1
+    p_index = 1
+
+    fig = plt.figure(figsize=(10, 10))
+
+    axes = list()
+
+    for latency, latency_items in byLatency.items():
+        byTricklingDelay = process.groupBy(latency_items, "tricklingDelay")
+
+        ax = plt.subplot(p1, p2, p_index, sharey=axes[0] if len(axes) > 0 else None)
+        axes.append(ax)
+        x = []
+        labels = []
+        y = {}
+        tc = {}
+
+        for f in byTricklingDelay:
+            x.append(int(f))
+            labels.append(int(f))
+
+            y[f] = []
+            tc[f] = []
+            for i in byTricklingDelay[f]:
+                if i["nodeType"] == "Leech":
+                    if i["meta"] == "time_to_fetch":
+                        y[f].append(i["value"])
+                    if i["meta"] == "tcp_fetch":
+                        tc[f].append(i["value"])
+
+            avg = []
+            for i in y:
+                scaled_y = [i / 1e6 for i in y[i]]
+                ax.scatter([int(i)] * len(y[i]), scaled_y, marker="+")
+                if len(scaled_y) > 0:
+                    avg.append(sum(scaled_y) / len(scaled_y))
+                else:
+                    avg.append(0)
+            avg_tc = []
+            for i in tc:
+                scaled_tc = [i / 1e6 for i in tc[i]]
+                ax.scatter([int(i)] * len(tc[i]), scaled_tc, marker="*")
+                if len(scaled_tc) > 0:
+                    avg_tc.append(sum(scaled_tc) / len(scaled_tc))
+                else:
+                    avg_tc.append(0)
+
+            # print(y)
+        ax.plot(x, avg, label="Protocol fetch")
+        ax.plot(x, avg_tc, label="TCP fetch")
+
+        ax.set_xlabel('Trickling Delay (ms)')
+        ax.set_ylabel('Time-to-Fetch (ms)')
+        ax.set_title('Time-to-fetch for a latency of ' + latency + ' ms')
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels)
+        ax.grid()
+        ax.legend()
+
+        p_index += 1
+
+    plt.suptitle(f"Time-to-Fetch for different trickling delays")
+    plt.tight_layout(h_pad=2, w_pad=4)
+    # fig.tight_layout(rect=[0,0,.8,0.8])
+    # plt.subplots_adjust(top=0.94)
+
+
+def plot_time_to_fetch(latency, byTricklingDelay):
     p_index = 1
     x = []
     y = {}
@@ -617,7 +687,7 @@ if __name__ == "__main__":
 
     if args.plots is not None:
         if "latency" in args.plots:
-            plot_trickling_delays(byLatency, byBandwidth, byFileSize)
+            plot_time_to_fetch(byLatency, byBandwidth, byFileSize)
         if "messages" in args.plots:
             plot_messages(byFileSize, byTopology)
         if "overhead" in args.plots:
