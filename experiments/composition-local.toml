@@ -1,6 +1,6 @@
 [metadata]
-name = "rfcBBL102"
-author = "@adlrocha"
+name = "trickle-performance-test"
+author = "Marcel Ebert"
 
 [global]
 plan = "trickle-bitswap"
@@ -8,17 +8,14 @@ case = "transfer"
 builder = "exec:go"
 runner = "local:exec"
 
-total_instances = 30
+total_instances = 12
 
 [[groups]]
 id = "nodes"
-instances = { count = 30 }
+instances = { count = 12 }
 
 [groups.build]
 skip_runtime_image = "true"
-#dependencies = [
-#    { module = "github.com/ipfs/go-bitswap", target = "github.com/adlrocha/go-bitswap", version = "c40f2c5613e47bcff700eb154e6c0e0120e2f6d2" }
-#]
 
 [groups.run]
 [groups.run.test_params]
@@ -26,19 +23,13 @@ input_data = "files"
 data_dir = "./test-datasets"
 run_timeout_secs = "900"
 timeout_secs = "2000"
-run_count = "10"
+run_count = "20"
 leech_count = "1"
-seed_count = "3"
-eavesdropper_count = "2"
-max_connection_rate = "100"
-# input_data = "random"
-# file_size = "10000000,30000000,50000000"
-latency_ms = "100,200"
-trickling_delay_ms = "0,100"
+seed_count = "1"
+eavesdropper_count = "1"
+latency_ms = "0"
+trickling_delay_ms = "0,50,100"
 #latency_ms = "100"
 bandwidth_mb = "100"
-#jitter_pct = "10,20"
-jitter_pct = "10"
-enable_tcp = "false"
-enable_dht = "false"
-dialer = "sparse"
+jitter_pct = "0"
+enable_tcp = "true"
