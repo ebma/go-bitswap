@@ -116,7 +116,7 @@ def plot_time_to_fetch_grouped(byLatency):
     p1, p2 = len(byLatency), 1
     p_index = 1
 
-    fig = plt.figure(figsize=(10, 10))
+    fig = plt.figure(figsize=(15, 15))
 
     axes = list()
 
@@ -289,64 +289,75 @@ def autolabel(ax, rects):
                     ha='center', va='bottom')
 
 
-def plot_messages(topology, byTricklingDelay):
-    # plt.figure()
-
-    plt.figure(figsize=(10, 10))
+def plot_messages(byLatency):
+    plt.figure(figsize=(15, 15))
     plt.xlabel("Trickling Delay (ms)")
     plt.ylabel("Number of Messages")
 
-    labels = []
-    arr_blks_sent = []
-    arr_blks_rcvd = []
-    arr_dup_blks_rcvd = []
-    arr_msgs_rcvd = []
-    for f in byTricklingDelay:
-        labels.append(int(f))
-        x = np.arange(len(labels))  # the label locations
-        blks_sent = blks_rcvd = dup_blks_rcvd = msgs_rcvd = 0
-        blks_sent_n = blks_rcvd_n = dup_blks_rcvd_n = msgs_rcvd_n = 0
-        width = 1 / 4
+    # labels = []
+    axes = []
+    p1, p2 = len(byLatency), 1
+    p_index = 1
+    for latency, latency_items in byLatency.items():
+        byTricklingDelay = process.groupBy(latency_items, "tricklingDelay")
 
-        for i in byTricklingDelay[f]:
-            if i["meta"] == "blks_sent":
-                blks_sent += i["value"]
-                blks_sent_n += 1
-            if i["meta"] == "blks_rcvd":
-                blks_rcvd += i["value"]
-                blks_rcvd_n += 1
-            if i["meta"] == "dup_blks_rcvd":
-                dup_blks_rcvd += i["value"]
-                dup_blks_rcvd_n += 1
-            if i["meta"] == "msgs_rcvd":
-                msgs_rcvd += i["value"]
-                msgs_rcvd_n += 1
+        ax = plt.subplot(p1, p2, p_index, sharey=axes[0] if len(axes) > 0 else None)
+        axes.append(ax)
+        labels = []
+        arr_blks_sent = []
+        arr_blks_rcvd = []
+        arr_dup_blks_rcvd = []
+        arr_msgs_rcvd = []
+        for f in byTricklingDelay:
+            labels.append(int(f))
+            x = np.arange(len(labels))  # the label locations
+            blks_sent = blks_rcvd = dup_blks_rcvd = msgs_rcvd = 0
+            blks_sent_n = blks_rcvd_n = dup_blks_rcvd_n = msgs_rcvd_n = 0
+            width = 1 / 4
 
-        # Computing averages
-        # Remove the division if you want to see total values
-        if blks_rcvd_n > 0:
-            arr_blks_rcvd.append(round(blks_rcvd / blks_rcvd_n, 1))
-        if blks_sent_n > 0:
-            arr_blks_sent.append(round(blks_sent / blks_sent_n, 1))
-        if dup_blks_rcvd_n > 0:
-            arr_dup_blks_rcvd.append(round(dup_blks_rcvd / dup_blks_rcvd_n, 1))
-        if msgs_rcvd_n > 0:
-            arr_msgs_rcvd.append(round(msgs_rcvd / msgs_rcvd_n, 1))
+            for i in byTricklingDelay[f]:
+                if i["meta"] == "blks_sent":
+                    blks_sent += i["value"]
+                    blks_sent_n += 1
+                if i["meta"] == "blks_rcvd":
+                    blks_rcvd += i["value"]
+                    blks_rcvd_n += 1
+                if i["meta"] == "dup_blks_rcvd":
+                    dup_blks_rcvd += i["value"]
+                    dup_blks_rcvd_n += 1
+                if i["meta"] == "msgs_rcvd":
+                    msgs_rcvd += i["value"]
+                    msgs_rcvd_n += 1
 
-    bar1 = plt.bar(x - (3 / 2) * width, arr_msgs_rcvd, width, label="Messages Received")
-    bar2 = plt.bar(x - width / 2, arr_blks_rcvd, width, label="Blocks Received")
-    bar3 = plt.bar(x + width / 2, arr_blks_sent, width, label="Blocks Sent")
-    bar4 = plt.bar(x + (3 / 2) * width, arr_dup_blks_rcvd, width, label="Duplicate blocks")
+            # Computing averages
+            # Remove the division if you want to see total values
+            if blks_rcvd_n > 0:
+                arr_blks_rcvd.append(round(blks_rcvd / blks_rcvd_n, 1))
+            if blks_sent_n > 0:
+                arr_blks_sent.append(round(blks_sent / blks_sent_n, 1))
+            if dup_blks_rcvd_n > 0:
+                arr_dup_blks_rcvd.append(round(dup_blks_rcvd / dup_blks_rcvd_n, 1))
+            if msgs_rcvd_n > 0:
+                arr_msgs_rcvd.append(round(msgs_rcvd / msgs_rcvd_n, 1))
 
-    autolabel(plt, bar1)
-    autolabel(plt, bar2)
-    autolabel(plt, bar3)
-    autolabel(plt, bar4)
+        bar1 = ax.bar(x - (3 / 2) * width, arr_msgs_rcvd, width, label="Messages Received")
+        bar2 = ax.bar(x - width / 2, arr_blks_rcvd, width, label="Blocks Received")
+        bar3 = ax.bar(x + width / 2, arr_blks_sent, width, label="Blocks Sent")
+        bar4 = ax.bar(x + (3 / 2) * width, arr_dup_blks_rcvd, width, label="Duplicate blocks")
 
-    plt.title('Average number of messages exchanged ' + topology)
-    plt.xticks(ticks=x, labels=labels)
-    plt.legend()
-    plt.grid()
+        autolabel(ax, bar1)
+        autolabel(ax, bar2)
+        autolabel(ax, bar3)
+        autolabel(ax, bar4)
+
+
+        ax.set_title('Average number of messages exchanged for latency ' + latency + 'ms')
+        ax.set(xticks=x, xticklabels=labels, xlabel="Trickling Delay (ms)", ylabel="Number of Messages")
+        # ax.xticks(ticks=x, labels=labels)
+        ax.legend()
+        ax.grid()
+        p_index += 1
+
     plt.tight_layout()
 
 

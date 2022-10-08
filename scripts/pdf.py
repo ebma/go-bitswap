@@ -51,6 +51,6 @@ with PdfPages(target_dir + "/" + "time-to-fetch.pdf") as export_pdf:
     export_pdf.savefig()
 
 with PdfPages(target_dir + "/" + "messages.pdf") as export_pdf:
-    topology = list(byTopology.keys())[0]
-    process.plot_messages(topology, byTricklingDelay)
+    # topology = list(byTopology.keys())[0]
+    process.plot_messages(byLatency)
     export_pdf.savefig()
