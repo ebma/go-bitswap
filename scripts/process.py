@@ -112,16 +112,18 @@ def plot_latency_no_comparision(byLatency, byBandwidth, byFileSize):
             tc = {}
 
 
-def plot_time_to_fetch_grouped(byLatency):
-    p1, p2 = len(byLatency), 1
+def plot_time_to_fetch_grouped(topology, by_latency):
+    p1, p2 = len(by_latency), 1
     p_index = 1
 
     fig = plt.figure(figsize=(15, 15))
 
     axes = list()
 
-    for latency, latency_items in byLatency.items():
-        byTricklingDelay = process.groupBy(latency_items, "tricklingDelay")
+    by_latency = sorted(by_latency.items(), key=lambda x: int(x[0]))
+    for latency, latency_items in by_latency:
+        by_trickling_delay = process.groupBy(latency_items, "tricklingDelay")
+        by_trickling_delay = sorted(by_trickling_delay.items(), key=lambda x: int(x[0]))
 
         ax = plt.subplot(p1, p2, p_index, sharey=axes[0] if len(axes) > 0 else None)
         axes.append(ax)
@@ -130,18 +132,18 @@ def plot_time_to_fetch_grouped(byLatency):
         y = {}
         tc = {}
 
-        for f in byTricklingDelay:
-            x.append(int(f))
-            labels.append(int(f))
+        for delay, values in by_trickling_delay:
+            x.append(int(delay))
+            labels.append(int(delay))
 
-            y[f] = []
-            tc[f] = []
-            for i in byTricklingDelay[f]:
+            y[delay] = []
+            tc[delay] = []
+            for i in values:
                 if i["nodeType"] == "Leech":
                     if i["meta"] == "time_to_fetch":
-                        y[f].append(i["value"])
+                        y[delay].append(i["value"])
                     if i["meta"] == "tcp_fetch":
-                        tc[f].append(i["value"])
+                        tc[delay].append(i["value"])
 
             avg = []
             for i in y:
@@ -174,7 +176,7 @@ def plot_time_to_fetch_grouped(byLatency):
 
         p_index += 1
 
-    plt.suptitle(f"Time-to-Fetch for different trickling delays")
+    plt.suptitle(f"Time-to-Fetch for different trickling delays and topology {topology}")
     plt.tight_layout(h_pad=2, w_pad=4)
     # fig.tight_layout(rect=[0,0,.8,0.8])
     # plt.subplots_adjust(top=0.94)
@@ -289,17 +291,18 @@ def autolabel(ax, rects):
                     ha='center', va='bottom')
 
 
-def plot_messages(byLatency):
+def plot_messages(topology, by_latency):
     plt.figure(figsize=(15, 15))
-    plt.xlabel("Trickling Delay (ms)")
-    plt.ylabel("Number of Messages")
 
     # labels = []
     axes = []
-    p1, p2 = len(byLatency), 1
+    p1, p2 = len(by_latency), 1
     p_index = 1
-    for latency, latency_items in byLatency.items():
-        byTricklingDelay = process.groupBy(latency_items, "tricklingDelay")
+    # sort latency ascending
+    by_latency = sorted(by_latency.items(), key=lambda x: int(x[0]))
+    for latency, latency_items in by_latency:
+        by_trickling_delay = process.groupBy(latency_items, "tricklingDelay")
+        by_trickling_delay = sorted(by_trickling_delay.items(), key=lambda x: int(x[0]))
 
         ax = plt.subplot(p1, p2, p_index, sharey=axes[0] if len(axes) > 0 else None)
         axes.append(ax)
@@ -308,14 +311,14 @@ def plot_messages(byLatency):
         arr_blks_rcvd = []
         arr_dup_blks_rcvd = []
         arr_msgs_rcvd = []
-        for f in byTricklingDelay:
-            labels.append(int(f))
+        for delay, value in by_trickling_delay:
+            labels.append(int(delay))
             x = np.arange(len(labels))  # the label locations
             blks_sent = blks_rcvd = dup_blks_rcvd = msgs_rcvd = 0
             blks_sent_n = blks_rcvd_n = dup_blks_rcvd_n = msgs_rcvd_n = 0
             width = 1 / 4
 
-            for i in byTricklingDelay[f]:
+            for i in value:
                 if i["meta"] == "blks_sent":
                     blks_sent += i["value"]
                     blks_sent_n += 1
@@ -350,14 +353,13 @@ def plot_messages(byLatency):
         autolabel(ax, bar3)
         autolabel(ax, bar4)
 
-
         ax.set_title('Average number of messages exchanged for latency ' + latency + 'ms')
         ax.set(xticks=x, xticklabels=labels, xlabel="Trickling Delay (ms)", ylabel="Number of Messages")
-        # ax.xticks(ticks=x, labels=labels)
         ax.legend()
         ax.grid()
         p_index += 1
 
+    plt.suptitle("Average number of messages exchanged for topology " + topology, fontsize=16)
     plt.tight_layout()
 
 
