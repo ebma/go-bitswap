@@ -21,11 +21,12 @@ skip_runtime_image = "true"
 [groups.run.test_params]
 input_data = "files"
 data_dir = "../plan/test-datasets"
-run_timeout_secs = "60000"
+run_timeout_secs = "60" # change this to something quite low so that the test doesnt get stuck
 timeout_secs = "60000"
 run_count = "100"
 eavesdropper_count = "1"
-trickling_delay_ms = "0,50,100,150,200"
+#trickling_delay_ms = "0,50,100,150,200"
+trickling_delay_ms = "250,300,350"
 latency_ms = "150"
 jitter_pct = "0" # set jitter to 0 the remove randomness
 bandwidth_mb = "100" # set to maxuint64 ?
