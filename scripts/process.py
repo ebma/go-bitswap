@@ -112,7 +112,10 @@ def plot_latency_no_comparision(byLatency, byBandwidth, byFileSize):
             tc = {}
 
 
-def plot_time_to_fetch_grouped(topology, by_latency):
+def plot_time_to_fetch_grouped(topology, by_latency, filter_outliers=True):
+    # percentage that is multiplied with average to identify outliers
+    outlier_threshold = 2
+
     p1, p2 = len(by_latency), 1
     p_index = 1
 
@@ -146,13 +149,21 @@ def plot_time_to_fetch_grouped(topology, by_latency):
                         tc[delay].append(i["value"])
 
             avg = []
+            # calculate average first for outlier detection
             for i in y:
                 scaled_y = [i / 1e6 for i in y[i]]
-                ax.scatter([int(i)] * len(y[i]), scaled_y, marker="+")
                 if len(scaled_y) > 0:
                     avg.append(sum(scaled_y) / len(scaled_y))
                 else:
                     avg.append(0)
+
+            for index, i in enumerate(y.keys()):
+                scaled_y = [i / 1e6 for i in y[i]]
+                # Replace outliers with average
+                if filter_outliers:
+                    scaled_y = [i if i < avg[index] * outlier_threshold else avg[index] for i in scaled_y]
+                ax.scatter([int(i)] * len(y[i]), scaled_y, marker="+")
+
             avg_tc = []
             for i in tc:
                 scaled_tc = [i / 1e6 for i in tc[i]]

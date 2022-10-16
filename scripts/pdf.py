@@ -46,8 +46,6 @@ for topology, messages_for_topology in messages_by_topology.items():
 #     first_timestamp_estimator.plot_estimate(results_dir)
 #     export_pdf.savefig()
 
-
-
 for topology, topology_results in byTopology.items():
     with PdfPages(target_dir + "/" + f"time-to-fetch-{topology}.pdf") as export_pdf:
         byLatency = process.groupBy(topology_results, "latencyMS")
