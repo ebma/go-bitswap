@@ -112,6 +112,92 @@ def plot_latency_no_comparision(byLatency, byBandwidth, byFileSize):
             tc = {}
 
 
+def plot_time_to_fetch_grouped_with_filesize(topology, by_latency, filter_outliers=True):
+    # percentage that is multiplied with average to identify outliers
+    outlier_threshold = 2
+
+    # Index for subplots
+    p_index = 1
+    p1, p2 = 1, 1
+
+    fig = plt.figure(figsize=(15, 15))
+
+    axes = list()
+
+    by_latency = sorted(by_latency.items(), key=lambda x: int(x[0]))
+    for latency, latency_items in by_latency:
+        by_filesize = process.groupBy(latency_items, "fileSize")
+        by_filesize = sorted(by_filesize.items(), key=lambda x: int(x[0]))
+        p1 = len(by_latency) if len(by_latency) > 1 else p1
+        for filesize, filesize_items in by_filesize:
+            p2 = len(by_filesize) if len(by_filesize) > p2 else p2
+            by_trickling_delay = process.groupBy(filesize_items, "tricklingDelay")
+            by_trickling_delay = sorted(by_trickling_delay.items(), key=lambda x: int(x[0]))
+
+            ax = plt.subplot(p1, p2, p_index, sharey=axes[0] if len(axes) > 0 else None)
+            axes.append(ax)
+            x = []
+            labels = []
+            y = {}
+            tc = {}
+
+            for delay, values in by_trickling_delay:
+                x.append(int(delay))
+                labels.append(int(delay))
+
+                y[delay] = []
+                tc[delay] = []
+                for i in values:
+                    if i["nodeType"] == "Leech":
+                        if i["meta"] == "time_to_fetch":
+                            y[delay].append(i["value"])
+                        if i["meta"] == "tcp_fetch":
+                            tc[delay].append(i["value"])
+
+                avg = []
+                # calculate average first for outlier detection
+                for i in y:
+                    scaled_y = [i / 1e6 for i in y[i]]
+                    if len(scaled_y) > 0:
+                        avg.append(sum(scaled_y) / len(scaled_y))
+                    else:
+                        avg.append(0)
+
+                for index, i in enumerate(y.keys()):
+                    scaled_y = [i / 1e6 for i in y[i]]
+                    # Replace outliers with average
+                    if filter_outliers:
+                        scaled_y = [i if i < avg[index] * outlier_threshold else avg[index] for i in scaled_y]
+                    ax.scatter([int(i)] * len(y[i]), scaled_y, marker="+")
+
+                avg_tc = []
+                for i in tc:
+                    scaled_tc = [i / 1e6 for i in tc[i]]
+                    ax.scatter([int(i)] * len(tc[i]), scaled_tc, marker="*")
+                    if len(scaled_tc) > 0:
+                        avg_tc.append(sum(scaled_tc) / len(scaled_tc))
+                    else:
+                        avg_tc.append(0)
+
+                # print(y)
+            ax.plot(x, avg, label="Protocol fetch")
+            ax.plot(x, avg_tc, label="TCP fetch")
+
+            ax.set_xlabel('Trickling Delay (ms)')
+            ax.set_ylabel('Time-to-Fetch (ms)')
+            ax.set_title("Latency: " + latency + "ms , File Size: " + filesize + " bytes")
+            ax.set_xticks(x)
+            ax.set_xticklabels(labels)
+            ax.grid()
+            ax.legend()
+
+            p_index += 1
+
+        plt.suptitle(f"Time-to-Fetch for different trickling delays, file sizes and topology {topology}")
+        plt.tight_layout(h_pad=2, w_pad=4)
+        # fig.tight_layout(rect=[0,0,.8,0.8])
+        plt.subplots_adjust(top=0.94)
+
 def plot_time_to_fetch_grouped(topology, by_latency, filter_outliers=True):
     # percentage that is multiplied with average to identify outliers
     outlier_threshold = 2

@@ -19,7 +19,7 @@ if len(sys.argv) == 2:
 target_dir = results_dir
 
 agg, testcases = process.aggregate_results(results_dir)
-byLatency = process.groupBy(agg, "latencyMS")
+by_latency = process.groupBy(agg, "latencyMS")
 byNodeType = process.groupBy(agg, "nodeType")
 byFileSize = process.groupBy(agg, "fileSize")
 byBandwidth = process.groupBy(agg, "bandwidthMB")
@@ -48,12 +48,12 @@ for topology, messages_for_topology in messages_by_topology.items():
 
 for topology, topology_results in byTopology.items():
     with PdfPages(target_dir + "/" + f"time-to-fetch-{topology}.pdf") as export_pdf:
-        byLatency = process.groupBy(topology_results, "latencyMS")
-        process.plot_time_to_fetch_grouped(topology, byLatency)
+        by_latency = process.groupBy(topology_results, "latencyMS")
+        process.plot_time_to_fetch_grouped_with_filesize(topology, by_latency)
         export_pdf.savefig()
 
 for topology, topology_results in byTopology.items():
     with PdfPages(target_dir + "/" + f"messages-{topology}.pdf") as export_pdf:
-        byLatency = process.groupBy(topology_results, "latencyMS")
-        process.plot_messages(topology, byLatency)
+        by_latency = process.groupBy(topology_results, "latencyMS")
+        process.plot_messages(topology, by_latency)
         export_pdf.savefig()
