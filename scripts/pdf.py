@@ -36,11 +36,13 @@ messages_by_topology = process.groupBy(message_items, "topology")
 info_items_by_topology = process.groupBy(info_items_for_topology, "topology")
 
 for topology, messages_for_topology in messages_by_topology.items():
-    with PdfPages(target_dir + "/" + f"prediction_rates-{topology}.pdf") as export_pdf:
-        info_items_for_topology = info_items_by_topology[topology]
-        # Analyse messages for topology and save to file
-        prediction_analysis.analyse_and_save_to_file(topology, messages_for_topology, info_items_for_topology,
-                                                     export_pdf)
+    info_items_for_topology = info_items_by_topology[topology]
+    with PdfPages(target_dir + "/" + f"prediction_rates-{topology}.pdf") as export_pdf_box:
+        with PdfPages(target_dir + "/" + f"prediction_rates-{topology}-averaged.pdf") as export_pdf_averaged:
+            # Analyse messages for topology and save to file
+            prediction_analysis.analyse_and_save_to_file(topology, messages_for_topology,
+                                                         info_items_for_topology,
+                                                         export_pdf_box, export_pdf_averaged)
 
 # with PdfPages(target_dir + "/" + "prediction_rates_agg.pdf") as export_pdf:
 #     first_timestamp_estimator.plot_estimate(results_dir)

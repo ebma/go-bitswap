@@ -10,7 +10,7 @@ import process
 
 
 # The message_items are already filtered to only contain the Eavesdropper messages
-def analyse_and_save_to_file(topology, message_items, info_items, export_pdf):
+def analyse_and_save_to_file(topology, message_items, info_items, export_pdf_box, export_pdf_averaged):
     # Store results for each experiment and trickling delay in a dict
     results = list()
 
@@ -50,7 +50,19 @@ def analyse_and_save_to_file(topology, message_items, info_items, export_pdf):
               title=f'Prediction rate for different trickling delays with topology {topology}', ylim=(0, 1))
 
     plt.grid()
-    export_pdf.savefig(splot.figure, pad_inches=0.4, bbox_inches='tight')
+    export_pdf_box.savefig(splot.figure, pad_inches=0.4, bbox_inches='tight')
+
+    plt.figure(figsize=(10, 10))
+    splot = sns.lineplot(x='Delay', y='value', hue='Latency (ms)', data=dd)
+    sns.despine(offset=10, trim=False)
+
+    splot.set(xlabel='Trickling delay (ms)', ylabel='Prediction rate',
+              title=f'Prediction rate for different trickling delays with topology {topology}', ylim=(0, 1))
+
+    plt.grid()
+    export_pdf_averaged.savefig(splot.figure, pad_inches=0.4, bbox_inches='tight')
+
+    plt.close('all')
 
 
 if __name__ == '__main__':
