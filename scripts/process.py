@@ -34,15 +34,16 @@ def parse_args():
 #     for l in arr:
 #         if !l[]
 #         if len(res[""])
-def process_result_line(l):
-    l = json.loads(l)
-    name = l["name"].split('/')
-    value = (l["measures"])["value"]
+def process_result_line(line, experiment_id):
+    line = json.loads(line)
+    name = line["name"].split('/')
+    value = (line["measures"])["value"]
     item = {}
     for attr in name:
         attr = attr.split(":")
         item[attr[0]] = attr[1]
     item["value"] = value
+    item['experiment'] = experiment_id
     return item
 
 
@@ -53,9 +54,10 @@ def aggregate_results(results_dir):
             filepath = subdir + os.sep + filename
             if filepath.split("/")[-1] == "results.out":
                 # print (filepath)
+                experiment_id = filepath.split("/")[-4]  # use testground experiment ID
                 resultFile = open(filepath, 'r')
                 for l in resultFile.readlines():
-                    res.append(process_result_line(l))
+                    res.append(process_result_line(l, experiment_id))
     return res, len(os.listdir(results_dir))
 
 
@@ -197,6 +199,7 @@ def plot_time_to_fetch_grouped_with_filesize(topology, by_latency, filter_outlie
         plt.tight_layout(h_pad=2, w_pad=4)
         # fig.tight_layout(rect=[0,0,.8,0.8])
         plt.subplots_adjust(top=0.94)
+
 
 def plot_time_to_fetch_grouped(topology, by_latency, filter_outliers=True):
     # percentage that is multiplied with average to identify outliers
