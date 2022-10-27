@@ -37,44 +37,30 @@ def analyse_prediction_rates(messages, info_items, export_pdf):
                                        'tricklingDelay'] == delay and item['fileSize'] == file_size and item[
                                        'topology'] == topology]
                         rate = first_timestamp_estimator.get_prediction_rate(messagesWithDelay, targets)
+                        eavesdropper_count = topology[-2]
                         results.append(
-                            {'latency': latency, 'experiment': experiment, 'delay': delay, 'topology': topology,
+                            {'latency': latency, 'experiment': experiment, 'delay': delay,
+                             'eavesdroppers': eavesdropper_count,
                              'rate': rate, 'file_size': file_size})
 
     df = pd.DataFrame({'Delay': [item['delay'] for item in results],
                        'Latency (ms)': [item['latency'] for item in results],
                        'Rate': [item['rate'] for item in results],
-                       'Topology': [item['topology'] for item in results],
+                       'Eavesdroppers': [item['eavesdroppers'] for item in results],
                        'Filesize': [item['file_size'] for item in results],
-                       'metrics': [0 for item in results]}, dtype=float)
+                       }, dtype=float)
 
-    dd = pd.melt(df, id_vars=['Delay', 'Latency (ms)', 'Filesize', 'Topology'], value_vars=['Rate'])
-
-    print(dd)
-
-    df_test = sns.load_dataset("penguins")
-    tips = sns.load_dataset("tips")
-    g = sns.FacetGrid(tips, col="time")
-
-    # attend = sns.load_dataset("attention").query("subject <= 12")
-    # g = sns.FacetGrid(attend, col="subject", col_wrap=4, height=2, ylim=(0, 10))
-    # g.map(sns.pointplot, "solutions", "score", order=[1, 2, 3], color=".3", errorbar=None)
-    # g = sns.FacetGrid(df_test, )
-    # sns.pairplot(df_test, hue="species")
+    dd = pd.melt(df, id_vars=['Delay', 'Latency (ms)', 'Filesize', 'Eavesdroppers'], value_vars=['Rate'])
 
     plt.figure(figsize=(10, 10))
-    sns.set_theme(style="ticks", palette="husl")
+    sns.set_style("darkgrid", {"grid.color": ".6", "grid.linestyle": ":"})
 
-    g = sns.FacetGrid(df, col="Filesize", row="Topology", aspect=1.5)
+    # Maybe turn some cols to integer type
+    g = sns.FacetGrid(df, col="Filesize", row="Eavesdroppers", hue="Latency (ms)", margin_titles=True)
     g.map(sns.lineplot, "Delay", "Rate")
-    # splot = sns.lineplot(x='Delay', y='value', hue='Latency (ms)', data=dd)
-    sns.despine(offset=10, trim=False)
-
-    g.set(xlabel='Trickling delay (ms)', ylabel='Prediction rate',
-          title=f'Prediction rate for different trickling delays', ylim=(0, 1))
-
+    g.set(xlabel='Trickling delay (ms)', ylabel='Prediction rate', ylim=(0, 1))
     g.add_legend()
-    plt.grid()
+    sns.despine(offset=10, trim=False)
     export_pdf.savefig(g.figure, pad_inches=0.4, bbox_inches='tight')
 
     plt.close('all')
@@ -110,12 +96,11 @@ def analyse_and_save_to_file_single(topology, message_items, info_items, export_
     df = pd.DataFrame({'Delay': [item['delay'] for item in results],
                        'Latency (ms)': [item['latency'] for item in results],
                        'Rate': [item['rate'] for item in results],
-                       'Filesize': [item['file_size'] for item in results]}, dtype=float)
+                       }, dtype=float)
 
-    dd = pd.melt(df, id_vars=['Delay', 'Latency (ms)', 'Filesize'], value_vars=['Rate'])
+    dd = pd.melt(df, id_vars=['Delay', 'Latency (ms)'], value_vars=['Rate'])
 
     print(dd)
-
     plt.figure(figsize=(10, 10))
     sns.set_theme(style="ticks", palette="husl")
     splot = sns.boxplot(x='Delay', y='value', hue='Latency (ms)', data=dd)
@@ -125,20 +110,15 @@ def analyse_and_save_to_file_single(topology, message_items, info_items, export_
               title=f'Prediction rate for different trickling delays with topology {topology}', ylim=(0, 1))
 
     plt.grid()
-    export_pdf_box.savefig(splot.figure, pad_inches=0.4, bbox_inches='tight')
-
     plt.figure(figsize=(10, 10))
-    g = sns.FacetGrid(dd, col="Filesize", hue="Latency (ms)", col_wrap=2, height=4, aspect=1.5)
-    g.map(sns.lineplot, "Delay", "value")
-    # splot = sns.lineplot(x='Delay', y='value', hue='Latency (ms)', data=dd)
+    splot = sns.lineplot(x='Delay', y='value', hue='Latency (ms)', data=dd)
     sns.despine(offset=10, trim=False)
 
-    g.set(xlabel='Trickling delay (ms)', ylabel='Prediction rate',
-          title=f'Prediction rate for different trickling delays with topology {topology}', ylim=(0, 1))
+    splot.set(xlabel='Trickling delay (ms)', ylabel='Prediction rate',
+              title=f'Prediction rate for different trickling delays with topology {topology}', ylim=(0, 1))
 
-    g.add_legend()
     plt.grid()
-    export_pdf_averaged.savefig(g.figure, pad_inches=0.4, bbox_inches='tight')
+    export_pdf_averaged.savefig(splot.figure, pad_inches=0.4, bbox_inches='tight')
 
     plt.close('all')
 
@@ -148,7 +128,7 @@ if __name__ == '__main__':
     results_dir = dir_path + "/../../experiments/results"
     target_dir = dir_path + "/../../experiments"
 
-    info_items= first_timestamp_estimator.aggregate_global_info(results_dir)
+    info_items = first_timestamp_estimator.aggregate_global_info(results_dir)
     message_items = first_timestamp_estimator.aggregate_message_histories(results_dir)
     # Only consider the messages received by Eavesdropper nodes
     message_items = [item for item in message_items if item["nodeType"] == "Eavesdropper"]
@@ -158,8 +138,8 @@ if __name__ == '__main__':
 
     # Split per topology
     # messages_by_topology = process.groupBy(message_items, "topology")
-    # info_items_by_topology = process.groupBy(info_items_for_topology, "topology")
-
+    # info_items_by_topology = process.groupBy(info_items, "topology")
+    #
     # for topology, messages_for_topology in messages_by_topology.items():
     #     info_items_for_topology = info_items_by_topology[topology]
     #     with PdfPages(target_dir + "/" + "prediction_rates-averaged.pdf") as export_pdf_averaged:
