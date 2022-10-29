@@ -19,13 +19,17 @@ skip_runtime_image = "true"
 
 [groups.run]
 [groups.run.test_params]
-input_data = "files"
-data_dir = "../plan/test-datasets"
-run_timeout_secs = "60000"
-timeout_secs = "60000"
-run_count = "100"
+#input_data = "files"
+#data_dir = "../plan/test-datasets"
+input_data = "random"
+#file_size = "1024"
+file_size = "150846"
+#file_size = "31457280"
+run_timeout_secs = "60"
+timeout_secs = "3000"
+run_count = "50"
 eavesdropper_count = "4"
-trickling_delay_ms = "0,50,100,150,200"
+trickling_delay_ms = "0,50,100,150,200,250,300,350,400"
 latency_ms = "100"
 jitter_pct = "0" # set jitter to 0 the remove randomness
 bandwidth_mb = "100" # set to maxuint64 ?
