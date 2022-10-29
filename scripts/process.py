@@ -2,7 +2,6 @@ import argparse
 import json
 import math
 import os
-import sys
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -113,6 +112,101 @@ def plot_latency_no_comparision(byLatency, byBandwidth, byFileSize):
             y = {}
             tc = {}
 
+
+import pandas as pd
+import seaborn as sns
+
+
+def plot_time_to_fetch_per_topology(topology, metrics, export_pdf, filter_outliers=True):
+    outlier_threshold = 2
+
+    overall_frame = pd.DataFrame(columns=['x', 'y', 'tc'])
+    averages = list()
+    averages_frame = pd.DataFrame(columns=['x', 'avg_normal', 'avg_tc'])
+    # Do calculations first
+    by_latency = process.groupBy(metrics, "latencyMS")
+    by_latency = sorted(by_latency.items(), key=lambda x: int(x[0]))
+    for latency, latency_items in by_latency:
+        by_filesize = process.groupBy(latency_items, "fileSize")
+        by_filesize = sorted(by_filesize.items(), key=lambda x: int(x[0]))
+        for filesize, filesize_items in by_filesize:
+            by_trickling_delay = process.groupBy(filesize_items, "tricklingDelay")
+            by_trickling_delay = sorted(by_trickling_delay.items(), key=lambda x: int(x[0]))
+
+            x = []
+            labels = []
+            y = {}
+            tc = {}
+
+            for delay, values in by_trickling_delay:
+                x.append(int(delay))
+                labels.append(int(delay))
+
+                y[delay] = []
+                tc[delay] = []
+                for i in values:
+                    if i["nodeType"] == "Leech":
+                        if i["meta"] == "time_to_fetch":
+                            y[delay].append(i["value"])
+                        if i["meta"] == "tcp_fetch":
+                            tc[delay].append(i["value"])
+
+                avg = []
+                # calculate average first for outlier detection
+                for i in y:
+                    scaled_y = [i / 1e6 for i in y[i]]
+                    if len(scaled_y) > 0:
+                        avg.append(sum(scaled_y) / len(scaled_y))
+                    else:
+                        avg.append(0)
+
+                for index, i in enumerate(y.keys()):
+                    last_delay = i
+                    scaled_y = [i / 1e6 for i in y[i]]
+                    # Replace outliers with average
+                    if filter_outliers:
+                        scaled_y = [i if i < avg[index] * outlier_threshold else avg[index] for i in scaled_y]
+
+                avg_tc = []
+                for i in tc:
+                    scaled_tc = [i / 1e6 for i in tc[i]]
+                    if len(scaled_tc) > 0:
+                        avg_tc.append(sum(scaled_tc) / len(scaled_tc))
+                    else:
+                        avg_tc.append(0)
+
+                test = pd.DataFrame({'x': [int(last_delay)] * len(scaled_y), 'y': scaled_y, 'tc': scaled_tc,
+                                     'Latency (ms)': [int(latency)] * len(scaled_y),
+                                     'File Size': [int(filesize)] * len(scaled_y)}, dtype=float)
+                overall_frame = pd.concat([overall_frame, test])
+
+            averages.append({'x': x, 'avg_normal': avg, 'avg_tc': avg_tc})
+            # average_frame = pd.DataFrame({'x': x, 'avg_normal': avg, 'avg_tc': avg_tc})
+            # averages_frame = pd.concat([averages_frame, average_frame])
+
+    plt.figure(figsize=(15, 15))
+    sns.set_style("darkgrid", {"grid.color": ".6", "grid.linestyle": ":"})
+    g = sns.FacetGrid(overall_frame, col="File Size", row="Latency (ms)",
+                      margin_titles=True)
+    g.map(sns.scatterplot, "x", "y")
+
+    # Draw the averages onto the plots
+    # The flatiter is used to iterate over all axes in the facetgrid
+    flatiter = g.axes.flat
+    for ax in flatiter:
+        index = flatiter.index - 1
+        if index < len(averages):
+            ax.plot(averages[index]['x'], averages[index]['avg_normal'], label="Protocol fetch")
+            ax.plot(averages[index]['x'], averages[index]['avg_tc'], label="TCP fetch")
+            ax.legend()
+
+    g.set(xlabel='Trickling delay (ms)', ylabel='Time to Fetch (ms)' )
+    # plt.suptitle("Time to fetch for topology " + topology)
+    g.add_legend()
+
+    sns.despine(offset=10, trim=False)
+    export_pdf.savefig(g.figure, pad_inches=0.4, bbox_inches='tight')
+    plt.close('all')
 
 def plot_time_to_fetch_grouped_with_filesize(topology, by_latency, filter_outliers=True):
     # percentage that is multiplied with average to identify outliers
@@ -531,107 +625,6 @@ def plot_want_messages(byFileSize, byTopology):
         fig.tight_layout()
 
 
-def plot_bw_overhead(byFileSize, byTopology):
-    # plt.figure()
-
-    for t in byTopology:
-        labels = []
-        arr_control_rcvd = []
-        arr_block_data_rcvd = []
-        arr_dup_data_rcvd = []
-        arr_overhead = []
-        for f in byFileSize:
-            # TODO: Considering a 5.5% overhead of TPC
-            leechCount = t.replace("(", "").replace(")", "").split("-")[1]
-            print("Leech count: " + leechCount)
-            TCP_BASELINE = int(leechCount) * 1.055 * int(f)
-            print("TCP baseline: " + str(TCP_BASELINE))
-            labels.append(int(f) / 1e6)
-            x = np.arange(len(labels))  # the label locations
-            data_rcvd = block_data_rcvd = dup_data_rcvd = overhead = 0
-            data_rcvd_n = block_data_rcvd_n = dup_data_rcvd_n = overhead_n = 0
-            width = 1 / 4
-
-            for i in byFileSize[f]:
-                # We are only interested in leechers so we don't duplicate measurements.
-                if i["nodeType"] == "Leech" and i["topology"] == t:
-                    if i["meta"] == "data_rcvd":
-                        data_rcvd += i["value"]
-                        data_rcvd_n += 1
-                        overhead = (data_rcvd - TCP_BASELINE) * 100 / TCP_BASELINE
-                        overhead_n += 1
-                    if i["meta"] == "block_data_rcvd":
-                        block_data_rcvd += i["value"]
-                        block_data_rcvd_n += 1
-                    if i["meta"] == "dup_data_rcvd":
-                        dup_data_rcvd += i["value"]
-                        dup_data_rcvd_n += 1
-
-            control_rcvd = data_rcvd - block_data_rcvd
-            # Computing averages
-            # Remove the division if you want to see total values 
-            arr_control_rcvd.append(round(control_rcvd / data_rcvd_n / 1e6, 3))
-            if block_data_rcvd_n != 0:
-                arr_block_data_rcvd.append(round(block_data_rcvd / block_data_rcvd_n / 1e6, 3))
-            else:
-                arr_block_data_rcvd.append(0)
-            arr_dup_data_rcvd.append(round(dup_data_rcvd / dup_data_rcvd_n / 1e6, 3))
-            arr_overhead.append(round(overhead / overhead_n, 3))
-            control_rcvd = data_rcvd = block_data_rcvd = dup_data_rcvd = overhead = 0
-            data_rcvd_n = block_data_rcvd_n = dup_data_rcvd_n = overhead_n = 0
-
-        fig, ax = plt.subplots()
-        bar1 = ax.bar(x - (3 / 2) * width, arr_control_rcvd, width, label="Control data received (MB)")
-        bar2 = ax.bar(x - width / 2, arr_block_data_rcvd, width, label="Total data received from blocks (MB)")
-        bar3 = ax.bar(x + width / 2, arr_dup_data_rcvd, width, label="Total data received from duplicates (MB)")
-        bar4 = ax.bar(x + (3 / 2) * width, arr_overhead, width, label="Bandwidth overhead (%)")
-
-        autolabel(ax, bar1)
-        autolabel(ax, bar2)
-        autolabel(ax, bar3)
-        autolabel(ax, bar4)
-
-        ax.set_ylabel('Number of messages')
-        # ax.set_ylabel('File Size (MB)') 
-        ax.set_title('Data received ' + t)
-        ax.set_xticks(x)
-        ax.set_xticklabels(labels)
-        ax.legend()
-        fig.tight_layout()
-
-
-def output_avg_stream_data_bitswap(byFileSize, byTopology):
-    for t in byTopology:
-        labels = []
-        arr_data_stream_sent = []
-
-        for f in byFileSize:
-            labels.append(int(f) / 1e6)
-
-            stream_data_sent = 0
-            stream_data_sent_n = 0
-
-            for i in byFileSize[f]:
-                # We are only interested in leechers so we don't duplicate measurements.
-                if i["nodeType"] == "Seed" and i["topology"] == t:
-                    if i["meta"] == "stream_data_sent":
-                        stream_data_sent += i["value"]
-                        stream_data_sent_n += 1
-
-            # Computing averages
-            # Remove the division if you want to see total values 
-            arr_data_stream_sent.append(round(stream_data_sent / stream_data_sent_n / 1e6, 3))
-            stream_data_sent = 0
-            stream_data_sent_n = 0
-
-        print("=== Stream Data Sent ===")
-        print("[*] Topology: ", t)
-        i = 0
-        for x in labels:
-            print("Filesize: %s MB -- Avg. Stream Data Sent Seeders: %s MB" % (x, arr_data_stream_sent[i]))
-            i += 1
-
-
 def output_latency(byFileSize, byTopology):
     for t in byTopology:
         labels = []
@@ -779,46 +772,37 @@ def plot_througput(byLatency, byBandwidth, byFileSize, byTopology, testcases):
                 y = {}
 
 
+from matplotlib.backends.backend_pdf import PdfPages
+
 if __name__ == "__main__":
     args = parse_args()
 
-    results_dir = dir_path + '/results'
+    # Set this to something else
+    results_dir = dir_path + '/../../experiments' + '/results'
+    target_dir = results_dir
     if args.dir:
         results_dir = args.dir
 
     agg, testcases = aggregate_results(results_dir)
-    byLatency = groupBy(agg, "latencyMS")
-    byNodeType = groupBy(agg, "nodeType")
-    byFileSize = groupBy(agg, "fileSize")
-    byBandwidth = groupBy(agg, "bandwidthMB")
+    # byLatency = groupBy(agg, "latencyMS")
+    # byNodeType = groupBy(agg, "nodeType")
+    # byFileSize = groupBy(agg, "fileSize")
+    # byBandwidth = groupBy(agg, "bandwidthMB")
     byTopology = groupBy(agg, "topology")
-    byConnectionRate = groupBy(agg, "maxConnectionRate")
+    # byConnectionRate = groupBy(agg, "maxConnectionRate")
 
-    if args.plots is None and args.outputs is None:
-        print("[!!] No plots or outputs provided...")
-        sys.exit()
+    for topology, topology_metrics in byTopology.items():
+        with PdfPages(target_dir + "/" + f"time-to-fetch-{topology}.pdf") as export_pdf:
+            plot_time_to_fetch_per_topology(topology, topology_metrics, export_pdf)
 
-    if args.plots is not None:
-        if "latency" in args.plots:
-            plot_time_to_fetch(byLatency, byBandwidth, byFileSize)
-        if "messages" in args.plots:
-            plot_messages(byFileSize, byTopology)
-        if "overhead" in args.plots:
-            plot_bw_overhead(byFileSize, byTopology)
-        if "throughput" in args.plots:
-            plot_througput(byLatency, byBandwidth, byFileSize, byTopology, testcases)
-        if "tcp" in args.plots:
-            plot_tcp_latency(byLatency, byBandwidth, byFileSize)
-        if "wants" in args.plots:
-            plot_want_messages(byFileSize, byTopology)
-
-    if args.outputs is not None:
-        if "bitswap-data" in args.outputs:
-            output_avg_stream_data_bitswap(byFileSize, byTopology)
-        if "latency" in args.outputs:
-            output_latency(byFileSize, byTopology)
-        if "data" in args.outputs:
-            output_avg_data(byFileSize, byTopology, "Seed")
-            output_avg_data(byFileSize, byTopology, "Leech")
+    # plot_time_to_fetch(byLatency, byBandwidth)
+    # plot_messages(byFileSize, byTopology)
+    # plot_througput(byLatency, byBandwidth, byFileSize, byTopology, testcases)
+    # plot_tcp_latency(byLatency, byBandwidth, byFileSize)
+    # plot_want_messages(byFileSize, byTopology)
+    #
+    # output_latency(byFileSize, byTopology)
+    # output_avg_data(byFileSize, byTopology, "Seed")
+    # output_avg_data(byFileSize, byTopology, "Leech")
 
     plt.show()
