@@ -171,6 +171,8 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 		return err
 	}
 	logging.SetLogLevel("bs:peermgr", "DEBUG")
+	logging.SetLogLevel("dagadder", "DEBUG")
+	logging.SetLogLevel("node", "DEBUG")
 	//logging.SetLogLevel("bitswap", "DEBUG")
 	//logging.SetLogLevel("*", "DEBUG")
 

@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	logging "github.com/ipfs/go-log"
 	"io"
 	gopath "path"
 	"strings"
@@ -210,6 +211,8 @@ func (adder *DAGAdder) Add(file files.Node) (ipld.Node, error) {
 			return nil, err
 		}
 
+		logging.Logger("dagadder").Debugf("children: %v", len(children))
+
 		if len(children) == 0 {
 			return nil, fmt.Errorf("expected at least one child dir, got none")
 		}
@@ -221,6 +224,12 @@ func (adder *DAGAdder) Add(file files.Node) (ipld.Node, error) {
 			return nil, err
 		}
 	}
+
+	children, err := rootdir.ListNames(adder.ctx)
+	if err != nil {
+		return nil, err
+	}
+	logging.Logger("dagadder").Debugf("children: %v", len(children))
 
 	err = mr.Close()
 	if err != nil {

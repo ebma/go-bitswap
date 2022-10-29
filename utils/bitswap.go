@@ -20,6 +20,7 @@ import (
 	files "github.com/ipfs/go-ipfs-files"
 	nilrouting "github.com/ipfs/go-ipfs-routing/none"
 	ipld "github.com/ipfs/go-ipld-format"
+	logging "github.com/ipfs/go-log"
 	"github.com/ipfs/go-merkledag"
 	unixfile "github.com/ipfs/go-unixfs/file"
 	"github.com/ipfs/go-unixfs/importer/helpers"
@@ -181,12 +182,15 @@ func (n *BitswapNode) EmitMetrics(recorder MetricsRecorder) error {
 	return err
 }
 
+var logger = logging.Logger("node")
+
 func (n *BitswapNode) Fetch(ctx context.Context, c cid.Cid, _ []PeerInfo) (files.Node, error) {
 	err := merkledag.FetchGraph(ctx, c, n.dserv)
 	if err != nil {
 		return nil, err
 	}
 	nd, err := n.dserv.Get(ctx, c)
+	logger.Infof("fetching node: %v", nd.String())
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get file %q", c)
 	}
