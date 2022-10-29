@@ -6,8 +6,6 @@ import (
 
 	"github.com/ipfs/go-cid"
 	u "github.com/ipfs/go-ipfs-util"
-
-	pb "github.com/ipfs/go-bitswap/message/pb"
 )
 
 func TestCID(t *testing.T) {
@@ -21,7 +19,7 @@ func TestCID(t *testing.T) {
 	}
 
 	c := cid.NewCidV0(u.Hash([]byte("foobar")))
-	msg := pb.Message_BlockPresence{Cid: pb.Cid{Cid: c}}
+	msg := Message_BlockPresence{Cid: Cid{Cid: c}}
 	actual, err := msg.Marshal()
 	if err != nil {
 		t.Fatal(err)
