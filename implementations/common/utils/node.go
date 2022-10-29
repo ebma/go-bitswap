@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"github.com/ipfs/go-bitswap/tracer"
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
 	ipld "github.com/ipfs/go-ipld-format"
@@ -22,7 +21,6 @@ type Node interface {
 	Add(ctx context.Context, file files.Node) (cid.Cid, error)
 	Fetch(ctx context.Context, cid cid.Cid, peers []PeerInfo) (files.Node, error)
 	ClearDatastore(ctx context.Context, rootCid cid.Cid) error
-	SetTracer(tracer tracer.Tracer)
 	EmitMetrics(recorder MetricsRecorder) error
 	Host() host.Host
 	DAGService() ipld.DAGService

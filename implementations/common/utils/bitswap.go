@@ -51,17 +51,16 @@ func (nt NodeType) String() string {
 // Adapted from the netflix/p2plab repo under an Apache-2 license.
 // Original source code located at https://github.com/Netflix/p2plab/blob/master/peer/peer.go
 type BitswapNode struct {
-	bitswap    *bs.Bitswap
-	blockStore blockstore.Blockstore
-	dserv      ipld.DAGService
-	h          host.Host
+	Bitswap    *bs.Bitswap
+	BlockStore blockstore.Blockstore
+	Dserv      ipld.DAGService
+	H          host.Host
 }
 
 func (n *BitswapNode) Close() error {
-	return n.bitswap.Close()
+	return n.Bitswap.Close()
 }
 
-//
 func (n *BitswapNode) SetTracer(tracer tracer.Tracer) {
 	//	n.bitswap.Server.Tracer = tracer
 }
@@ -153,7 +152,7 @@ func (n *BitswapNode) Add(ctx context.Context, fileNode files.Node) (cid.Cid, er
 		HashFunc:  "sha2-256",
 		MaxLinks:  helpers.DefaultLinksPerBlock,
 	}
-	adder, err := NewDAGAdder(ctx, n.dserv, settings)
+	adder, err := NewDAGAdder(ctx, n.Dserv, settings)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -165,11 +164,11 @@ func (n *BitswapNode) Add(ctx context.Context, fileNode files.Node) (cid.Cid, er
 }
 
 func (n *BitswapNode) ClearDatastore(ctx context.Context, _ cid.Cid) error {
-	return ClearBlockstore(ctx, n.blockStore)
+	return ClearBlockstore(ctx, n.BlockStore)
 }
 
 func (n *BitswapNode) EmitMetrics(recorder MetricsRecorder) error {
-	stats, err := n.bitswap.Stat()
+	stats, err := n.Bitswap.Stat()
 
 	if err != nil {
 		return err
@@ -187,29 +186,29 @@ func (n *BitswapNode) EmitMetrics(recorder MetricsRecorder) error {
 var logger = logging.Logger("node")
 
 func (n *BitswapNode) Fetch(ctx context.Context, c cid.Cid, _ []PeerInfo) (files.Node, error) {
-	err := merkledag.FetchGraph(ctx, c, n.dserv)
+	err := merkledag.FetchGraph(ctx, c, n.Dserv)
 	if err != nil {
 		return nil, err
 	}
-	nd, err := n.dserv.Get(ctx, c)
+	nd, err := n.Dserv.Get(ctx, c)
 	logger.Infof("fetching node: %v", nd.String())
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get file %q", c)
 	}
 
-	return unixfile.NewUnixfsFile(ctx, n.dserv, nd)
+	return unixfile.NewUnixfsFile(ctx, n.Dserv, nd)
 }
 
 func (n *BitswapNode) DAGService() ipld.DAGService {
-	return n.dserv
+	return n.Dserv
 }
 
 func (n *BitswapNode) Host() host.Host {
-	return n.h
+	return n.H
 }
 
 func (n *BitswapNode) EmitKeepAlive(recorder MessageRecorder) error {
-	stats, err := n.bitswap.Stat()
+	stats, err := n.Bitswap.Stat()
 
 	if err != nil {
 		return err

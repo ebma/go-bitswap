@@ -6,6 +6,7 @@ import (
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
 	logging "github.com/ipfs/go-log"
+	. "github.com/ipfs/testground/plans/trickle-bitswap/common"
 	"github.com/ipfs/testground/plans/trickle-bitswap/common/utils"
 	"github.com/ipfs/testground/plans/trickle-bitswap/common/utils/dialer"
 	"github.com/libp2p/go-libp2p"
@@ -23,15 +24,18 @@ import (
 
 func makeHost(baseT *BaseTestData) (host.Host, error) {
 	// Create libp2p node
-	privKey, err := crypto.UnmarshalPrivateKey(baseT.nConfig.PrivKey)
+	privKey, err := crypto.UnmarshalPrivateKey(baseT.NConfig.PrivKey)
 	if err != nil {
 		return nil, err
 	}
 
-	return libp2p.New(libp2p.Identity(privKey), libp2p.ListenAddrs(baseT.nConfig.AddrInfo.Addrs...))
+	return libp2p.New(libp2p.Identity(privKey), libp2p.ListenAddrs(baseT.NConfig.AddrInfo.Addrs...))
 }
 
-func initializeBaseNetwork(ctx context.Context, runenv *runtime.RunEnv) (*BaseTestData, error) {
+func initializeBaseNetwork(
+	ctx context.Context,
+	runenv *runtime.RunEnv,
+) (*BaseTestData, error) {
 	client := sync.MustBoundClient(ctx, runenv)
 	nwClient := network.NewClient(client, runenv)
 
@@ -49,7 +53,7 @@ func initializeBaseNetwork(ctx context.Context, runenv *runtime.RunEnv) (*BaseTe
 		return nil, err
 	}
 
-	return &BaseTestData{client, nwClient, nConfig, seq}, nil
+	return &BaseTestData{Client: client, NwClient: nwClient, NConfig: nConfig, Seq: seq}, nil
 }
 
 func initializeNodeTypeAndPeers(
@@ -59,9 +63,9 @@ func initializeNodeTypeAndPeers(
 	baseTestData *BaseTestData,
 ) (*TestData, error) {
 	// Type of node and identifiers assigned.
-	seq, nodeType, typeIndex, err := parseType(
+	seq, nodeType, typeIndex, err := ParseType(
 		runenv,
-		baseTestData.seq,
+		baseTestData.Seq,
 		testvars.LeechCount,
 		testvars.SeedCount,
 		testvars.EavesdropperCount,
@@ -72,11 +76,11 @@ func initializeNodeTypeAndPeers(
 
 	peerInfos := sync.NewTopic(fmt.Sprintf("peerInfos"), &utils.PeerInfo{})
 	// Publish peer info for dialing
-	_, err = baseTestData.client.Publish(
+	_, err = baseTestData.Client.Publish(
 		ctx,
 		peerInfos,
 		&utils.PeerInfo{
-			Addr:      *baseTestData.nConfig.AddrInfo,
+			Addr:      *baseTestData.NConfig.AddrInfo,
 			Nodetp:    nodeType,
 			Seq:       seq,
 			TypeIndex: typeIndex,
@@ -91,16 +95,16 @@ func initializeNodeTypeAndPeers(
 		// If we're not running in group mode, calculate the seed index as
 		// the sequence number minus the other types of node (leech / passive).
 		// Note: sequence number starts from 1 (not 0)
-		seedIndex = baseTestData.seq - int64(
+		seedIndex = baseTestData.Seq - int64(
 			testvars.LeechCount+testvars.SeedCount+testvars.EavesdropperCount,
 		) - 1
 	}
-	runenv.RecordMessage("Seed index %v for: %v", &baseTestData.nConfig.AddrInfo.ID, seedIndex)
+	runenv.RecordMessage("Seed index %v for: %v", &baseTestData.NConfig.AddrInfo.ID, seedIndex)
 
 	// Get addresses of all peers
 	peerCh := make(chan *utils.PeerInfo)
 	sctx, cancelSub := context.WithCancel(ctx)
-	if _, err := baseTestData.client.Subscribe(sctx, peerInfos, peerCh); err != nil {
+	if _, err := baseTestData.Client.Subscribe(sctx, peerInfos, peerCh); err != nil {
 		cancelSub()
 		return nil, err
 	}
@@ -117,7 +121,7 @@ func initializeNodeTypeAndPeers(
 	// Signal that this node is in the given state, and wait for all peers to
 	// send the same signal
 	signalAndWaitForAll := func(state string) error {
-		_, err := baseTestData.client.SignalAndWait(
+		_, err := baseTestData.Client.SignalAndWait(
 			ctx,
 			sync.State(state),
 			runenv.TestInstanceCount,
@@ -166,7 +170,7 @@ func initializeBitswapNetwork(
 
 // Launch bitswap nodes and connect them to each other.
 func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error {
-	testVars, err := getEnvVars(runenv)
+	testVars, err := GetEnvVars(runenv)
 	if err != nil {
 		return err
 	}
@@ -185,7 +189,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 		return err
 	}
 
-	globalInfoRecorder := newGlobalInfoRecorder(runenv)
+	globalInfoRecorder := NewGlobalInfoRecorder(runenv)
 
 	// Run test with different topologies
 	runenv.RecordMessage("Running test with %v eavesdroppers", testVars.EavesdropperCount)
@@ -209,7 +213,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 	var tcpFetch int64
 
 	// Set up network (with traffic shaping)
-	if err := utils.SetupNetwork(ctx, runenv, testData.nwClient, testVars.Latency,
+	if err := utils.SetupNetwork(ctx, runenv, testData.NwClient, testVars.Latency,
 		testVars.Bandwidth, testVars.JitterPct); err != nil {
 		return fmt.Errorf("Failed to set up network: %v", err)
 	}
@@ -234,12 +238,12 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			testData,
 			h,
 			tricklingDelay,
-			testData.nodeType == utils.Eavesdropper,
+			testData.NodeType == utils.Eavesdropper,
 		)
-		transferNode := nodeTestData.node
-		signalAndWaitForAll := nodeTestData.signalAndWaitForAll
+		transferNode := nodeTestData.Node
+		signalAndWaitForAll := nodeTestData.SignalAndWaitForAll
 		// Start still alive process if enabled
-		nodeTestData.stillAlive(runenv, testVars)
+		nodeTestData.StillAlive(runenv, testVars)
 
 		// Log node info
 		globalInfoRecorder.RecordNodeInfo(
@@ -252,7 +256,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 					testVars.EavesdropperCount,
 				),
 				h.ID().String(),
-				nodeTestData.nodeType.String(),
+				nodeTestData.NodeType.String(),
 			),
 		)
 
@@ -266,9 +270,9 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			return err
 		}
 
-		switch nodeTestData.nodeType {
+		switch nodeTestData.NodeType {
 		case utils.Seed:
-			rootCid, err = nodeTestData.addPublishFile(
+			rootCid, err = nodeTestData.AddPublishFile(
 				pctx,
 				pIndex,
 				testParams.File,
@@ -276,7 +280,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				testVars,
 			)
 		case utils.Leech:
-			rootCid, err = nodeTestData.readFile(pctx, pIndex, runenv, testVars)
+			rootCid, err = nodeTestData.ReadFile(pctx, pIndex, runenv, testVars)
 		}
 		if err != nil {
 			return err
@@ -294,9 +298,9 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 		if testVars.TCPEnabled {
 			runenv.RecordMessage("Running TCP test...")
 			runNum := 0
-			switch nodeTestData.nodeType {
+			switch nodeTestData.NodeType {
 			case utils.Seed:
-				err = nodeTestData.runTCPServer(
+				err = nodeTestData.RunTCPServer(
 					pctx,
 					pIndex,
 					runNum,
@@ -305,9 +309,9 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 					testVars,
 				)
 			case utils.Leech:
-				tcpFetch, err = nodeTestData.runTCPFetch(pctx, pIndex, runNum, runenv, testVars)
+				tcpFetch, err = nodeTestData.RunTCPFetch(pctx, pIndex, runNum, runenv, testVars)
 			default:
-				err = nodeTestData.signalAndWaitForAll(
+				err = nodeTestData.SignalAndWaitForAll(
 					fmt.Sprintf("tcp-fetch-%d-%d", pIndex, runNum),
 				)
 			}
@@ -331,24 +335,24 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				testVars.EavesdropperCount,
 				testVars.LeechCount,
 				testVars.SeedCount,
-				nodeTestData.seq,
+				nodeTestData.Seq,
 				testVars.Latency,
 				testVars.Bandwidth,
 				int(testParams.File.Size()),
-				nodeTestData.nodeType,
-				nodeTestData.typeIndex,
+				nodeTestData.NodeType,
+				nodeTestData.TypeIndex,
 				testVars.MaxConnectionRate,
 				pIndex,
 				tricklingDelay,
 			)
 
-			messageHistoryRecorder := newMessageHistoryRecorder(
+			messageHistoryRecorder := NewMessageHistoryRecorder(
 				runenv,
 				meta,
-				nodeTestData.node.Host().ID().String(),
+				nodeTestData.Node.Host().ID().String(),
 			)
 
-			nodeTestData.node.SetTracer(messageHistoryRecorder)
+			SetTracer(nodeTestData.Node, messageHistoryRecorder)
 
 			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
 
@@ -360,7 +364,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				return err
 			}
 
-			if nodeTestData.nodeType == utils.Leech {
+			if nodeTestData.NodeType == utils.Leech {
 				runenv.RecordMessage(
 					"Starting run %d / %d (%d bytes)",
 					runNum,
@@ -369,17 +373,17 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				)
 			}
 
-			if nodeTestData.nodeType != utils.Eavesdropper {
+			if nodeTestData.NodeType != utils.Eavesdropper {
 				dialed, err := dialer.DialFixedTopology(
 					sctx,
 					transferNode.Host(),
-					nodeTestData.nodeType,
-					nodeTestData.typeIndex,
-					nodeTestData.peerInfos,
+					nodeTestData.NodeType,
+					nodeTestData.TypeIndex,
+					nodeTestData.PeerInfos,
 				)
 				runenv.RecordMessage(
 					"%s Dialed %d other nodes",
-					nodeTestData.nodeType.String(),
+					nodeTestData.NodeType.String(),
 					len(dialed),
 				)
 				if err != nil {
@@ -398,18 +402,18 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				return err
 			}
 
-			if nodeTestData.nodeType == utils.Eavesdropper {
+			if nodeTestData.NodeType == utils.Eavesdropper {
 				// Let eavesdropper nodes dial all peers
 				// we do this separately from the other call because of a TCP error when many instances are running
 				dialed, err := dialer.DialAllPeers(
 					sctx,
 					transferNode.Host(),
-					nodeTestData.nodeType,
-					nodeTestData.peerInfos,
+					nodeTestData.NodeType,
+					nodeTestData.PeerInfos,
 				)
 				runenv.RecordMessage(
 					"%s Dialed %d other nodes",
-					nodeTestData.nodeType.String(),
+					nodeTestData.NodeType.String(),
 					len(dialed),
 				)
 				if err != nil {
@@ -429,12 +433,12 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 
 			/// --- Start test
 			var timeToFetch time.Duration
-			if nodeTestData.nodeType == utils.Leech {
+			if nodeTestData.NodeType == utils.Leech {
 				globalInfoRecorder.RecordInfoWithMeta(
 					meta,
 					fmt.Sprintf(
 						"\"peer\": \"%s\", \"lookingFor\": \"%s\"",
-						nodeTestData.node.Host().ID().String(),
+						nodeTestData.Node.Host().ID().String(),
 						rootCid.String(),
 					),
 				)
@@ -446,13 +450,13 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				)
 				start := time.Now()
 				ctxFetch, fetchCancel := context.WithTimeout(sctx, testVars.RunTimeout/2)
-				rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, nodeTestData.peerInfos)
+				rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, nodeTestData.PeerInfos)
 				if err != nil {
 					runenv.RecordMessage("Error fetching data: %v", err)
 					leechFails++
 				} else {
 					runenv.RecordMessage("Fetch complete, proceeding")
-					err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(nodeTestData.typeIndex)+time.Now().String())
+					err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(nodeTestData.TypeIndex)+time.Now().String())
 					if err != nil {
 						fetchCancel()
 						return err
@@ -473,7 +477,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			}
 
 			/// --- Report stats
-			err = nodeTestData.emitMetrics(runenv, meta, timeToFetch, tcpFetch, leechFails)
+			err = nodeTestData.EmitMetrics(runenv, meta, timeToFetch, tcpFetch, leechFails)
 			if err != nil {
 				return err
 			}
@@ -481,12 +485,12 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
 
 			// Disconnect and clear data
-			err = nodeTestData.cleanupRun(sctx, rootCid, runenv)
+			err = nodeTestData.CleanupRun(sctx, rootCid, runenv)
 			if err != nil {
 				return err
 			}
 		}
-		err = nodeTestData.cleanupFile(pctx, rootCid)
+		err = nodeTestData.CleanupFile(pctx, rootCid)
 		if err != nil {
 			return err
 		}
