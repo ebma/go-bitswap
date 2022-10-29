@@ -1,10 +1,11 @@
-package common
+package test
 
 import (
 	"context"
 	"fmt"
 	bsmsg "github.com/ipfs/go-bitswap/message"
-	"github.com/ipfs/testground/plans/trickle-bitswap/common/utils"
+	"github.com/ipfs/go-cid"
+	"github.com/ipfs/testground/plans/trickle-bitswap/test/utils"
 	"math"
 	"net"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 
 	"github.com/testground/sdk-go/runtime"

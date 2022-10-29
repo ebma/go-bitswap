@@ -6,7 +6,6 @@ require (
 	github.com/ipfs/go-cid v0.2.0
 	github.com/ipfs/go-ipfs-files v0.1.1
 	github.com/ipfs/go-log v1.0.5
-	github.com/ipfs/testground/plans/trickle-bitswap/common v0.0.0-00010101000000-000000000000
 	github.com/libp2p/go-libp2p v0.22.0
 	github.com/testground/sdk-go v0.3.0
 )
@@ -16,8 +15,6 @@ replace github.com/testground/sdk-go v0.3.0 => github.com/hannahhoward/sdk-go v0
 
 // Maybe move this below the 'indirect' dependency block?
 replace github.com/testground/sync-service v0.1.0 => github.com/ebma/sync-service v0.0.0-20221029105457-490d7b7c876e
-
-replace github.com/ipfs/testground/plans/trickle-bitswap/common => ../common
 
 require (
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a // indirect

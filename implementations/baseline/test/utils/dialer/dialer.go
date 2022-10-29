@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/ipfs/testground/plans/trickle-bitswap/common/utils"
+	"github.com/ipfs/testground/plans/trickle-bitswap/test/utils"
 	"math"
 	"sort"
 

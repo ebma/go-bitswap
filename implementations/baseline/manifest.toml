@@ -1,4 +1,4 @@
-name = "trickle-bitswap"
+name = "baseline-bitswap"
 
 [defaults]
 #builder = "exec:go"
@@ -24,7 +24,6 @@ build_base_image = "golang:1.17.8-buster"
 [builders."docker:go".dockerfile_extensions]
 # Copy local version of go-bitswap to the build container.
 # More info here https://docs.testground.ai/builder-library/docker-go#customizing-the-build
-# TODO simply remove this double statement by copying the files into the same directory
 pre_mod_download = "COPY /plan/go-bitswap ${PLAN_DIR}/go-bitswap"
 
 [extra_sources]
