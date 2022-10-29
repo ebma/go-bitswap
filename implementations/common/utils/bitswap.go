@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"github.com/ipfs/go-bitswap/tracer"
 	"os"
 	"path/filepath"
 	"time"
@@ -59,10 +58,6 @@ type BitswapNode struct {
 
 func (n *BitswapNode) Close() error {
 	return n.Bitswap.Close()
-}
-
-func (n *BitswapNode) SetTracer(tracer tracer.Tracer) {
-	//	n.bitswap.Server.Tracer = tracer
 }
 
 func CreateBlockstore(ctx context.Context, dStore ds.Batching) (blockstore.Blockstore, error) {
@@ -122,8 +117,6 @@ func CreateBitswapNode(
 	ctx context.Context,
 	h host.Host,
 	bstore blockstore.Blockstore,
-	tricklingDelay time.Duration,
-	isEavesdropper bool,
 ) (*BitswapNode, error) {
 	routing, err := nilrouting.ConstructNilRouting(ctx, nil, nil, nil)
 	if err != nil {
@@ -131,11 +124,6 @@ func CreateBitswapNode(
 	}
 	net := bsnet.NewFromIpfsHost(h, routing)
 
-	//tracerOption := bs.SetTracer(tracer)
-	//tricklingOption := bs.SetTricklingDelay(tricklingDelay)
-	//eavesdropperOption := bs.SetEavesdropper(isEavesdropper)
-	//options := []bs.Option{tricklingOption, eavesdropperOption}
-	//bitswap := bs.New(ctx, net, bstore, options...)
 	bitswap := bs.New(ctx, net, bstore)
 
 	bserv := blockservice.New(bstore, bitswap)
@@ -205,6 +193,10 @@ func (n *BitswapNode) DAGService() ipld.DAGService {
 
 func (n *BitswapNode) Host() host.Host {
 	return n.H
+}
+
+func (n *BitswapNode) Instance() *bs.Bitswap {
+	return n.Bitswap
 }
 
 func (n *BitswapNode) EmitKeepAlive(recorder MessageRecorder) error {

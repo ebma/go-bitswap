@@ -352,7 +352,7 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				nodeTestData.Node.Host().ID().String(),
 			)
 
-			SetTracer(nodeTestData.Node, messageHistoryRecorder)
+			nodeTestData.Node.Instance().Server.Tracer = messageHistoryRecorder
 
 			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
 

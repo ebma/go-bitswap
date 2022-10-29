@@ -1,8 +1,7 @@
-package test
+package utils
 
 import (
 	"context"
-	"github.com/ipfs/go-bitswap/tracer"
 	"time"
 
 	bs "github.com/ipfs/go-bitswap"
@@ -11,13 +10,10 @@ import (
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	nilrouting "github.com/ipfs/go-ipfs-routing/none"
 	"github.com/ipfs/go-merkledag"
-	"github.com/ipfs/testground/plans/trickle-bitswap/common/utils"
 	"github.com/libp2p/go-libp2p/core/host"
-)
 
-func SetTracer(n utils.BitswapNode, tracer tracer.Tracer) {
-	n.Bitswap.Server.Tracer = tracer
-}
+	"github.com/ipfs/testground/plans/trickle-bitswap/common/utils"
+)
 
 func CreateBitswapNode(
 	ctx context.Context,

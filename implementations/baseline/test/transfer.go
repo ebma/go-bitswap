@@ -140,8 +140,6 @@ func initializeBitswapNetwork(
 	testvars *TestVars,
 	baseT *TestData,
 	h host.Host,
-	delay time.Duration,
-	isEavesdropper bool,
 ) (*NetworkTestData, error) {
 	// Use the same blockstore on all runs for the seed node
 	bstoreDelay := time.Duration(runenv.IntParam("bstore_delay_ms")) * time.Millisecond
@@ -160,7 +158,7 @@ func initializeBitswapNetwork(
 		return nil, err
 	}
 	// Create a new bitswap node from the blockstore
-	bsnode, err := utils.CreateBitswapNode(ctx, h, bstore, delay, isEavesdropper)
+	bsnode, err := utils.CreateBitswapNode(ctx, h, bstore)
 	if err != nil {
 		return nil, err
 	}
@@ -237,8 +235,6 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 			testVars,
 			testData,
 			h,
-			tricklingDelay,
-			testData.NodeType == utils.Eavesdropper,
 		)
 		transferNode := nodeTestData.Node
 		signalAndWaitForAll := nodeTestData.SignalAndWaitForAll
@@ -345,14 +341,6 @@ func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error
 				pIndex,
 				tricklingDelay,
 			)
-
-			messageHistoryRecorder := NewMessageHistoryRecorder(
-				runenv,
-				meta,
-				nodeTestData.Node.Host().ID().String(),
-			)
-
-			nodeTestData.Node.SetTracer(messageHistoryRecorder)
 
 			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
 
