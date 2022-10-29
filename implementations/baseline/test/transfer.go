@@ -167,7 +167,7 @@ func initializeBitswapNetwork(
 }
 
 // Launch bitswap nodes and connect them to each other.
-func BitswapTransferTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error {
+func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error {
 	testVars, err := GetEnvVars(runenv)
 	if err != nil {
 		return err
