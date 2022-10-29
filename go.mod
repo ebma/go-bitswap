@@ -4,7 +4,6 @@ go 1.18
 
 require (
 	github.com/dgraph-io/badger/v2 v2.2007.4
-	github.com/google/uuid v1.3.0
 	github.com/ipfs/go-bitswap v0.8.0
 	github.com/ipfs/go-blockservice v0.4.0
 	github.com/ipfs/go-cid v0.2.0
@@ -17,12 +16,12 @@ require (
 	github.com/ipfs/go-ipfs-posinfo v0.0.1
 	github.com/ipfs/go-ipfs-routing v0.2.1
 	github.com/ipfs/go-ipld-format v0.3.0
+	github.com/ipfs/go-log v1.0.5
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipfs/go-merkledag v0.6.0
 	github.com/ipfs/go-mfs v0.2.1
 	github.com/ipfs/go-unixfs v0.4.0
 	github.com/libp2p/go-libp2p v0.22.0
-	github.com/libp2p/go-libp2p-core v0.20.0
 	github.com/multiformats/go-multiaddr v0.6.0
 	github.com/multiformats/go-multihash v0.2.1
 	github.com/pkg/errors v0.9.1
@@ -37,6 +36,9 @@ replace github.com/testground/sdk-go v0.3.0 => github.com/hannahhoward/sdk-go v0
 //replace github.com/ipfs/go-bitswap v0.8.0 => /plan/go-bitswap
 // This works both locally and in the docker file
 replace github.com/ipfs/go-bitswap v0.8.0 => ./go-bitswap
+
+// Maybe move this below the 'indirect' dependency block?
+replace github.com/testground/sync-service v0.1.0 => github.com/ebma/sync-service v0.0.0-20221029105457-490d7b7c876e
 
 require (
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a // indirect
@@ -68,6 +70,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.0 // indirect
@@ -83,7 +86,6 @@ require (
 	github.com/ipfs/go-ipfs-util v0.0.2 // indirect
 	github.com/ipfs/go-ipld-cbor v0.0.5 // indirect
 	github.com/ipfs/go-ipld-legacy v0.1.0 // indirect
-	github.com/ipfs/go-log v1.0.5 // indirect
 	github.com/ipfs/go-metrics-interface v0.0.1 // indirect
 	github.com/ipfs/go-path v0.2.1 // indirect
 	github.com/ipfs/go-peertaskqueue v0.7.0 // indirect
@@ -100,6 +102,7 @@ require (
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.2.0 // indirect
+	github.com/libp2p/go-libp2p-core v0.20.0 // indirect
 	github.com/libp2p/go-libp2p-record v0.2.0 // indirect
 	github.com/libp2p/go-msgio v0.2.0 // indirect
 	github.com/libp2p/go-nat v0.1.0 // indirect
