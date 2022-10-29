@@ -52,31 +52,17 @@ with PdfPages(target_dir + "/" + f"prediction_rates-overall.pdf") as export_pdf:
 
 # Split per topology
 messages_by_topology = process.groupBy(message_items, "topology")
-info_items_by_topology = process.groupBy(info_items, "topology")
-# for topology, messages_for_topology in messages_by_topology.items():
-#     info_items_for_topology = info_items_by_topology[topology]
-#     # Create prediction rates overall for each topology
-#     with PdfPages(target_dir + "/" + f"prediction_rates-{topology}-averaged.pdf") as export_pdf_averaged:
-#         # Analyse messages for topology and save to file
-#         prediction_analysis.analyse_and_save_to_file_single(topology, messages_for_topology,
-#                                                             info_items_for_topology, export_pdf_averaged)
-
-# Create prediction rates per filesize for each topology
-# with PdfPages(target_dir + "/" + f"prediction_rates-{topology}-per-filesize.pdf") as export_pdf_per_filesize:
-#     Analyse messages for topology and save to file
-# prediction_analysis.analyse_and_save_to_file_single(topology, messages_for_topology,
-#                                                     info_items_for_topology, export_pdf_averaged)
 
 for topology, metrics_for_topology in metrics_by_topology.items():
     with PdfPages(target_dir + "/" + f"time-to-fetch-{topology}.pdf") as export_pdf:
-        by_latency = process.groupBy(metrics_for_topology, "latencyMS")
-        process.plot_time_to_fetch_grouped_with_filesize(topology, by_latency)
-        export_pdf.savefig()
+        process.plot_time_to_fetch_grouped_with_filesize(topology, metrics_for_topology, export_pdf)
 
     with PdfPages(target_dir + "/" + f"messages-{topology}.pdf") as export_pdf:
         by_latency = process.groupBy(metrics_for_topology, "latencyMS")
         process.plot_messages(topology, by_latency)
-        export_pdf.savefig()
+        # TODO streamline this with the other things
+        # Either pass export or save it afterwards
+        # export_pdf.savefig()
 
 # with PdfPages(target_dir + "/" + "prediction_rates_agg.pdf") as export_pdf:
 #     first_timestamp_estimator.plot_estimate(results_dir)
