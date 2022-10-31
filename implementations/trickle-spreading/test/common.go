@@ -607,14 +607,18 @@ func (mr *metricsRecorder) Record(key string, value float64) {
 	mr.runenv.R().RecordPoint(fmt.Sprintf("%s/meta:%s", mr.meta, key), value)
 }
 
-type messageHistoryRecorder struct {
-	runenv *runtime.RunEnv
-	file   *os.File
-	meta   string
-	host   string
+type MessageHistoryRecorder struct {
+	runenv    *runtime.RunEnv
+	file      *os.File
+	meta      string
+	host      string
+	shouldLog bool
 }
 
-func (m messageHistoryRecorder) MessageReceived(pid peer.ID, msg bsmsg.BitSwapMessage) {
+func (m MessageHistoryRecorder) MessageReceived(pid peer.ID, msg bsmsg.BitSwapMessage) {
+	if !m.shouldLog {
+		return
+	}
 	timestamp := time.Now().UnixNano()
 	// don't log non-want-have messages
 	if len(msg.Wantlist()) == 0 {
@@ -644,8 +648,10 @@ func (m messageHistoryRecorder) MessageReceived(pid peer.ID, msg bsmsg.BitSwapMe
 		return
 	}
 
+	// Make sure to log only once
+	m.shouldLog = true
 }
-func (m messageHistoryRecorder) MessageSent(pid peer.ID, msg bsmsg.BitSwapMessage) {
+func (m MessageHistoryRecorder) MessageSent(pid peer.ID, msg bsmsg.BitSwapMessage) {
 
 }
 
@@ -653,7 +659,7 @@ func NewMessageHistoryRecorder(
 	runenv *runtime.RunEnv,
 	meta string,
 	host string,
-) *messageHistoryRecorder {
+) *MessageHistoryRecorder {
 	file, err := os.OpenFile(
 		runenv.TestOutputsPath+"/messageHistory.out",
 		os.O_WRONLY|os.O_CREATE|os.O_APPEND,
@@ -663,7 +669,7 @@ func NewMessageHistoryRecorder(
 		runenv.RecordMessage("Error creating message history file: %s", err)
 		return nil
 	}
-	return &messageHistoryRecorder{runenv, file, meta, host}
+	return &MessageHistoryRecorder{runenv, file, meta, host, true}
 
 }
 
