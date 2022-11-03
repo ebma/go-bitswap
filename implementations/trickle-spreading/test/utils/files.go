@@ -131,57 +131,17 @@ func RandReader(len int) io.Reader {
 
 func GetFileList(runenv *runtime.RunEnv) ([]TestFile, error) {
 	listFiles := []TestFile{}
-	inputData := runenv.StringParam("input_data")
 
-	switch inputData {
-	case "files":
-		path := runenv.StringParam("data_dir")
-		runenv.RecordMessage("Getting file list for %s", path)
-		files, err := os.ReadDir(path)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, file := range files {
-			var size int64
-
-			// Assign the right size.
-			if file.IsDir() {
-				size, err = dirSize(path + "/" + file.Name())
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				info, err := file.Info()
-				if err != nil {
-					return nil, err
-				}
-				size = info.Size()
-			}
-
-			// Append the file.
-			listFiles = append(listFiles,
-				&PathFile{
-					Path:  path + "/" + file.Name(),
-					size:  size,
-					isDir: file.IsDir()})
-		}
-		return listFiles, nil
-	case "random":
-		fileSizes, err := ParseIntArray(runenv.StringParam("file_size"))
-		runenv.RecordMessage("Getting file list for random with sizes: %v", fileSizes)
-		if err != nil {
-			return nil, err
-		}
-		for i, v := range fileSizes {
-			listFiles = append(listFiles, &RandFile{size: int64(v), seed: int64(i)})
-		}
-		return listFiles, nil
-	case "custom":
-		return nil, fmt.Errorf("Custom inputData not implemented yet")
-	default:
-		return nil, fmt.Errorf("Inputdata type not implemented")
+	fileSizes, err := ParseIntArray(runenv.StringParam("file_size"))
+	runenv.RecordMessage("Getting file list for random with sizes: %v", fileSizes)
+	if err != nil {
+		return nil, err
 	}
+	for i, v := range fileSizes {
+		listFiles = append(listFiles, &RandFile{size: int64(v), seed: int64(i)})
+	}
+	return listFiles, nil
+
 }
 
 func getUnixfsNode(path string) (files.Node, error) {

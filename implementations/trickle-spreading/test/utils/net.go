@@ -17,8 +17,6 @@ func SetupNetwork(
 	runenv *runtime.RunEnv,
 	nwClient *network.Client,
 	latency time.Duration,
-	bandwidth int,
-	jitterPct int,
 ) error {
 
 	if !runenv.TestSidecar {
@@ -35,9 +33,7 @@ func SetupNetwork(
 		Enable:        true,
 		RoutingPolicy: network.AllowAll,
 		Default: network.LinkShape{
-			Latency:   latency,
-			Bandwidth: uint64(bandwidth) * 1024 * 1024,
-			//Jitter:    (time.Duration(jitterPct) * latency) / 100,
+			Latency: latency,
 		},
 		CallbackState:  sync.State("network-configured"),
 		CallbackTarget: runenv.TestInstanceCount,

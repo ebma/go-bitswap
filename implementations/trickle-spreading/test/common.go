@@ -5,7 +5,6 @@ import (
 	"fmt"
 	bsmsg "github.com/ipfs/go-bitswap/message"
 	"github.com/ipfs/testground/plans/trickle-bitswap/test/utils"
-	"math"
 	"net"
 	"os"
 	"strconv"
@@ -31,28 +30,16 @@ type TestPermutation struct {
 
 // TestVars testing variables
 type TestVars struct {
-	ExchangeInterface string
-	Timeout           time.Duration
-	RunTimeout        time.Duration
-	LeechCount        int
-	SeedCount         int
+	Dialer            string
 	EavesdropperCount int
 	Latency           time.Duration
-	Degree            int
-	JitterPct         int
-	Bandwidth         int
-	RequestStagger    time.Duration
-	RunCount          int
-	MaxConnectionRate int
-	TCPEnabled        bool
-	SeederRate        int
-	DHTEnabled        bool
-	ProvidingEnabled  bool
-	LlEnabled         bool
-	Dialer            string
-	NumWaves          int
+	LeechCount        int
 	Permutations      []TestPermutation
-	DiskStore         bool
+	RunCount          int
+	RunTimeout        time.Duration
+	SeedCount         int
+	TCPEnabled        bool
+	Timeout           time.Duration
 }
 
 type BaseTestData struct {
@@ -74,74 +61,30 @@ type TestData struct {
 
 func GetEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	tv := &TestVars{}
-	if runenv.IsParamSet("exchange_interface") {
-		tv.ExchangeInterface = runenv.StringParam("exchange_interface")
-	}
 	if runenv.IsParamSet("timeout_secs") {
 		tv.Timeout = time.Duration(runenv.IntParam("timeout_secs")) * time.Second
 	}
 	if runenv.IsParamSet("run_timeout_secs") {
 		tv.RunTimeout = time.Duration(runenv.IntParam("run_timeout_secs")) * time.Second
 	}
-	if runenv.IsParamSet("leech_count") {
-		tv.LeechCount = runenv.IntParam("leech_count")
-	} else {
-		tv.LeechCount = 1
-	}
-	if runenv.IsParamSet("seed_count") {
-		tv.SeedCount = runenv.IntParam("seed_count")
-	} else {
-		tv.SeedCount = 1
-	}
 	if runenv.IsParamSet("eavesdropper_count") {
 		tv.EavesdropperCount = runenv.IntParam("eavesdropper_count")
-	}
-	if runenv.IsParamSet("request_stagger") {
-		tv.RequestStagger = time.Duration(runenv.IntParam("request_stagger")) * time.Millisecond
-	}
-	if runenv.IsParamSet("run_count") {
-		tv.RunCount = runenv.IntParam("run_count")
-	}
-	if runenv.IsParamSet("max_connection_rate") {
-		tv.MaxConnectionRate = runenv.IntParam("max_connection_rate")
 	}
 	if runenv.IsParamSet("enable_tcp") {
 		tv.TCPEnabled = runenv.BooleanParam("enable_tcp")
 	}
-	if runenv.IsParamSet("seeder_rate") {
-		tv.SeederRate = runenv.IntParam("seeder_rate")
-	}
-	if runenv.IsParamSet("enable_dht") {
-		tv.DHTEnabled = runenv.BooleanParam("enable_dht")
-	}
-	if runenv.IsParamSet("long_lasting") {
-		tv.LlEnabled = runenv.BooleanParam("long_lasting")
-	}
 	if runenv.IsParamSet("dialer") {
 		tv.Dialer = runenv.StringParam("dialer")
 	}
-	if runenv.IsParamSet("number_waves") {
-		tv.NumWaves = runenv.IntParam("number_waves")
+	if runenv.IsParamSet("run_count") {
+		tv.RunCount = runenv.IntParam("run_count")
 	}
-	if runenv.IsParamSet("enable_providing") {
-		tv.ProvidingEnabled = runenv.BooleanParam("enable_providing")
-	}
-	if runenv.IsParamSet("disk_store") {
-		tv.DiskStore = runenv.BooleanParam("disk_store")
-	}
-	if runenv.IsParamSet("degree") {
-		tv.Degree = runenv.IntParam("degree")
-	}
-
 	if runenv.IsParamSet("latency_ms") {
 		tv.Latency = time.Duration(runenv.IntParam("latency_ms")) * time.Millisecond
 	}
-	if runenv.IsParamSet("jitter_pct") {
-		tv.JitterPct = runenv.IntParam("jitter_pct")
-	}
-	if runenv.IsParamSet("bandwidth_mb") {
-		tv.Bandwidth = runenv.IntParam("bandwidth_mb")
-	}
+
+	tv.LeechCount = 1
+	tv.SeedCount = 1
 
 	tricklingDelays, err := utils.ParseIntArray(runenv.StringParam("trickling_delay_ms"))
 	if err != nil {
@@ -292,44 +235,24 @@ type NetworkTestData struct {
 	Host *host.Host
 }
 
-func (t *NetworkTestData) StillAlive(runenv *runtime.RunEnv, v *TestVars) {
-	// starting liveness process for long-lasting experiments.
-	if v.LlEnabled {
-		go func(n utils.Node, runenv *runtime.RunEnv) {
-			for {
-				n.EmitKeepAlive(runenv)
-				time.Sleep(15 * time.Second)
-			}
-		}(t.Node, runenv)
-	}
-}
-
 func (t *NetworkTestData) AddPublishFile(
 	ctx context.Context,
 	fIndex int,
 	f utils.TestFile,
 	runenv *runtime.RunEnv,
-	testvars *TestVars,
 ) (cid.Cid, error) {
-	rate := float64(testvars.SeederRate) / 100
-	seeders := runenv.TestInstanceCount - (testvars.LeechCount + testvars.SeedCount)
-	toSeed := int(math.Ceil(float64(seeders) * rate))
-
 	// If this is the first run for this file size.
 	// Only a rate of seeders add the file.
-	if t.TypeIndex <= toSeed {
-		// Generating and adding file to IPFS
-		c, err := generateAndAdd(ctx, runenv, t.Node, f)
-		if err != nil {
-			return cid.Undef, err
-		}
-		err = fractionalDAG(ctx, runenv, int(t.SeedIndex), *c, t.Node.DAGService())
-		if err != nil {
-			return cid.Undef, err
-		}
-		return *c, t.publishFile(ctx, fIndex, c, runenv)
+	// Generating and adding file to IPFS
+	c, err := generateAndAdd(ctx, runenv, t.Node, f)
+	if err != nil {
+		return cid.Undef, err
 	}
-	return cid.Undef, nil
+	err = fractionalDAG(ctx, runenv, int(t.SeedIndex), *c, t.Node.DAGService())
+	if err != nil {
+		return cid.Undef, err
+	}
+	return *c, t.publishFile(ctx, fIndex, c, runenv)
 }
 
 func (t *NetworkTestData) CleanupRun(
@@ -397,8 +320,7 @@ func generateAndAdd(
 	f utils.TestFile,
 ) (*cid.Cid, error) {
 	// Generate the file
-	inputData := runenv.StringParam("input_data")
-	runenv.RecordMessage("Starting to generate file for inputData: %s and file %v", inputData, f)
+	runenv.RecordMessage("Starting to generate file for %v", f)
 	tmpFile, err := f.GenerateFile()
 	if err != nil {
 		return nil, err
@@ -559,37 +481,29 @@ func CreateTopologyString(
 }
 
 func CreateMetaFromParams(
-	runenv *runtime.RunEnv,
+	pIndex int,
 	runNum int,
-	edCount int,
-	leechCount int,
-	seedCount int,
-	seq int64,
+	dialer string,
+	eavesCount int,
 	latency time.Duration,
-	bandwidthMB int,
+	tricklingDelay time.Duration,
+	seq int64,
 	fileSize int,
 	nodeType utils.NodeType,
 	typeIndex int,
-	maxConnectionRate int,
-	pIndex int,
-	tricklingDelay time.Duration,
 ) string {
-
-	instance := runenv.TestInstanceCount
-
 	id := fmt.Sprintf(
-		"topology:%s/maxConnectionRate:%d/latencyMS:%d/bandwidthMB:%d/run:%d/Seq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d/permutationIndex:%d/tricklingDelay:%d",
-		CreateTopologyString(instance, leechCount, seedCount, edCount),
-		maxConnectionRate,
-		latency.Milliseconds(),
-		bandwidthMB,
+		"exType:trickle/permutationIndex:%d/run:%d/dialer:%s/eavesCount:%d/latencyMS:%d/tricklingDelay:%d/seq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d",
+		pIndex,
 		runNum,
+		dialer,
+		eavesCount,
+		latency.Milliseconds(),
+		tricklingDelay.Milliseconds(),
 		seq,
 		fileSize,
 		nodeType,
 		typeIndex,
-		pIndex,
-		tricklingDelay.Milliseconds(),
 	)
 	return id
 }
@@ -617,6 +531,7 @@ type MessageHistoryRecorder struct {
 
 func (m MessageHistoryRecorder) MessageReceived(pid peer.ID, msg bsmsg.BitSwapMessage) {
 	if !m.shouldLog {
+		// this somehow doesnt work
 		return
 	}
 	timestamp := time.Now().UnixNano()
@@ -649,7 +564,7 @@ func (m MessageHistoryRecorder) MessageReceived(pid peer.ID, msg bsmsg.BitSwapMe
 	}
 
 	// Make sure to log only once
-	m.shouldLog = true
+	m.shouldLog = false
 }
 func (m MessageHistoryRecorder) MessageSent(pid peer.ID, msg bsmsg.BitSwapMessage) {
 

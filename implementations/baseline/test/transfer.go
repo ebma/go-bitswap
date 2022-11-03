@@ -141,16 +141,15 @@ func initializeBitswapNetwork(
 	h host.Host,
 ) (*NetworkTestData, error) {
 	// Use the same blockstore on all runs for the seed node
-	bstoreDelay := time.Duration(runenv.IntParam("bstore_delay_ms")) * time.Millisecond
+	bstoreDelay := time.Duration(100) * time.Millisecond
 
-	dStore, err := utils.CreateDatastore(testvars.DiskStore, bstoreDelay)
+	dStore, err := utils.CreateDatastore(false, bstoreDelay)
 	if err != nil {
 		return nil, err
 	}
 	runenv.RecordMessage(
-		"created data store %T with params disk_store=%b",
+		"created data store %T",
 		dStore,
-		testvars.DiskStore,
 	)
 	bstore, err := utils.CreateBlockstore(ctx, dStore)
 	if err != nil {
@@ -210,8 +209,7 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 	var tcpFetch int64
 
 	// Set up network (with traffic shaping)
-	if err := utils.SetupNetwork(ctx, runenv, testData.NwClient, testVars.Latency,
-		testVars.Bandwidth, testVars.JitterPct); err != nil {
+	if err := utils.SetupNetwork(ctx, runenv, testData.NwClient, testVars.Latency); err != nil {
 		return fmt.Errorf("Failed to set up network: %v", err)
 	}
 
@@ -237,8 +235,6 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 		)
 		transferNode := nodeTestData.Node
 		signalAndWaitForAll := nodeTestData.SignalAndWaitForAll
-		// Start still alive process if enabled
-		nodeTestData.StillAlive(runenv, testVars)
 
 		// Log node info
 		globalInfoRecorder.RecordNodeInfo(
@@ -272,7 +268,6 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 				pIndex,
 				testParams.File,
 				runenv,
-				testVars,
 			)
 		case utils.Leech:
 			rootCid, err = nodeTestData.ReadFile(pctx, pIndex, runenv, testVars)
@@ -301,7 +296,6 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 					runNum,
 					testParams.File,
 					runenv,
-					testVars,
 				)
 			case utils.Leech:
 				tcpFetch, err = nodeTestData.RunTCPFetch(pctx, pIndex, runNum, runenv, testVars)
@@ -325,20 +319,16 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 
 			// Used for logging
 			meta := CreateMetaFromParams(
-				runenv,
+				pIndex,
 				runNum,
+				testVars.Dialer,
 				testVars.EavesdropperCount,
-				testVars.LeechCount,
-				testVars.SeedCount,
-				nodeTestData.Seq,
 				testVars.Latency,
-				testVars.Bandwidth,
+				tricklingDelay,
+				nodeTestData.Seq,
 				int(testParams.File.Size()),
 				nodeTestData.NodeType,
 				nodeTestData.TypeIndex,
-				testVars.MaxConnectionRate,
-				pIndex,
-				tricklingDelay,
 			)
 
 			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
