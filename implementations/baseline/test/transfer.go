@@ -133,35 +133,23 @@ func initializeNodeTypeAndPeers(
 		seq, nodeType, typeIndex, seedIndex}, nil
 }
 
-func initializeBitswapNetwork(
-	ctx context.Context,
-	runenv *runtime.RunEnv,
-	testvars *TestVars,
-	baseT *TestData,
-	h host.Host,
-) (*NetworkTestData, error) {
-	// Use the same blockstore on all runs for the seed node
-	bstoreDelay := time.Duration(100) * time.Millisecond
+func initializeIPFSTest(ctx context.Context, runenv *runtime.RunEnv, baseT *TestData) (*NetworkTestData, error) {
+	ipfsNode, err := utils.CreateIPFSNodeWithConfig(ctx, baseT.NConfig, true, false)
+	if err != nil {
+		runenv.RecordFailure(err)
+		return nil, err
+	}
 
-	dStore, err := utils.CreateDatastore(false, bstoreDelay)
-	if err != nil {
-		return nil, err
-	}
-	runenv.RecordMessage(
-		"created data store %T",
-		dStore,
-	)
-	bstore, err := utils.CreateBlockstore(ctx, dStore)
-	if err != nil {
-		return nil, err
-	}
-	// Create a new bitswap node from the blockstore
-	bsnode, err := utils.CreateBitswapNode(ctx, h, bstore)
+	err = baseT.SignalAndWaitForAll("file-list-ready")
 	if err != nil {
 		return nil, err
 	}
 
-	return &NetworkTestData{baseT, bsnode, &h}, nil
+	return &NetworkTestData{
+		baseT,
+		ipfsNode,
+		nil,
+	}, nil
 }
 
 // Launch bitswap nodes and connect them to each other.
@@ -226,12 +214,10 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 
 		// Initialize the bitswap node with trickling delay of test permutation
 		tricklingDelay := testParams.TricklingDelay
-		nodeTestData, err := initializeBitswapNetwork(
+		nodeTestData, err := initializeIPFSTest(
 			pctx,
 			runenv,
-			testVars,
 			testData,
-			h,
 		)
 		transferNode := nodeTestData.Node
 		signalAndWaitForAll := nodeTestData.SignalAndWaitForAll
