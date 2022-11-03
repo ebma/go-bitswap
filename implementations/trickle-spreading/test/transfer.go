@@ -442,11 +442,11 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 					),
 				)
 				runenv.RecordMessage(
-					"Starting to leech %d / %d (%d bytes)",
+					"Starting to leech %d / %d (%d bytes) | Permutation: %d",
 					runNum,
 					testVars.RunCount,
 					testParams.File.Size(),
-				)
+					pIndex)
 				start := time.Now()
 				ctxFetch, fetchCancel := context.WithTimeout(sctx, testVars.RunTimeout/2)
 				rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, nodeTestData.PeerInfos)
