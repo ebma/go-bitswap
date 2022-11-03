@@ -30,9 +30,14 @@ require (
 )
 
 // This fixes the panic: send on closed channel issue
-replace github.com/testground/sdk-go v0.3.0 => github.com/hannahhoward/sdk-go v0.3.1-0.20220106065751-1280c9501986
+//replace github.com/testground/sdk-go v0.3.0 => github.com/hannahhoward/sdk-go v0.3.1-0.20220106065751-1280c9501986
 
 replace github.com/ipfs/go-bitswap v0.10.2 => ./go-bitswap
+
+// increase websocket timeouts
+replace github.com/testground/sync-service v0.1.0 => github.com/ebma/sync-service v0.0.0-20221029105457-490d7b7c876e
+
+replace github.com/testground/sdk-go v0.3.0 => github.com/ebma/sdk-go v0.0.0-20221103164834-c9cc3d4a27da
 
 require (
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a // indirect
