@@ -3,7 +3,7 @@ name = "trickle-performance-test"
 author = "Marcel Ebert"
 
 [global]
-plan = "trickle-bitswap"
+plan = "trickle-spreading"
 case = "transfer"
 builder = "docker:go"
 runner = "local:docker"
@@ -19,18 +19,20 @@ skip_runtime_image = "true"
 
 [groups.run]
 [groups.run.test_params]
-#input_data = "files"
-#data_dir = "../plan/test-datasets"
 input_data = "random"
-file_size = "1024"
-#file_size = "150846"
-#file_size = "31457280"
-run_timeout_secs = "60" # change this to something quite low so that the test doesnt get stuck
-timeout_secs = "3000"
-run_count = "50"
+file_size = "512"
+#file_size = "153600" # 150 kib
+#file_size = "5242880" # 5 mib
+run_timeout_secs = "60"
+#timeout_secs = "3000"
+timeout_secs = "1500"
+run_count = "40"
 eavesdropper_count = "1"
 trickling_delay_ms = "0,50,100,150,200,250,300,350,400"
-latency_ms = "150"
-jitter_pct = "0" # set jitter to 0 the remove randomness
-bandwidth_mb = "100" # set to maxuint64 ?
+latency_ms = "50"
+#latency_ms = "100"
+#latency_ms = "150"
+#latency_ms = "200"
 enable_tcp = "true"
+dialer = "edge"
+#dialer = "center"

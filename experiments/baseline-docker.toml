@@ -3,21 +3,16 @@ name = "rfcBBL102 Baseline"
 author = "@adlrocha"
 
 [global]
-plan = "trickle-bitswap"
+plan = "baseline"
 case = "transfer"
 builder = "docker:go"
 runner = "local:docker"
 
-total_instances = 30
+total_instances = 10
 
 [[groups]]
 id = "nodes"
-instances = { count = 30 }
-
-[groups.build]
-dependencies = [
-    { module = "github.com/ipfs/go-bitswap", target = "github.com/ipfs/go-bitswap", version = "1d1c6bfed305c2075850ab11685485d75f29394f" }
-]
+instances = { count = 10 }
 
 [groups.run]
 [groups.run.test_params]

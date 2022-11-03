@@ -3,7 +3,7 @@ name = "trickle-performance-test"
 author = "Marcel Ebert"
 
 [global]
-plan = "trickle-bitswap"
+plan = "trickle-spreading"
 case = "transfer"
 builder = "docker:go"
 runner = "local:docker"
@@ -12,25 +12,30 @@ total_instances = 15
 
 [[groups]]
 id = "nodes"
-instances = { count = 15}
+instances = { count = 15 }
 
 [groups.build]
 skip_runtime_image = "true"
 
 [groups.run]
 [groups.run.test_params]
-#input_data = "files"
-#data_dir = "../plan/test-datasets"
 input_data = "random"
-#file_size = "1024"
-file_size = "150846"
-#file_size = "31457280"
+file_size = "512"
+#file_size = "153600" # 150 KiB
+#file_size = "5242880" # 5 MiB
+file_size = "5242880"
 run_timeout_secs = "60"
-timeout_secs = "3000"
-run_count = "50"
+timeout_secs = "3200"
+run_count = "30"
 eavesdropper_count = "4"
 trickling_delay_ms = "0,50,100,150,200,250,300,350,400"
-latency_ms = "100"
-jitter_pct = "0" # set jitter to 0 the remove randomness
-bandwidth_mb = "100" # set to maxuint64 ?
+latency_ms = "50"
+#latency_ms = "100"
+#latency_ms = "150"
+#latency_ms = "200"
 enable_tcp = "true"
+dialer = "edge"
+#dialer = "center"
+
+# TODO count Cids for filesize
+#Eavesdropper mode: not sending want-haves       {"wantHaves": [{"/":"QmbnXoy6sF5KrwBbtdXSqqULwnLRzjEaDi1Tw9i3szWhVR"},{"/":"QmeKB48au2hPtcQ1Eq2BUThwtGuLCmHRPgwW4FFiud6NMQ"},{"/":"QmPdQEJSUPtvVT236gvuB4upBrNase6D7DSeUFLRgp8Y5q"},{"/":"QmbHuuPkGNKqdtWDAWouygzp6rpmKPSK74NkWxEEuEwcXa"},{"/":"QmPuFSWPn2nRDPQPehNYx57iWHVkEbjUGhZ4h8gPi6aFXa"},{"/":"QmaGWuJHfX3aBMc6ez2xsa6k2VUa8BQqvVUChgpXekhgpt"},{"/":"QmcuuBbUGSRnboLGimeuPJRsrtt6wsdpWpjaHhLkK1jvR2"},{"/":"QmXqD1H7zerx8wEieYnQaaqgFNfGEvjxSu3KNdqsrs2jnb"},{"/":"QmP5HdYL5qQ4CdSbMzSybLJss7yirDSiXFME5y8h3KKzE3"},{"/":"QmVwUHmRnMEuoHThyTU1GxKw7sHXctryLJQRZjXukjyMNJ"},{"/":"QmZaevayM7UrqM4akJV1Vqc4gJ4FuYqmmrEHMQKs4Qx4EL"},{"/":"QmXdgkwa4XqXUqLW4v8wXPpGvKT3NdxNaFM9jQboeFZKEu"},{"/":"QmQssbcubEb4vu134Yaop3RcEpKrgvk6XsbA2PtbXsDzAF"},{"/":"QmPKeUtXRSrgU6t7XdHyxYnvekW6WVJDgdcuA8x1gvnh3q"},{"/":"QmdToEndsavZARrqrnzaHwR6h6vQQJQKMYWiiMyZtog8VR"},{"/":"QmP1rPZ7YKHVj2HhUsxvPa4TkBRHTRgJQ6tKFCqmVE4FWG"},{"/":"QmPRzMaGh89CqxUV3p9o2LKzYSDmUg86EcQsycYvHDQyGZ"}]}
