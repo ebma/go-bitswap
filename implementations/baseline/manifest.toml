@@ -21,11 +21,6 @@ enabled = true
 skip_runtime_image = true
 build_base_image = "golang:1.17.8-buster"
 
-[builders."docker:go".dockerfile_extensions]
-# Copy local version of go-bitswap to the build container.
-# More info here https://docs.testground.ai/builder-library/docker-go#customizing-the-build
-pre_mod_download = "COPY /plan/go-bitswap ${PLAN_DIR}/go-bitswap"
-
 [extra_sources]
 # This doesn't work
 # The test-datasets is just available because it lives in the same directory as the test-plan
