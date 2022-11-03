@@ -19,7 +19,6 @@ skip_runtime_image = "true"
 
 [groups.run]
 [groups.run.test_params]
-input_data = "random"
 file_size = "512"
 #file_size = "153600" # 150 kib
 #file_size = "5242880" # 5 mib
