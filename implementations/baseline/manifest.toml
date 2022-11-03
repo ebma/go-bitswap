@@ -1,9 +1,6 @@
 name = "baseline-bitswap"
 
 [defaults]
-#builder = "exec:go"
-#runner = "local:exec"
-
 builder = "docker:go"
 runner = "local:docker"
 
@@ -21,11 +18,6 @@ enabled = true
 skip_runtime_image = true
 build_base_image = "golang:1.17.8-buster"
 
-[extra_sources]
-# This doesn't work
-# The test-datasets is just available because it lives in the same directory as the test-plan
-# "docker:go" = ["../test-datasets"]
-
 [builders."exec:go"]
 enabled = true
 
@@ -37,45 +29,16 @@ run_timeout_min = 25
 enabled = true
 run_timeout_min = 25
 
-[runners."cluster:swarm"]
-enabled = true
-
-[runners."cluster:k8s"]
-enabled = true
-
-[daemon.scheduler]
-task_timeout_min = 25
-
 [[testcases]]
 name = "transfer"
 instances = { min = 1, max = 200, default = 2 }
 [testcases.params]
-bandwidth_mb = { type = "int", desc = "bandwidth", unit = "Mib", default = 1024 }
-bstore_delay_ms = { type = "int", desc = "blockstore get / put delay (Only applicable for in-memory stores)", unit = "milliseconds", default = 5 }
-count = { type = "int", desc = "number of transfers", default = "10" }
-#data_dir = { type = "string", desc = "directory with data is located", default = "../plan/test-datasets" } # This works for local:docker
-data_dir = { type = "string", desc = "directory with data is located", default = "/home/marcel/Documents/Studies/thesis/trickle-bitswap/go-bitswap/testplans/trickle-bitswap/test-datasets" } # This works for 'local:exec'
-dialer = { type = "string", desc = "network topology between nodes", default = "default" }
-disk_store = { type = "bool", desc = "Enable Badger Data Store instead of an in-memory store", default = false }
+dialer = { type = "string", desc = "network topology between nodes", default = "edge" }
 eavesdropper_count = { type = "int", desc = "number of eavesdropper nodes", unit = "peers", default = 1 }
-enable_dht = { type = "bool", desc = "Enable DHT in IPFS nodes", default = false }
-enable_providing = { type = "bool", desc = "Enable the providing system", default = false }
 enable_tcp = { type = "bool", desc = "Enable TCP comparison", default = false }
-exchange_interface = { type = "string", desc = "exchange interface to use in IPFS node", default = "bitswap" }
 file_size = { type = "int", desc = "file size", unit = "bytes", default = 4194304 }
-input_data = { type = "string", desc = "input data to be used in the test (files, random, custom)", default = "files" }
-jitter_pct = { type = "int", desc = "jitter as percentage of latency", unit = "%", default = 10 }
 latency_ms = { type = "int", desc = "latency", unit = "ms", default = 5 }
-trickling_delay_ms = { type = "int", desc = "trickling delay", unit = "ms", default = 100 }
-leech_count = { type = "int", desc = "number of leech nodes", unit = "peers", default = 1 }
-long_lasting = { type = "bool", desc = "Enable to retrieve feedback from running nodes in long-lasting experiments", default = false }
-max_connection_rate = { type = "int", desc = "max connection allowed per peer according to total nodes", unit = "%", default = 100 }
-number_waves = { type = "int", desc = "Number of waves of leechers", unit = "%", default = 1 }
-parallel_gen_mb = { type = "int", desc = "maximum allowed size of seed data to generate in parallel", unit = "Mib", default = 100 }
-passive_count = { type = "int", desc = "number of passive nodes (neither leech nor seed)", unit = "peers", default = 0 }
-request_stagger = { type = "int", desc = "time between each leech's first request", unit = "ms", default = 0 }
 run_count = { type = "int", desc = "number of iterations of the test", unit = "iteration", default = 1 }
-seeder_rate = { type = "int", desc = "percentage of nodes seeding the file", unit = "%", default = 100 }
-size = { type = "int", desc = "size of file to transfer, in human-friendly form", default = "1MiB" }
 run_timeout_secs = { type = "int", desc = "timeout for an individual run", unit = "seconds", default = 9000000000 }
-timeout_secs = { type = "int", desc = "timeout", unit = "seconds", default = 40000000000 }#TODO: Decrease to 300 if not debugging. Bear this in mind while making long tests.
+timeout_secs = { type = "int", desc = "timeout for overall test", unit = "seconds", default = 40000000000 }
+trickling_delay_ms = { type = "int array", desc = "trickling delay", unit = "ms", default = 100 }
