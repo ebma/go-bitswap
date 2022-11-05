@@ -206,10 +206,10 @@ github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25Kn
 github.com/eapache/go-resiliency v1.1.0/go.mod h1:kFI+JgMyC7bLPUVY133qvEBtVayf5mFgVsvEsIPBvNs=
 github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21/go.mod h1:+020luEh2TKB4/GOp8oxxtq0Daoen/Cii55CzbTV6DU=
 github.com/eapache/queue v1.1.0/go.mod h1:6eCeP0CKFpHLu8blIFXhExK/dRa7WDZfr6jVFPTqq+I=
-github.com/ebma/sdk-go v0.0.0-20221103164834-c9cc3d4a27da h1:t315RtMMpOlbPZ8QHj/e2lr3qPOaa6z6RGpuJqBD+JE=
-github.com/ebma/sdk-go v0.0.0-20221103164834-c9cc3d4a27da/go.mod h1:HsInXM/XsSAquixQBddQDJvLdxlwdZ5fmB5ulCGaLU0=
-github.com/ebma/sync-service v0.0.0-20221029105457-490d7b7c876e h1:sPNoa5xVfWMXqixiwiMZl/nCuW9pa/IKpWFHyYiFi3s=
-github.com/ebma/sync-service v0.0.0-20221029105457-490d7b7c876e/go.mod h1:UxLxsGjkZPqY1TtlusUu8xO0CS97eQ2PfIVF5O9JETA=
+github.com/ebma/sdk-go v0.0.0-20221105173441-bda4cfe58fe2 h1:iZI28obt3L46GTJLePE352el4atfhdTE+1j3bmMI9sw=
+github.com/ebma/sdk-go v0.0.0-20221105173441-bda4cfe58fe2/go.mod h1:HsInXM/XsSAquixQBddQDJvLdxlwdZ5fmB5ulCGaLU0=
+github.com/ebma/sync-service v0.0.0-20221105120848-6e3d13fbbcb1 h1:3QJLThLrkwbbZmWrZYbfCX0TT6qs/k+YWtfUsA4q2RI=
+github.com/ebma/sync-service v0.0.0-20221105120848-6e3d13fbbcb1/go.mod h1:UxLxsGjkZPqY1TtlusUu8xO0CS97eQ2PfIVF5O9JETA=
 github.com/edsrzf/mmap-go v1.0.0/go.mod h1:YO35OhQPt3KJa3ryjFM5Bs14WD66h8eGKpfaBNrHW5M=
 github.com/elastic/gosigar v0.12.0/go.mod h1:iXRIGg2tLnu7LBdpqzyQfGDEidKCfWcCMS0WKyPWoMs=
 github.com/elastic/gosigar v0.14.2 h1:Dg80n8cr90OZ7x+bAax/QjoW/XqTI11RmA79ZwIm9/4=

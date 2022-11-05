@@ -35,9 +35,9 @@ require (
 replace github.com/ipfs/go-bitswap v0.10.2 => ./go-bitswap
 
 // increase websocket timeouts
-replace github.com/testground/sync-service v0.1.0 => github.com/ebma/sync-service v0.0.0-20221029105457-490d7b7c876e
+replace github.com/testground/sync-service v0.1.0 => github.com/ebma/sync-service v0.0.0-20221105120848-6e3d13fbbcb1
 
-replace github.com/testground/sdk-go v0.3.0 => github.com/ebma/sdk-go v0.0.0-20221103164834-c9cc3d4a27da
+replace github.com/testground/sdk-go v0.3.0 => github.com/ebma/sdk-go v0.0.0-20221105173441-bda4cfe58fe2
 
 require (
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a // indirect

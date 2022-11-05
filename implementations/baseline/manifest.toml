@@ -15,6 +15,7 @@ enabled = true
 
 [runners."local:docker"]
 enabled = true
+run_timeout_min = 120
 
 [runners."local:exec"]
 enabled = true

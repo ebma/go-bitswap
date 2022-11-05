@@ -28,11 +28,11 @@ enabled = true
 
 [runners."local:docker"]
 enabled = true
-run_timeout_min = 25
+run_timeout_min = 120
 
 [runners."local:exec"]
 enabled = true
-run_timeout_min = 25
+run_timeout_min = 120
 
 [[testcases]]
 name = "transfer"
@@ -46,4 +46,4 @@ latency_ms = { type = "int", desc = "latency", unit = "ms", default = 5 }
 run_count = { type = "int", desc = "number of iterations of the test", unit = "iteration", default = 1 }
 run_timeout_secs = { type = "int", desc = "timeout for an individual run", unit = "seconds", default = 9000000000 }
 timeout_secs = { type = "int", desc = "timeout for overall test", unit = "seconds", default = 40000000000 }
-trickling_delay_ms = { type = "int array", desc = "trickling delay", unit = "ms", default = 100 }
+trickling_delay_ms = { type = "int array", desc = "trickling delay", unit = "ms", default = "0,50,100" }
