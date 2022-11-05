@@ -30,16 +30,15 @@ type TestPermutation struct {
 
 // TestVars testing variables
 type TestVars struct {
-	Dialer            string
-	EavesdropperCount int
-	Latency           time.Duration
-	LeechCount        int
-	Permutations      []TestPermutation
-	RunCount          int
-	RunTimeout        time.Duration
-	SeedCount         int
-	TCPEnabled        bool
-	Timeout           time.Duration
+	Dialer       string
+	Latency      time.Duration
+	LeechCount   int
+	Permutations []TestPermutation
+	RunCount     int
+	RunTimeout   time.Duration
+	SeedCount    int
+	TCPEnabled   bool
+	Timeout      time.Duration
 }
 
 type BaseTestData struct {
@@ -66,10 +65,6 @@ func GetEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	}
 	if runenv.IsParamSet("run_timeout_secs") {
 		tv.RunTimeout = time.Duration(runenv.IntParam("run_timeout_secs")) * time.Second
-	}
-
-	if runenv.IsParamSet("eavesdropper_count") {
-		tv.EavesdropperCount = runenv.IntParam("eavesdropper_count")
 	}
 	if runenv.IsParamSet("run_count") {
 		tv.RunCount = runenv.IntParam("run_count")
@@ -339,7 +334,6 @@ func ParseType(
 	seq int64,
 	leechCount int,
 	seedCount int,
-	eavesdropperCount int,
 ) (int64, utils.NodeType, int, error) {
 	var nodeType utils.NodeType
 	var typeIndex int
@@ -352,12 +346,9 @@ func ParseType(
 	} else if seq <= int64(leechCount+seedCount) {
 		nodeType = utils.Seed
 		typeIndex = int(seq) - leechCount - 1
-	} else if seq <= int64(leechCount+seedCount+eavesdropperCount) {
-		nodeType = utils.Eavesdropper
-		typeIndex = int(seq) - (leechCount + seedCount) - 1
 	} else {
 		nodeType = utils.Passive
-		typeIndex = int(seq) - (leechCount + seedCount + eavesdropperCount) - 1
+		typeIndex = int(seq) - (leechCount + seedCount) - 1
 	}
 
 	runenv.RecordMessage("I am %s %d %s", nodeType.String(), typeIndex, seqstr)

@@ -67,7 +67,6 @@ func initializeNodeTypeAndPeers(
 		baseTestData.Seq,
 		testvars.LeechCount,
 		testvars.SeedCount,
-		testvars.EavesdropperCount,
 	)
 	if err != nil {
 		return nil, err
@@ -95,7 +94,7 @@ func initializeNodeTypeAndPeers(
 		// the sequence number minus the other types of node (leech / passive).
 		// Note: sequence number starts from 1 (not 0)
 		seedIndex = baseTestData.Seq - int64(
-			testvars.LeechCount+testvars.SeedCount+testvars.EavesdropperCount,
+			testvars.LeechCount+testvars.SeedCount,
 		) - 1
 	}
 	runenv.RecordMessage("Seed index %v for: %v", &baseTestData.NConfig.AddrInfo.ID, seedIndex)
@@ -175,8 +174,6 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 
 	globalInfoRecorder := NewGlobalInfoRecorder(runenv)
 
-	// Run test with different topologies
-	runenv.RecordMessage("Running test with %v eavesdroppers", testVars.EavesdropperCount)
 	testData, err := initializeNodeTypeAndPeers(
 		ctx,
 		runenv,
@@ -230,7 +227,7 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 					runenv.TestInstanceCount,
 					testVars.LeechCount,
 					testVars.SeedCount,
-					testVars.EavesdropperCount,
+					0,
 				),
 				h.ID().String(),
 				nodeTestData.NodeType.String(),
@@ -308,7 +305,7 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 				pIndex,
 				runNum,
 				testVars.Dialer,
-				testVars.EavesdropperCount,
+				0,
 				testVars.Latency,
 				tricklingDelay,
 				nodeTestData.Seq,

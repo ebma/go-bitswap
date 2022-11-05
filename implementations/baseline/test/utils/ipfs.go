@@ -16,13 +16,13 @@ import (
 	"github.com/ipfs/interface-go-ipfs-core/path"
 
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
-	config "github.com/ipfs/go-ipfs-config"
 	"github.com/ipfs/go-metrics-interface"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/jbenet/goprocess"
 	"go.uber.org/fx"
 
 	dsync "github.com/ipfs/go-datastore/sync"
+	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/bootstrap"
 	"github.com/ipfs/kubo/core/coreapi"
@@ -31,7 +31,7 @@ import (
 	"github.com/ipfs/kubo/core/node/libp2p"
 	"github.com/ipfs/kubo/p2p" // This package is needed so that all the preloaded plugins are loaded automatically
 	"github.com/ipfs/kubo/repo"
-	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p/core/host"
 )
 
 // IPFSNode represents the node
@@ -120,11 +120,13 @@ func setConfig(ctx context.Context, nConfig *NodeConfig, DHTenabled bool, provid
 	// Assign some defualt values.
 	var repubPeriod, recordLifetime time.Duration
 	ipnsCacheSize := cfg.Ipns.ResolveCacheSize
-	enableRelay := cfg.Swarm.Transports.Network.Relay.WithDefault(!cfg.Swarm.DisableRelay) //nolint
+	enableRelayTransport := cfg.Swarm.Transports.Network.Relay.WithDefault(true) // nolint
+	enableRelayService := cfg.Swarm.RelayService.Enabled.WithDefault(enableRelayTransport)
+	//enableRelayClient := cfg.Swarm.RelayClient.Enabled.WithDefault(enableRelayTransport)
 
-	providingOptions := node.OfflineProviders(cfg.Experimental.StrategicProviding, cfg.Reprovider.Strategy, cfg.Reprovider.Interval)
+	providingOptions := node.OfflineProviders(cfg.Experimental.StrategicProviding, true, cfg.Reprovider.Strategy, cfg.Reprovider.Interval)
 	if providingEnabled {
-		providingOptions = node.OnlineProviders(cfg.Experimental.StrategicProviding, cfg.Reprovider.Strategy, cfg.Reprovider.Interval)
+		providingOptions = node.OnlineProviders(cfg.Experimental.StrategicProviding, true, cfg.Reprovider.Strategy, cfg.Reprovider.Interval)
 	}
 
 	// Inject all dependencies for the node.
@@ -167,13 +169,14 @@ func setConfig(ctx context.Context, nConfig *NodeConfig, DHTenabled bool, provid
 		// Libp2p dependencies
 		node.BaseLibP2P,
 		fx.Provide(libp2p.AddrFilters(cfg.Swarm.AddrFilters)),
-		fx.Provide(libp2p.AddrsFactory(cfg.Addresses.Announce, cfg.Addresses.NoAnnounce)),
+		fx.Provide(libp2p.AddrsFactory(cfg.Addresses.Announce, cfg.Addresses.AppendAnnounce, cfg.Addresses.NoAnnounce)),
 		fx.Provide(libp2p.SmuxTransport(cfg.Swarm.Transports)),
-		fx.Provide(libp2p.Relay(enableRelay, cfg.Swarm.EnableRelayHop)),
+		fx.Provide(libp2p.RelayTransport(enableRelayTransport)),
+		fx.Provide(libp2p.RelayService(enableRelayService, cfg.Swarm.RelayService)),
 		fx.Provide(libp2p.Transports(cfg.Swarm.Transports)),
 		fx.Invoke(libp2p.StartListening(cfg.Addresses.Swarm)),
 		// TODO: Reminder. MDN discovery disabled.
-		fx.Invoke(libp2p.SetupDiscovery(false, cfg.Discovery.MDNS.Interval)),
+		fx.Invoke(libp2p.SetupDiscovery(cfg.Discovery.MDNS.Enabled)),
 		fx.Provide(libp2p.Routing),
 		fx.Provide(libp2p.BaseRouting),
 		// Enable IPFS bandwidth metrics.
