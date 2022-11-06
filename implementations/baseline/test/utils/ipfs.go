@@ -10,7 +10,6 @@ import (
 	dsync "github.com/ipfs/go-datastore/sync"
 	files "github.com/ipfs/go-ipfs-files"
 	ipld "github.com/ipfs/go-ipld-format"
-	"github.com/ipfs/go-merkledag"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/ipfs/kubo/config"
@@ -19,12 +18,15 @@ import (
 	"github.com/ipfs/kubo/core/node/libp2p"
 	"github.com/ipfs/kubo/repo"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/testground/sdk-go/runtime"
+	"golang.org/x/sync/errgroup"
 )
 
 // IPFSNode represents the node
 type IPFSNode struct {
-	Node *core.IpfsNode
-	API  icore.CoreAPI
+	Node   *core.IpfsNode
+	API    icore.CoreAPI
+	runenv *runtime.RunEnv
 }
 
 type NodeType int
@@ -43,7 +45,7 @@ func (nt NodeType) String() string {
 }
 
 // CreateIPFSNodeWithConfig constructs and returns an IpfsNode using the given cfg.
-func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig) (*IPFSNode, error) {
+func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig, runenv *runtime.RunEnv) (*IPFSNode, error) {
 	// Create new Datastore
 	d := datastore.NewMapDatastore()
 	// Initialize config.
@@ -58,6 +60,9 @@ func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig) (*IPFSNo
 	cfg.Identity.PeerID = nConfig.AddrInfo.ID.String()
 	cfg.Identity.PrivKey = base64.StdEncoding.EncodeToString(nConfig.PrivKey)
 
+	cfg.Experimental.FilestoreEnabled = false
+	cfg.Experimental.AcceleratedDHTClient = true
+
 	// Repo structure that encapsulate the config and datastore for dependency injection.
 	buildRepo := &repo.Mock{
 		D: dsync.MutexWrap(d),
@@ -69,6 +74,7 @@ func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig) (*IPFSNo
 		Online:  true,
 		Routing: libp2p.DHTOption,
 		Repo:    buildRepo,
+		//NilRepo: true,
 	}
 	n, err := core.NewNode(ctx, bcfg)
 	if err != nil {
@@ -81,31 +87,59 @@ func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig) (*IPFSNo
 	}
 
 	// Attach the Core API to the constructed node
-	return &IPFSNode{n, api}, nil
+	return &IPFSNode{n, api, runenv}, nil
 }
 
 // ClearDatastore removes a block from the datastore.
 func (n *IPFSNode) ClearDatastore(ctx context.Context, rootCid cid.Cid) error {
+	//err := n.Node.DAG.Remove(ctx, rootCid)
+	//(*n.Node).Blocks.
+	//if err != nil {
+	//	return err
+	//}
+
+	//return nil
+
 	_, pinned, err := n.API.Pin().IsPinned(ctx, path.IpfsPath(rootCid))
 	if err != nil {
 		return err
 	}
 	if pinned {
+		n.runenv.RecordMessage("Pinned, removing pin")
 		err := n.API.Pin().Rm(ctx, path.IpfsPath(rootCid))
 		if err != nil {
 			return err
 		}
 	}
-	// this probably fails but try to find out with log statements
-	var ng ipld.NodeGetter = merkledag.NewSession(ctx, n.Node.DAG)
-	toDelete := cid.NewSet()
-	err = merkledag.Walk(ctx, merkledag.GetLinksDirect(ng), rootCid, toDelete.Visit, merkledag.Concurrent())
+	ks, err := n.Node.Blockstore.AllKeysChan(ctx)
 	if err != nil {
 		return err
 	}
-	return toDelete.ForEach(func(c cid.Cid) error {
-		return n.API.Block().Rm(ctx, path.IpfsPath(c))
-	})
+	n.runenv.RecordMessage("Removing blocks")
+	g := errgroup.Group{}
+	for k := range ks {
+		c := k
+		n.runenv.RecordMessage("Removing block %s", c.String())
+		g.Go(func() error {
+			err := n.API.Block().Rm(ctx, path.IpfsPath(c))
+			if err != nil {
+				return err
+			}
+			return n.Node.Blockstore.DeleteBlock(ctx, c)
+		})
+	}
+	return g.Wait()
+
+	// this probably fails but try to find out with log statements
+	//var ng ipld.NodeGetter = merkledag.NewSession(ctx, n.Node.DAG)
+	//toDelete := cid.NewSet()
+	//err = merkledag.Walk(ctx, merkledag.GetLinksDirect(n.Node.DAG), rootCid, toDelete.Visit, merkledag.Concurrent())
+	//if err != nil {
+	//	return err
+	//}
+	//return toDelete.ForEach(func(c cid.Cid) error {
+	//	return n.API.Block().Rm(ctx, path.IpfsPath(c))
+	//})
 }
 
 // EmitMetrics emits node's metrics for the run

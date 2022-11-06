@@ -266,9 +266,9 @@ func (t *NetworkTestData) CleanupRun(
 		// Also clean passive nodes so they don't store blocks from
 		// previous runs.
 		// TODO fixme
-		//if err := t.Node.ClearDatastore(ctx, rootCid); err != nil {
-		//	return fmt.Errorf("Error clearing datastore: %w", err)
-		//}
+		if err := t.Node.ClearDatastore(ctx, rootCid); err != nil {
+			return fmt.Errorf("Error clearing datastore: %w", err)
+		}
 	}
 	return nil
 }
