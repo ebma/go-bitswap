@@ -203,13 +203,7 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 		// Log node info
 		globalInfoRecorder.RecordNodeInfo(
 			fmt.Sprintf(
-				"\"topology\": \"%s\", \"nodeId\": \"%s\", \"nodeType\": \"%s\"",
-				CreateTopologyString(
-					runenv.TestInstanceCount,
-					testVars.LeechCount,
-					testVars.SeedCount,
-					0,
-				),
+				"\"nodeId\": \"%s\", \"nodeType\": \"%s\"",
 				transferNode.Host().ID().String(),
 				nodeTestData.NodeType.String(),
 			),
@@ -314,13 +308,20 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 				)
 			}
 
-			dialed, err := dialer.SparseDial(
-				sctx,
-				transferNode.Host(),
-				nodeTestData.NodeType,
-				nodeTestData.PeerInfos,
-				50,
-			)
+			var dialed []peer.AddrInfo
+			if testVars.Dialer == "edge" {
+				dialed, err = dialer.DialFixedTopology(
+					sctx,
+					transferNode.Host(),
+					nodeTestData.NodeType,
+					nodeTestData.TypeIndex,
+					nodeTestData.PeerInfos,
+				)
+			} else if testVars.Dialer == "center" {
+				// TODO
+			} else {
+				panic("Unknown dialer type")
+			}
 			runenv.RecordMessage(
 				"%s Dialed %d other nodes",
 				nodeTestData.NodeType.String(),

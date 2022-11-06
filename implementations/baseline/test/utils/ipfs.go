@@ -27,6 +27,21 @@ type IPFSNode struct {
 	API  icore.CoreAPI
 }
 
+type NodeType int
+
+const (
+	// Seeds data
+	Seed NodeType = iota
+	// Fetches data from seeds
+	Leech
+	// Doesn't seed or fetch data
+	Passive
+)
+
+func (nt NodeType) String() string {
+	return [...]string{"Seed", "Leech", "Passive"}[nt]
+}
+
 // CreateIPFSNodeWithConfig constructs and returns an IpfsNode using the given cfg.
 func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig) (*IPFSNode, error) {
 	// Create new Datastore
@@ -81,6 +96,7 @@ func (n *IPFSNode) ClearDatastore(ctx context.Context, rootCid cid.Cid) error {
 			return err
 		}
 	}
+	// this probably fails but try to find out with log statements
 	var ng ipld.NodeGetter = merkledag.NewSession(ctx, n.Node.DAG)
 	toDelete := cid.NewSet()
 	err = merkledag.Walk(ctx, merkledag.GetLinksDirect(ng), rootCid, toDelete.Visit, merkledag.Concurrent())

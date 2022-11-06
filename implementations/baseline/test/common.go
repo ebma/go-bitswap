@@ -261,14 +261,14 @@ func (t *NetworkTestData) CleanupRun(
 	}
 	runenv.RecordMessage("Closed Connections")
 
-	if t.NodeType == utils.Leech || t.NodeType == utils.Passive ||
-		t.NodeType == utils.Eavesdropper {
+	if t.NodeType == utils.Leech || t.NodeType == utils.Passive {
 		// Clearing datastore
 		// Also clean passive nodes so they don't store blocks from
 		// previous runs.
-		if err := t.Node.ClearDatastore(ctx, rootCid); err != nil {
-			return fmt.Errorf("Error clearing datastore: %w", err)
-		}
+		// TODO fixme
+		//if err := t.Node.ClearDatastore(ctx, rootCid); err != nil {
+		//	return fmt.Errorf("Error clearing datastore: %w", err)
+		//}
 	}
 	return nil
 }
@@ -450,22 +450,6 @@ func getRootCidTopic(id int) *sync.Topic {
 
 func getTCPAddrTopic(id int, run int) *sync.Topic {
 	return sync.NewTopic(fmt.Sprintf("tcp-addr-%d-%d", id, run), "")
-}
-
-func CreateTopologyString(
-	totalInstances,
-	leechCount int,
-	seedCount int,
-	eavesdropperCount int,
-) string {
-	// (seeder-count:leech-count:passive-count:eavesdropper-count)
-	return fmt.Sprintf(
-		"(%d-%d-%d-%d)",
-		totalInstances-leechCount-seedCount-eavesdropperCount,
-		leechCount,
-		seedCount,
-		eavesdropperCount,
-	)
 }
 
 func CreateMetaFromParams(
