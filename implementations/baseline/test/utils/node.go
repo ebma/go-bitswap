@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"github.com/ipfs/go-bitswap"
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
 	ipld "github.com/ipfs/go-ipld-format"
@@ -23,7 +22,6 @@ type Node interface {
 	Fetch(ctx context.Context, cid cid.Cid, peers []PeerInfo) (files.Node, error)
 	ClearDatastore(ctx context.Context, rootCid cid.Cid) error
 	EmitMetrics(recorder MetricsRecorder) error
-	Instance() *bitswap.Bitswap
 	Host() host.Host
 	DAGService() ipld.DAGService
 	EmitKeepAlive(recorder MessageRecorder) error

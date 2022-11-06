@@ -8,16 +8,12 @@ import (
 	files "github.com/ipfs/go-ipfs-files"
 	ipld "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
-	"github.com/ipfs/interface-go-ipfs-core/path"
-	"github.com/libp2p/go-libp2p/core/host"
-
 	icore "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
-	//_ "github.com/ipfs/kubo/peering"
-	//_ "github.com/multiformats/go-multiaddr"
-	//_ "github.com/multiformats/go-multiaddr-dns"
-	//_ "github.com/multiformats/go-multihash"
+	"github.com/ipfs/kubo/core/node/libp2p"
+	"github.com/libp2p/go-libp2p/core/host"
 )
 
 // IPFSNode represents the node
@@ -26,14 +22,13 @@ type IPFSNode struct {
 	API  icore.CoreAPI
 }
 
-func (n *IPFSNode) Instance() *bs.Bitswap {
-	//TODO implement me
-	panic("implement me")
-}
-
 // CreateIPFSNodeWithConfig constructs and returns an IpfsNode using the given cfg.
 func CreateIPFSNodeWithConfig(ctx context.Context) (*IPFSNode, error) {
-	cfg := core.BuildCfg{}
+	cfg := core.BuildCfg{
+		Host:    libp2p.DefaultHostOption,
+		Online:  true,
+		Routing: libp2p.DHTOption,
+	}
 	n, err := core.NewNode(ctx, &cfg)
 	if err != nil {
 		return nil, err
@@ -75,7 +70,6 @@ func (n *IPFSNode) ClearDatastore(ctx context.Context, rootCid cid.Cid) error {
 
 // EmitMetrics emits node's metrics for the run
 func (n *IPFSNode) EmitMetrics(recorder MetricsRecorder) error {
-	// TODO: We ned a way of generalizing this for any exchange type
 	bsnode := n.Node.Exchange.(*bs.Bitswap)
 	stats, err := bsnode.Stat()
 
@@ -116,7 +110,6 @@ func (n *IPFSNode) Host() host.Host {
 }
 
 func (n *IPFSNode) EmitKeepAlive(recorder MessageRecorder) error {
-
 	recorder.RecordMessage("I am still alive! Total In: %d - TotalOut: %d",
 		n.Node.Reporter.GetBandwidthTotals().TotalIn,
 		n.Node.Reporter.GetBandwidthTotals().TotalOut)

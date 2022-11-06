@@ -8,9 +8,6 @@ import (
 	logging "github.com/ipfs/go-log"
 	"github.com/ipfs/testground/plans/trickle-bitswap/test/utils"
 	"github.com/ipfs/testground/plans/trickle-bitswap/test/utils/dialer"
-	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/testground/sdk-go/network"
 	"strconv"
@@ -20,16 +17,6 @@ import (
 	"github.com/testground/sdk-go/runtime"
 	"github.com/testground/sdk-go/sync"
 )
-
-func makeHost(baseT *BaseTestData) (host.Host, error) {
-	// Create libp2p node
-	privKey, err := crypto.UnmarshalPrivateKey(baseT.NConfig.PrivKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return libp2p.New(libp2p.Identity(privKey), libp2p.ListenAddrs(baseT.NConfig.AddrInfo.Addrs...))
-}
 
 func initializeBaseNetwork(
 	ctx context.Context,
@@ -185,13 +172,6 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 		return err
 	}
 
-	// Initialize libp2p host
-	h, err := makeHost(baseTestData)
-	if err != nil {
-		return err
-	}
-	runenv.RecordMessage("I am %s with addrs: %v", h.ID(), h.Addrs())
-
 	var tcpFetch int64
 
 	// Set up network (with traffic shaping)
@@ -230,7 +210,7 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 					testVars.SeedCount,
 					0,
 				),
-				h.ID().String(),
+				transferNode.Host().ID().String(),
 				nodeTestData.NodeType.String(),
 			),
 		)
@@ -334,57 +314,26 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 				)
 			}
 
-			if nodeTestData.NodeType != utils.Eavesdropper {
-				dialed, err := dialer.DialFixedTopology(
-					sctx,
-					transferNode.Host(),
-					nodeTestData.NodeType,
-					nodeTestData.TypeIndex,
-					nodeTestData.PeerInfos,
-				)
-				runenv.RecordMessage(
-					"%s Dialed %d other nodes",
-					nodeTestData.NodeType.String(),
-					len(dialed),
-				)
-				if err != nil {
-					return err
-				}
+			dialed, err := dialer.SparseDial(
+				sctx,
+				transferNode.Host(),
+				nodeTestData.NodeType,
+				nodeTestData.PeerInfos,
+				50,
+			)
+			runenv.RecordMessage(
+				"%s Dialed %d other nodes",
+				nodeTestData.NodeType.String(),
+				len(dialed),
+			)
+			if err != nil {
+				return err
 			}
 
 			// Wait for normal nodes to be connected
 			err = signalAndWaitForAll(
 				fmt.Sprintf(
 					"connect-normal-complete-%s",
-					runID,
-				),
-			)
-			if err != nil {
-				return err
-			}
-
-			if nodeTestData.NodeType == utils.Eavesdropper {
-				// Let eavesdropper nodes dial all peers
-				// we do this separately from the other call because of a TCP error when many instances are running
-				dialed, err := dialer.DialAllPeers(
-					sctx,
-					transferNode.Host(),
-					nodeTestData.NodeType,
-					nodeTestData.PeerInfos,
-				)
-				runenv.RecordMessage(
-					"%s Dialed %d other nodes",
-					nodeTestData.NodeType.String(),
-					len(dialed),
-				)
-				if err != nil {
-					return err
-				}
-			}
-			// Wait for eavesdropper nodes to be connected
-			err = signalAndWaitForAll(
-				fmt.Sprintf(
-					"connect-eavesdropper-complete-%s",
 					runID,
 				),
 			)
@@ -399,7 +348,7 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 					meta,
 					fmt.Sprintf(
 						"\"peer\": \"%s\", \"lookingFor\": \"%s\"",
-						nodeTestData.Node.Host().ID().String(),
+						transferNode.Host().ID().String(),
 						rootCid.String(),
 					),
 				)
@@ -458,14 +407,6 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 
 		// cancel permutation context
 		pcancel()
-	}
-
-	// Close host at end of eavesdropper test permutation
-	if h != nil {
-		err = h.Close()
-		if err != nil {
-			return err
-		}
 	}
 
 	runenv.RecordMessage("Ending testcase")
