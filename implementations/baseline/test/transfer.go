@@ -184,14 +184,12 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 		pctx, pcancel := context.WithTimeout(ctx, testVars.Timeout)
 
 		runenv.RecordMessage(
-			"Running test permutation %d, with latency %d and delay %d",
+			"Running test permutation %d, with latency %d",
 			pIndex,
 			testVars.Latency,
-			testParams.TricklingDelay,
 		)
 
 		// Initialize the bitswap node with trickling delay of test permutation
-		tricklingDelay := testParams.TricklingDelay
 		nodeTestData, err := initializeIPFSTest(
 			pctx,
 			runenv,
@@ -282,7 +280,6 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 				testVars.Dialer,
 				0,
 				testVars.Latency,
-				tricklingDelay,
 				nodeTestData.Seq,
 				int(testParams.File.Size()),
 				nodeTestData.NodeType,

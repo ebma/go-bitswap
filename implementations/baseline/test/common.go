@@ -24,8 +24,7 @@ import (
 )
 
 type TestPermutation struct {
-	File           utils.TestFile
-	TricklingDelay time.Duration
+	File utils.TestFile
 }
 
 // TestVars testing variables
@@ -80,10 +79,6 @@ func GetEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	}
 	tv.LeechCount = 1
 	tv.SeedCount = 1
-	tricklingDelays, err := utils.ParseIntArray(runenv.StringParam("trickling_delay_ms"))
-	if err != nil {
-		return nil, err
-	}
 	testFiles, err := utils.GetFileList(runenv)
 	if err != nil {
 		return nil, err
@@ -91,15 +86,12 @@ func GetEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	runenv.RecordMessage("Got file list: %v", testFiles)
 
 	for _, f := range testFiles {
-		for _, td := range tricklingDelays {
-			tv.Permutations = append(
-				tv.Permutations,
-				TestPermutation{
-					File:           f,
-					TricklingDelay: time.Duration(td) * time.Millisecond,
-				},
-			)
-		}
+		tv.Permutations = append(
+			tv.Permutations,
+			TestPermutation{
+				File: f,
+			},
+		)
 	}
 
 	return tv, nil
@@ -458,20 +450,18 @@ func CreateMetaFromParams(
 	dialer string,
 	eavesCount int,
 	latency time.Duration,
-	tricklingDelay time.Duration,
 	seq int64,
 	fileSize int,
 	nodeType utils.NodeType,
 	typeIndex int,
 ) string {
 	id := fmt.Sprintf(
-		"exType:baseline/permutationIndex:%d/run:%d/dialer:%s/eavesCount:%d/latencyMS:%d/tricklingDelay:%d/seq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d",
+		"exType:baseline/permutationIndex:%d/run:%d/dialer:%s/eavesCount:%d/latencyMS:%d/seq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d",
 		pIndex,
 		runNum,
 		dialer,
 		eavesCount,
 		latency.Milliseconds(),
-		tricklingDelay.Milliseconds(),
 		seq,
 		fileSize,
 		nodeType,
