@@ -39,10 +39,11 @@ type peerWantManager struct {
 	// Keeps track of the number of active want-blocks
 	wantBlockGauge Gauge
 
-	// tricklingLock is used to delay the execution of the trickling function
-	tricklingLock  sync.Mutex
-	tricklingDelay time.Duration
-	seededRand     rand.Rand
+	// tricklingLocks are used to delay the execution of the trickling function
+	tricklingLockWant   sync.Mutex
+	tricklingLockCancel sync.Mutex
+	tricklingDelay      time.Duration
+	seededRand          rand.Rand
 }
 
 type peerWant struct {
@@ -62,9 +63,10 @@ func newPeerWantManager(wantGauge Gauge, wantBlockGauge Gauge) *peerWantManager 
 		wantGauge:      wantGauge,
 		wantBlockGauge: wantBlockGauge,
 
-		tricklingLock:  sync.Mutex{},
-		tricklingDelay: defaults.TricklingDelay,
-		seededRand:     *randSource}
+		tricklingLockWant:   sync.Mutex{},
+		tricklingLockCancel: sync.Mutex{},
+		tricklingDelay:      defaults.TricklingDelay,
+		seededRand:          *randSource}
 }
 
 // addPeer adds a peer whose wants we need to keep track of. It sends the
@@ -127,14 +129,14 @@ func (pwm *peerWantManager) removePeer(p peer.ID) {
 	delete(pwm.peerWants, p)
 }
 
-func (pwm *peerWantManager) trickleExecution(trickledFunction func()) {
+func (pwm *peerWantManager) trickleExecution(lock *sync.Mutex, trickledFunction func()) {
 	// If the trickling delay is 0, execute the function immediately
 	if pwm.tricklingDelay == 0 {
 		trickledFunction()
 		return
 	}
-	pwm.tricklingLock.Lock()
-	defer pwm.tricklingLock.Unlock()
+	lock.Lock()
+	defer lock.Unlock()
 	trickledFunction()
 	time.Sleep(pwm.tricklingDelay)
 }
@@ -191,7 +193,7 @@ func (pwm *peerWantManager) broadcastWantHaves(wantHaves []cid.Cid) {
 		}
 
 		if len(peerUnsent) > 0 {
-			pwm.trickleExecution(func() {
+			pwm.trickleExecution(&pwm.tricklingLockWant, func() {
 				pws.peerQueue.AddBroadcastWantHaves(peerUnsent)
 			})
 		}
@@ -332,7 +334,9 @@ func (pwm *peerWantManager) sendCancels(cancelKs []cid.Cid) {
 		// If a broadcast want is being cancelled, send the cancel to all
 		// peers
 		for p, pws := range pwm.peerWants {
-			send(p, pws)
+			pwm.trickleExecution(&pwm.tricklingLockCancel, func() {
+				send(p, pws)
+			})
 		}
 	} else {
 		// Only send cancels to peers that received a corresponding want
