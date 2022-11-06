@@ -24,10 +24,8 @@ require (
 	github.com/ipfs/go-unixfs v0.4.0
 	github.com/ipfs/interface-go-ipfs-core v0.7.0
 	github.com/ipfs/kubo v0.16.0
-	github.com/jbenet/goprocess v0.1.4
 	github.com/libp2p/go-libp2p v0.23.2
 	github.com/multiformats/go-multiaddr v0.7.0
-	github.com/multiformats/go-multiaddr-dns v0.3.1
 	github.com/multiformats/go-multihash v0.2.1
 	github.com/pkg/errors v0.9.1
 	github.com/testground/sdk-go v0.3.0
@@ -119,6 +117,7 @@ require (
 	github.com/ipld/go-ipld-prime v0.18.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
+	github.com/jbenet/goprocess v0.1.4 // indirect
 	github.com/klauspost/compress v1.15.10 // indirect
 	github.com/klauspost/cpuid/v2 v2.1.1 // indirect
 	github.com/koron/go-ssdp v0.0.3 // indirect
@@ -161,6 +160,7 @@ require (
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/multiformats/go-base32 v0.1.0 // indirect
 	github.com/multiformats/go-base36 v0.1.0 // indirect
+	github.com/multiformats/go-multiaddr-dns v0.3.1 // indirect
 	github.com/multiformats/go-multiaddr-fmt v0.1.0 // indirect
 	github.com/multiformats/go-multibase v0.1.1 // indirect
 	github.com/multiformats/go-multicodec v0.6.0 // indirect
