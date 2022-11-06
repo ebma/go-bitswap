@@ -16,7 +16,7 @@ run_image = "scratch"
 [builders."docker:go"]
 enabled = true
 skip_runtime_image = true
-build_base_image = "golang:1.17.8-buster"
+build_base_image = "golang:1.18.8-buster"
 
 [builders."docker:go".dockerfile_extensions]
 # Copy local version of go-bitswap to the build container.
