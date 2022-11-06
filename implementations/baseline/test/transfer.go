@@ -120,7 +120,7 @@ func initializeNodeTypeAndPeers(
 }
 
 func initializeIPFSTest(ctx context.Context, runenv *runtime.RunEnv, baseT *TestData) (*NetworkTestData, error) {
-	ipfsNode, err := utils.CreateIPFSNodeWithConfig(ctx)
+	ipfsNode, err := utils.CreateIPFSNodeWithConfig(ctx, baseT.NConfig)
 
 	if err != nil {
 		runenv.RecordFailure(err)

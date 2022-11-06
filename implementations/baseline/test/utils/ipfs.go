@@ -2,17 +2,22 @@ package utils
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	bs "github.com/ipfs/go-bitswap"
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
+	dsync "github.com/ipfs/go-datastore/sync"
 	files "github.com/ipfs/go-ipfs-files"
 	ipld "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
 	"github.com/ipfs/kubo/core/node/libp2p"
+	"github.com/ipfs/kubo/repo"
 	"github.com/libp2p/go-libp2p/core/host"
 )
 
@@ -23,13 +28,34 @@ type IPFSNode struct {
 }
 
 // CreateIPFSNodeWithConfig constructs and returns an IpfsNode using the given cfg.
-func CreateIPFSNodeWithConfig(ctx context.Context) (*IPFSNode, error) {
-	cfg := core.BuildCfg{
+func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig) (*IPFSNode, error) {
+	// Create new Datastore
+	d := datastore.NewMapDatastore()
+	// Initialize config.
+	cfg := &config.Config{}
+
+	// Use defaultBootstrap
+	cfg.Bootstrap = config.DefaultBootstrapAddresses
+
+	//Allow the node to start in any available port. We do not use default ones.
+	cfg.Addresses.Swarm = nConfig.Addrs
+
+	cfg.Identity.PeerID = nConfig.AddrInfo.ID.String()
+	cfg.Identity.PrivKey = base64.StdEncoding.EncodeToString(nConfig.PrivKey)
+
+	// Repo structure that encapsulate the config and datastore for dependency injection.
+	buildRepo := &repo.Mock{
+		D: dsync.MutexWrap(d),
+		C: *cfg,
+	}
+
+	bcfg := &core.BuildCfg{
 		Host:    libp2p.DefaultHostOption,
 		Online:  true,
 		Routing: libp2p.DHTOption,
+		Repo:    buildRepo,
 	}
-	n, err := core.NewNode(ctx, &cfg)
+	n, err := core.NewNode(ctx, bcfg)
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +70,6 @@ func CreateIPFSNodeWithConfig(ctx context.Context) (*IPFSNode, error) {
 }
 
 // ClearDatastore removes a block from the datastore.
-// TODO: This function may be inefficient with large blockstore. Used the option above.
-// This function may be cleaned in the future.
 func (n *IPFSNode) ClearDatastore(ctx context.Context, rootCid cid.Cid) error {
 	_, pinned, err := n.API.Pin().IsPinned(ctx, path.IpfsPath(rootCid))
 	if err != nil {
