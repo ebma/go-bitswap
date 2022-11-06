@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/libp2p/go-libp2p/core/host"
 	"sync"
 	"time"
 
@@ -30,8 +31,11 @@ import (
 	"github.com/ipfs/kubo/core/node/helpers"
 	"github.com/ipfs/kubo/core/node/libp2p"
 	"github.com/ipfs/kubo/p2p" // This package is needed so that all the preloaded plugins are loaded automatically
+	_ "github.com/ipfs/kubo/peering"
 	"github.com/ipfs/kubo/repo"
-	"github.com/libp2p/go-libp2p/core/host"
+	_ "github.com/multiformats/go-multiaddr"
+	_ "github.com/multiformats/go-multiaddr-dns"
+	_ "github.com/multiformats/go-multihash"
 )
 
 // IPFSNode represents the node
@@ -57,6 +61,7 @@ func baseProcess(lc fx.Lifecycle) goprocess.Process {
 	return p
 }
 
+// TODO copy configuration from here https://github.com/ipfs/kubo/blob/master/core/node/groups.go
 // setConfig manually injects dependencies for the IPFS nodes.
 func setConfig(ctx context.Context, nConfig *NodeConfig, DHTenabled bool, providingEnabled bool) fx.Option {
 
@@ -177,8 +182,11 @@ func setConfig(ctx context.Context, nConfig *NodeConfig, DHTenabled bool, provid
 		fx.Invoke(libp2p.StartListening(cfg.Addresses.Swarm)),
 		// TODO: Reminder. MDN discovery disabled.
 		fx.Invoke(libp2p.SetupDiscovery(cfg.Discovery.MDNS.Enabled)),
+		//fx.Provide(libp2p.Routing),
+		//fx.Provide(libp2p.BaseRouting),
 		fx.Provide(libp2p.Routing),
-		fx.Provide(libp2p.BaseRouting),
+		fx.Provide(libp2p.ContentRouting),
+		fx.Provide(libp2p.BaseRouting(cfg.Experimental.AcceleratedDHTClient)),
 		// Enable IPFS bandwidth metrics.
 		fx.Provide(libp2p.BandwidthCounter),
 

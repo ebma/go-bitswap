@@ -409,7 +409,7 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 					testParams.File.Size(),
 				)
 				start := time.Now()
-				ctxFetch, fetchCancel := context.WithTimeout(sctx, testVars.RunTimeout/2)
+				ctxFetch, fetchCancel := context.WithTimeout(sctx, testVars.RunTimeout)
 				rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, nodeTestData.PeerInfos)
 				if err != nil {
 					runenv.RecordMessage("Error fetching data: %v", err)
