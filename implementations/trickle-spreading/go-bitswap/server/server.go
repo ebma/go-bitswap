@@ -48,7 +48,7 @@ type Server struct {
 
 	// External statistics interface
 	Tracer    tracer.Tracer
-	shouldLog bool
+	ShouldLog bool
 
 	// Counters for various statistics
 	counterLk sync.Mutex
@@ -104,7 +104,7 @@ func New(
 		provideEnabled:     true,
 		hasBlockBufferSize: defaults.HasBlockBufferSize,
 		provideKeys:        make(chan cid.Cid, provideKeysBufferSize),
-		shouldLog:          true,
+		ShouldLog:          true,
 	}
 	s.newBlocks = make(chan cid.Cid, s.hasBlockBufferSize)
 
@@ -520,9 +520,9 @@ func (bs *Server) ReceiveMessage(ctx context.Context, p peer.ID, incoming messag
 	if bs.Tracer != nil {
 		// only log first message as this is the one relevant to the eavesdropper and logging all of them is expensive
 		// in regards to disk space
-		if bs.shouldLog {
+		if bs.ShouldLog {
 			bs.Tracer.MessageReceived(p, incoming)
-			bs.shouldLog = false
+			bs.ShouldLog = false
 		}
 
 	}
