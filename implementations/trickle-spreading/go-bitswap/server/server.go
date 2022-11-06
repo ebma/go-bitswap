@@ -47,7 +47,8 @@ type Server struct {
 	network bsnet.BitSwapNetwork
 
 	// External statistics interface
-	Tracer tracer.Tracer
+	Tracer    tracer.Tracer
+	shouldLog bool
 
 	// Counters for various statistics
 	counterLk sync.Mutex
@@ -103,6 +104,7 @@ func New(
 		provideEnabled:     true,
 		hasBlockBufferSize: defaults.HasBlockBufferSize,
 		provideKeys:        make(chan cid.Cid, provideKeysBufferSize),
+		shouldLog:          true,
 	}
 	s.newBlocks = make(chan cid.Cid, s.hasBlockBufferSize)
 
@@ -516,7 +518,13 @@ func (bs *Server) ReceiveMessage(ctx context.Context, p peer.ID, incoming messag
 	// Should only track *useful* messages in ledger
 
 	if bs.Tracer != nil {
-		bs.Tracer.MessageReceived(p, incoming)
+		// only log first message as this is the one relevant to the eavesdropper and logging all of them is expensive
+		// in regards to disk space
+		if bs.shouldLog {
+			bs.Tracer.MessageReceived(p, incoming)
+			bs.shouldLog = false
+		}
+
 	}
 }
 

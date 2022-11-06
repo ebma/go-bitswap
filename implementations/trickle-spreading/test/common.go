@@ -522,18 +522,13 @@ func (mr *metricsRecorder) Record(key string, value float64) {
 }
 
 type MessageHistoryRecorder struct {
-	runenv    *runtime.RunEnv
-	file      *os.File
-	meta      string
-	host      string
-	shouldLog bool
+	runenv *runtime.RunEnv
+	file   *os.File
+	meta   string
+	host   string
 }
 
 func (m MessageHistoryRecorder) MessageReceived(pid peer.ID, msg bsmsg.BitSwapMessage) {
-	if !m.shouldLog {
-		// this somehow doesnt work
-		return
-	}
 	timestamp := time.Now().UnixNano()
 	// don't log non-want-have messages
 	if len(msg.Wantlist()) == 0 {
@@ -562,10 +557,8 @@ func (m MessageHistoryRecorder) MessageReceived(pid peer.ID, msg bsmsg.BitSwapMe
 		m.runenv.RecordMessage("Error writing message history entry: %s", err)
 		return
 	}
-
-	// Make sure to log only once
-	m.shouldLog = false
 }
+
 func (m MessageHistoryRecorder) MessageSent(pid peer.ID, msg bsmsg.BitSwapMessage) {
 
 }
@@ -584,7 +577,7 @@ func NewMessageHistoryRecorder(
 		runenv.RecordMessage("Error creating message history file: %s", err)
 		return nil
 	}
-	return &MessageHistoryRecorder{runenv, file, meta, host, true}
+	return &MessageHistoryRecorder{runenv, file, meta, host}
 
 }
 
