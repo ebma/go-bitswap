@@ -343,8 +343,6 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 			)
 
 			nodeTestData.Node.Instance().Server.Tracer = messageHistoryRecorder
-			// reset shouldlog variable of bitswap instance
-			nodeTestData.Node.Instance().Server.ShouldLog = true
 
 			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
 
