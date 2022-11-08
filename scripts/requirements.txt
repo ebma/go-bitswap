@@ -1,19 +1,7 @@
 toml
-jinja2
-ndjson
 pandas
 numpy
 matplotlib
-jupyter
-ipywidgets
-bunch
-stringcase
-papermill
-jupyter-ui-poll
-jupyter_contrib_nbextensions
 durations
-seaborn
-python-rclone
 pandas-sets
-base58
-ipyfilechooser
+seaborn == 0.11.2
