@@ -51,11 +51,15 @@ def aggregate_message_histories(results_dir):
 def process_info_line(line, experiment_id):
     line = json.loads(line)
     item = line
+    # assume trickle experiment by default
+    item['exType'] = 'trickle'
     if 'meta' in line:
         name = line['meta'].split("/")
         for attr in name:
             attr = attr.split(":")
             item[attr[0]] = attr[1]
+    if 'topology' in item:
+        item['eavesCount'] = item['topology'].split('-')[-1][0]
     item['experiment'] = experiment_id
     return item
 
@@ -64,9 +68,13 @@ def process_message_line(line, experiment_id):
     line = json.loads(line)
     name = line['meta'].split("/")
     item = line
+    # assume trickle experiment by default
+    item['exType'] = 'trickle'
     for attr in name:
         attr = attr.split(":")
         item[attr[0]] = attr[1]
+    if 'topology' in item:
+        item['eavesCount'] = item['topology'].split('-')[-1][0]
     item['ts'] = line['ts']
     item['experiment'] = experiment_id
     return item

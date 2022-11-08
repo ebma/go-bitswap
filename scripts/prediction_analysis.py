@@ -16,9 +16,9 @@ def analyse_prediction_rates(messages, info_items, export_pdf):
     # Holds the items that describe the true target of the prediction
     prediction_targets = [item for item in info_items if item['type'] == 'LeechInfo']
 
-    messages_by_topology = process.groupBy(messages, "topology")
-    for topology, messages_for_topology in messages_by_topology.items():
-        by_latency = process.groupBy(messages_for_topology, "latencyMS")
+    messages_by_eaves_count = process.groupBy(messages, "eavesCount")
+    for eavesCount, messages_for_eavesCount in messages_by_eaves_count.items():
+        by_latency = process.groupBy(messages_for_eavesCount, "latencyMS")
 
         # Get prediction rates for each latency (contains multiple experiments)
         for latency, messagesWithLatency in by_latency.items():
@@ -35,12 +35,11 @@ def analyse_prediction_rates(messages, info_items, export_pdf):
                         targets = [item for item in prediction_targets if
                                    item['experiment'] == experiment and item['latencyMS'] == latency and item[
                                        'tricklingDelay'] == delay and item['fileSize'] == file_size and item[
-                                       'topology'] == topology]
+                                       'eavesCount'] == eavesCount]
                         rate = first_timestamp_estimator.get_prediction_rate(messagesWithDelay, targets)
-                        eavesdropper_count = topology[-2]
                         results.append(
                             {'latency': latency, 'experiment': experiment, 'delay': delay,
-                             'eavesdroppers': eavesdropper_count,
+                             'eavesdroppers': eavesCount,
                              'rate': rate, 'file_size': file_size})
 
     df = pd.DataFrame({'Delay': [item['delay'] for item in results],
@@ -67,7 +66,7 @@ def analyse_prediction_rates(messages, info_items, export_pdf):
 
 
 # The message_items are already filtered to only contain the Eavesdropper messages
-def analyse_and_save_to_file_single(topology, message_items, info_items, export_pdf_averaged):
+def analyse_and_save_to_file_single(eavesCount, message_items, info_items, export_pdf_averaged):
     # Store results for each experiment and trickling delay in a dict
     results = list()
 
@@ -107,7 +106,7 @@ def analyse_and_save_to_file_single(topology, message_items, info_items, export_
     sns.despine(offset=10, trim=False)
 
     splot.set(xlabel='Trickling delay (ms)', ylabel='Prediction rate',
-              title=f'Prediction rate for different trickling delays with topology {topology}', ylim=(0, 1))
+              title=f'Prediction rate for different trickling delays with eavesCount {eavesCount}', ylim=(0, 1))
 
     plt.grid()
     plt.figure(figsize=(10, 10))
@@ -115,7 +114,7 @@ def analyse_and_save_to_file_single(topology, message_items, info_items, export_
     sns.despine(offset=10, trim=False)
 
     splot.set(xlabel='Trickling delay (ms)', ylabel='Prediction rate',
-              title=f'Prediction rate for different trickling delays with topology {topology}', ylim=(0, 1))
+              title=f'Prediction rate for different trickling delays with eavesCount {eavesCount}', ylim=(0, 1))
 
     plt.grid()
     export_pdf_averaged.savefig(splot.figure, pad_inches=0.4, bbox_inches='tight')
