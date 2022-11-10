@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
-	logging "github.com/ipfs/go-log"
 	"github.com/ipfs/testground/plans/trickle-bitswap/test/utils"
 	"github.com/ipfs/testground/plans/trickle-bitswap/test/utils/dialer"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -140,17 +139,11 @@ func initializeIPFSTest(ctx context.Context, runenv *runtime.RunEnv, baseT *Test
 	}, nil
 }
 
-// Launch bitswap nodes and connect them to each other.
 func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContext) error {
 	testVars, err := GetEnvVars(runenv)
 	if err != nil {
 		return err
 	}
-	logging.SetLogLevel("bs:peermgr", "DEBUG")
-	logging.SetLogLevel("dagadder", "DEBUG")
-	logging.SetLogLevel("node", "DEBUG")
-	//logging.SetLogLevel("bitswap", "DEBUG")
-	//logging.SetLogLevel("*", "DEBUG")
 
 	/// --- Set up
 	ctx, cancel := context.WithTimeout(context.Background(), testVars.Timeout)
@@ -160,8 +153,6 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 	if err != nil {
 		return err
 	}
-
-	globalInfoRecorder := NewGlobalInfoRecorder(runenv)
 
 	testData, err := initializeNodeTypeAndPeers(
 		ctx,
@@ -180,204 +171,176 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 		return fmt.Errorf("Failed to set up network: %v", err)
 	}
 
-	// For each test permutation found in the test
-	for pIndex, testParams := range testVars.Permutations {
-		pctx, pcancel := context.WithTimeout(ctx, testVars.Timeout)
-		defer pcancel()
+	runenv.RecordMessage(
+		"Running test with latency %d",
+		testVars.Latency,
+	)
 
-		runenv.RecordMessage(
-			"Running test permutation %d, with latency %d",
-			pIndex,
+	for runNum := 1; runNum < testVars.RunCount+1; runNum++ {
+		// Reset the timeout for each run
+		sctx, scancel := context.WithTimeout(ctx, testVars.RunTimeout)
+		defer scancel()
+
+		// used for sync topics
+		runID := fmt.Sprintf("%d", runNum)
+
+		nodeTestData, err := initializeIPFSTest(
+			sctx,
+			runenv,
+			testData,
+		)
+		transferNode := nodeTestData.Node
+		signalAndWaitForAll := nodeTestData.SignalAndWaitForAll
+
+		// Accounts for every file that couldn't be found.
+		var leechFails int64
+		var rootCid cid.Cid
+
+		// Wait for all nodes to be ready to start the run
+		err = signalAndWaitForAll(fmt.Sprintf("start-file-%v", runID))
+		if err != nil {
+			return err
+		}
+
+		switch nodeTestData.NodeType {
+		case utils.Seed:
+			rootCid, err = nodeTestData.AddPublishFile(
+				sctx,
+				runID,
+				testVars.File,
+				runenv,
+			)
+		case utils.Leech:
+			rootCid, err = nodeTestData.ReadFile(sctx, runID, runenv, testVars)
+		}
+		if err != nil {
+			return err
+		}
+
+		runenv.RecordMessage("File injest complete...")
+		// Wait for all nodes to be ready to dial
+		err = signalAndWaitForAll(
+			fmt.Sprintf("injest-complete-%v", runID),
+		)
+		if err != nil {
+			return err
+		}
+
+		runenv.RecordMessage("Starting Fetch...")
+
+		// Used for logging
+		meta := CreateMetaFromParams(
+			runNum,
+			testVars.Dialer,
+			0,
 			testVars.Latency,
+			nodeTestData.Seq,
+			testVars.FileSize,
+			nodeTestData.NodeType,
+			nodeTestData.TypeIndex,
 		)
 
-		for runNum := 1; runNum < testVars.RunCount+1; runNum++ {
-			// Reset the timeout for each run
-			sctx, scancel := context.WithTimeout(pctx, testVars.RunTimeout)
-			defer scancel()
+		// Wait for all nodes to be ready to start the run
+		err = signalAndWaitForAll(
+			fmt.Sprintf("start-run-%s", runID),
+		)
+		if err != nil {
+			return err
+		}
 
-			// used for sync topics
-			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
-
-			nodeTestData, err := initializeIPFSTest(
-				pctx,
-				runenv,
-				testData,
-			)
-			transferNode := nodeTestData.Node
-			signalAndWaitForAll := nodeTestData.SignalAndWaitForAll
-
-			// Log node info
-			globalInfoRecorder.RecordNodeInfo(
-				fmt.Sprintf(
-					"\"nodeId\": \"%s\", \"nodeType\": \"%s\"",
-					transferNode.Host().ID().String(),
-					nodeTestData.NodeType.String(),
-				),
-			)
-
-			// Accounts for every file that couldn't be found.
-			var leechFails int64
-			var rootCid cid.Cid
-
-			// Wait for all nodes to be ready to start the run
-			err = signalAndWaitForAll(fmt.Sprintf("start-file-%v", runID))
-			if err != nil {
-				return err
-			}
-
-			switch nodeTestData.NodeType {
-			case utils.Seed:
-				rootCid, err = nodeTestData.AddPublishFile(
-					pctx,
-					runID,
-					testParams.File,
-					runenv,
-				)
-			case utils.Leech:
-				rootCid, err = nodeTestData.ReadFile(pctx, runID, runenv, testVars)
-			}
-			if err != nil {
-				return err
-			}
-
-			runenv.RecordMessage("File injest complete...")
-			// Wait for all nodes to be ready to dial
-			err = signalAndWaitForAll(
-				fmt.Sprintf("injest-complete-%d", pIndex),
-			)
-			if err != nil {
-				return err
-			}
-
-			runenv.RecordMessage("Starting Fetch...", runID)
-
-			// Used for logging
-			meta := CreateMetaFromParams(
-				pIndex,
+		if nodeTestData.NodeType == utils.Leech {
+			runenv.RecordMessage(
+				"Starting run %d / %d (%d bytes)",
 				runNum,
-				testVars.Dialer,
-				0,
-				testVars.Latency,
-				nodeTestData.Seq,
-				int(testParams.File.Size()),
+				testVars.RunCount,
+				testVars.FileSize,
+			)
+		}
+
+		var dialed []peer.AddrInfo
+		if testVars.Dialer == "edge" {
+			dialed, err = dialer.DialFixedTopology(
+				sctx,
+				transferNode.Host(),
 				nodeTestData.NodeType,
 				nodeTestData.TypeIndex,
+				nodeTestData.PeerInfos,
 			)
-
-			// Wait for all nodes to be ready to start the run
-			err = signalAndWaitForAll(
-				fmt.Sprintf("start-run-%s", runID),
-			)
-			if err != nil {
-				return err
-			}
-
-			if nodeTestData.NodeType == utils.Leech {
-				runenv.RecordMessage(
-					"Starting run %d / %d (%d bytes)",
-					runNum,
-					testVars.RunCount,
-					testParams.File.Size(),
-				)
-			}
-
-			var dialed []peer.AddrInfo
-			if testVars.Dialer == "edge" {
-				dialed, err = dialer.DialFixedTopology(
-					sctx,
-					transferNode.Host(),
-					nodeTestData.NodeType,
-					nodeTestData.TypeIndex,
-					nodeTestData.PeerInfos,
-				)
-			} else if testVars.Dialer == "center" {
-				// TODO
-			} else {
-				panic("Unknown dialer type")
-			}
-			runenv.RecordMessage(
-				"%s Dialed %d other nodes",
-				nodeTestData.NodeType.String(),
-				len(dialed),
-			)
-			if err != nil {
-				return err
-			}
-
-			// Wait for normal nodes to be connected
-			err = signalAndWaitForAll(
-				fmt.Sprintf(
-					"connect-normal-complete-%s",
-					runID,
-				),
-			)
-			if err != nil {
-				return err
-			}
-
-			/// --- Start test
-			var timeToFetch time.Duration
-			if nodeTestData.NodeType == utils.Leech {
-				globalInfoRecorder.RecordInfoWithMeta(
-					meta,
-					fmt.Sprintf(
-						"\"peer\": \"%s\", \"lookingFor\": \"%s\"",
-						transferNode.Host().ID().String(),
-						rootCid.String(),
-					),
-				)
-				runenv.RecordMessage(
-					"Starting to leech %d / %d (%d bytes)",
-					runNum,
-					testVars.RunCount,
-					testParams.File.Size(),
-				)
-				start := time.Now()
-				ctxFetch, fetchCancel := context.WithTimeout(sctx, testVars.RunTimeout)
-				rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, nodeTestData.PeerInfos)
-				if err != nil {
-					runenv.RecordMessage("Error fetching data: %v", err)
-					leechFails++
-				} else {
-					runenv.RecordMessage("Fetch complete, proceeding")
-					err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(nodeTestData.TypeIndex)+time.Now().String())
-					if err != nil {
-						fetchCancel()
-						return err
-					}
-					timeToFetch = time.Since(start)
-					s, _ := rcvFile.Size()
-					runenv.RecordMessage("Leech fetch of %d complete (%d ms)", s, timeToFetch.Milliseconds())
-				}
-				fetchCancel()
-			}
-
-			// Wait for all leeches to have downloaded the data from seeds
-			err = signalAndWaitForAll(
-				fmt.Sprintf("transfer-complete-%s", runID),
-			)
-			if err != nil {
-				return err
-			}
-
-			/// --- Report stats
-			err = nodeTestData.EmitMetrics(runenv, meta, timeToFetch, tcpFetch, leechFails)
-			if err != nil {
-				return err
-			}
-
-			runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
-
-			err = nodeTestData.CleanupRun()
-			if err != nil {
-				return err
-			}
+		} else if testVars.Dialer == "center" {
+			// TODO
+		} else {
+			panic("Unknown dialer type")
 		}
-		// cancel permutation context
-		pcancel()
-	}
+		runenv.RecordMessage(
+			"%s Dialed %d other nodes",
+			nodeTestData.NodeType.String(),
+			len(dialed),
+		)
+		if err != nil {
+			return err
+		}
 
+		// Wait for normal nodes to be connected
+		err = signalAndWaitForAll(
+			fmt.Sprintf(
+				"connect-normal-complete-%s",
+				runID,
+			),
+		)
+		if err != nil {
+			return err
+		}
+
+		/// --- Start test
+		var timeToFetch time.Duration
+		if nodeTestData.NodeType == utils.Leech {
+			runenv.RecordMessage(
+				"Starting to leech %d / %d (%d bytes)",
+				runNum,
+				testVars.RunCount,
+				testVars.FileSize,
+			)
+			start := time.Now()
+			ctxFetch, fetchCancel := context.WithTimeout(sctx, testVars.RunTimeout)
+			rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, nodeTestData.PeerInfos)
+			if err != nil {
+				runenv.RecordMessage("Error fetching data: %v", err)
+				leechFails++
+			} else {
+				runenv.RecordMessage("Fetch complete, proceeding")
+				err = files.WriteTo(rcvFile, "/tmp/"+strconv.Itoa(nodeTestData.TypeIndex)+time.Now().String())
+				if err != nil {
+					fetchCancel()
+					return err
+				}
+				timeToFetch = time.Since(start)
+				s, _ := rcvFile.Size()
+				runenv.RecordMessage("Leech fetch of %d complete (%d ms)", s, timeToFetch.Milliseconds())
+			}
+			fetchCancel()
+		}
+
+		// Wait for all leeches to have downloaded the data from seeds
+		err = signalAndWaitForAll(
+			fmt.Sprintf("transfer-complete-%s", runID),
+		)
+		if err != nil {
+			return err
+		}
+
+		/// --- Report stats
+		err = nodeTestData.EmitMetrics(runenv, meta, timeToFetch, tcpFetch, leechFails)
+		if err != nil {
+			return err
+		}
+
+		runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
+
+		err = nodeTestData.CleanupRun()
+		if err != nil {
+			return err
+		}
+	}
 	runenv.RecordMessage("Ending testcase")
 	return nil
 }

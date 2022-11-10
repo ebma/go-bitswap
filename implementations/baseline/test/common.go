@@ -3,10 +3,8 @@ package test
 import (
 	"context"
 	"fmt"
-	bsmsg "github.com/ipfs/go-bitswap/message"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/testground/plans/trickle-bitswap/test/utils"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -22,21 +20,18 @@ import (
 	"github.com/testground/sdk-go/network"
 )
 
-type TestPermutation struct {
-	File utils.TestFile
-}
-
 // TestVars testing variables
 type TestVars struct {
-	Dialer       string
-	Latency      time.Duration
-	LeechCount   int
-	Permutations []TestPermutation
-	RunCount     int
-	RunTimeout   time.Duration
-	SeedCount    int
-	TCPEnabled   bool
-	Timeout      time.Duration
+	Dialer     string
+	FileSize   int
+	File       utils.TestFile
+	Latency    time.Duration
+	LeechCount int
+	RunCount   int
+	RunTimeout time.Duration
+	SeedCount  int
+	TCPEnabled bool
+	Timeout    time.Duration
 }
 
 type BaseTestData struct {
@@ -76,22 +71,16 @@ func GetEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 	if runenv.IsParamSet("latency_ms") {
 		tv.Latency = time.Duration(runenv.IntParam("latency_ms")) * time.Millisecond
 	}
+	if runenv.IsParamSet("file_size") {
+		tv.FileSize = runenv.IntParam("file_size")
+		list, err := utils.GetFileList(runenv)
+		if err != nil {
+			return nil, err
+		}
+		tv.File = list[0]
+	}
 	tv.LeechCount = 1
 	tv.SeedCount = 1
-	testFiles, err := utils.GetFileList(runenv)
-	if err != nil {
-		return nil, err
-	}
-	runenv.RecordMessage("Got file list: %v", testFiles)
-
-	for _, f := range testFiles {
-		tv.Permutations = append(
-			tv.Permutations,
-			TestPermutation{
-				File: f,
-			},
-		)
-	}
 
 	return tv, nil
 }
@@ -324,12 +313,7 @@ func getRootCidTopic(id string) *sync.Topic {
 	return sync.NewTopic(fmt.Sprintf("root-cid-%v", id), &cid.Cid{})
 }
 
-func getTCPAddrTopic(id int, run int) *sync.Topic {
-	return sync.NewTopic(fmt.Sprintf("tcp-addr-%d-%d", id, run), "")
-}
-
 func CreateMetaFromParams(
-	pIndex int,
 	runNum int,
 	dialer string,
 	eavesCount int,
@@ -340,8 +324,7 @@ func CreateMetaFromParams(
 	typeIndex int,
 ) string {
 	id := fmt.Sprintf(
-		"exType:baseline/permutationIndex:%d/run:%d/dialer:%s/eavesCount:%d/latencyMS:%d/seq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d",
-		pIndex,
+		"exType:baseline/permutationIndex:0/run:%d/dialer:%s/eavesCount:%d/latencyMS:%d/seq:%d/fileSize:%d/nodeType:%s/nodeTypeIndex:%d",
 		runNum,
 		dialer,
 		eavesCount,
@@ -365,113 +348,4 @@ func newMetricsRecorder(runenv *runtime.RunEnv, meta string) utils.MetricsRecord
 
 func (mr *metricsRecorder) Record(key string, value float64) {
 	mr.runenv.R().RecordPoint(fmt.Sprintf("%s/meta:%s", mr.meta, key), value)
-}
-
-type messageHistoryRecorder struct {
-	runenv *runtime.RunEnv
-	file   *os.File
-	meta   string
-	host   string
-}
-
-func (m messageHistoryRecorder) MessageReceived(pid peer.ID, msg bsmsg.BitSwapMessage) {
-	timestamp := time.Now().UnixNano()
-	// don't log non-want-have messages
-	if len(msg.Wantlist()) == 0 {
-		return
-	}
-	wantlistString := ""
-	for index, entry := range msg.Wantlist() {
-		if index > 0 {
-			wantlistString = wantlistString + fmt.Sprintf(", \"%s\"", entry.Cid)
-		} else {
-			wantlistString = wantlistString + fmt.Sprintf("\"%s\"", entry.Cid)
-		}
-	}
-
-	msgObjectString := fmt.Sprintf("\"wants\": [%s]", wantlistString)
-	logString := fmt.Sprintf(
-		"{ \"meta\": \"%s\", \"receiver\": \"%s\", \"ts\": \"%d\", \"sender\": \"%s\", \"message\": { %s } }",
-		m.meta,
-		m.host,
-		timestamp,
-		pid.String(),
-		msgObjectString,
-	)
-	_, err := fmt.Fprintln(m.file, logString)
-	if err != nil {
-		m.runenv.RecordMessage("Error writing message history entry: %s", err)
-		return
-	}
-
-}
-func (m messageHistoryRecorder) MessageSent(pid peer.ID, msg bsmsg.BitSwapMessage) {
-
-}
-
-func NewMessageHistoryRecorder(
-	runenv *runtime.RunEnv,
-	meta string,
-	host string,
-) *messageHistoryRecorder {
-	file, err := os.OpenFile(
-		runenv.TestOutputsPath+"/messageHistory.out",
-		os.O_WRONLY|os.O_CREATE|os.O_APPEND,
-		0755,
-	)
-	if err != nil {
-		runenv.RecordMessage("Error creating message history file: %s", err)
-		return nil
-	}
-	return &messageHistoryRecorder{runenv, file, meta, host}
-
-}
-
-type globalInfoRecorder struct {
-	runenv *runtime.RunEnv
-	file   *os.File
-}
-
-func (g globalInfoRecorder) RecordInfoWithMeta(meta string, info string) {
-	infoType := "LeechInfo"
-	msgString := fmt.Sprintf(
-		"{ \"meta\": \"%s\", \"timestamp\": \"%d\", \"type\": \"%s\", %s }",
-		meta,
-		time.Now().UnixMicro(),
-		infoType,
-		info,
-	)
-	_, err := fmt.Fprintln(g.file, msgString)
-	if err != nil {
-		g.runenv.RecordMessage("Error writing global info: %s", err)
-		return
-	}
-}
-
-func (g globalInfoRecorder) RecordNodeInfo(info string) {
-	infoType := "NodeInfo"
-	msgString := fmt.Sprintf(
-		"{ \"timestamp\": \"%d\", \"type\": \"%s\", %s }",
-		time.Now().UnixMicro(),
-		infoType,
-		info,
-	)
-	_, err := fmt.Fprintln(g.file, msgString)
-	if err != nil {
-		g.runenv.RecordMessage("Error writing global info: %s", err)
-		return
-	}
-}
-
-func NewGlobalInfoRecorder(runenv *runtime.RunEnv) utils.GlobalInfoRecorder {
-	file, err := os.OpenFile(
-		runenv.TestOutputsPath+"/globalInfo.out",
-		os.O_WRONLY|os.O_CREATE|os.O_APPEND,
-		0755,
-	)
-	if err != nil {
-		runenv.RecordMessage("Error creating global info file: %s", err)
-		return nil
-	}
-	return &globalInfoRecorder{runenv, file}
 }
