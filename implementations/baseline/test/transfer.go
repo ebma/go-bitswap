@@ -183,6 +183,7 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 	// For each test permutation found in the test
 	for pIndex, testParams := range testVars.Permutations {
 		pctx, pcancel := context.WithTimeout(ctx, testVars.Timeout)
+		defer pcancel()
 
 		runenv.RecordMessage(
 			"Running test permutation %d, with latency %d",
@@ -190,89 +191,66 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 			testVars.Latency,
 		)
 
-		// Initialize the bitswap node with trickling delay of test permutation
-		nodeTestData, err := initializeIPFSTest(
-			pctx,
-			runenv,
-			testData,
-		)
-		transferNode := nodeTestData.Node
-		signalAndWaitForAll := nodeTestData.SignalAndWaitForAll
-
-		// Log node info
-		globalInfoRecorder.RecordNodeInfo(
-			fmt.Sprintf(
-				"\"nodeId\": \"%s\", \"nodeType\": \"%s\"",
-				transferNode.Host().ID().String(),
-				nodeTestData.NodeType.String(),
-			),
-		)
-
-		// Accounts for every file that couldn't be found.
-		var leechFails int64
-		var rootCid cid.Cid
-
-		// Wait for all nodes to be ready to start the run
-		err = signalAndWaitForAll(fmt.Sprintf("start-file-%d", pIndex))
-		if err != nil {
-			return err
-		}
-
-		switch nodeTestData.NodeType {
-		case utils.Seed:
-			rootCid, err = nodeTestData.AddPublishFile(
-				pctx,
-				pIndex,
-				testParams.File,
-				runenv,
-			)
-		case utils.Leech:
-			rootCid, err = nodeTestData.ReadFile(pctx, pIndex, runenv, testVars)
-		}
-		if err != nil {
-			return err
-		}
-
-		runenv.RecordMessage("File injest complete...")
-		// Wait for all nodes to be ready to dial
-		err = signalAndWaitForAll(
-			fmt.Sprintf("injest-complete-%d", pIndex),
-		)
-		if err != nil {
-			return err
-		}
-
-		if testVars.TCPEnabled {
-			runenv.RecordMessage("Running TCP test...")
-			runNum := 0
-			switch nodeTestData.NodeType {
-			case utils.Seed:
-				err = nodeTestData.RunTCPServer(
-					pctx,
-					pIndex,
-					runNum,
-					testParams.File,
-					runenv,
-				)
-			case utils.Leech:
-				tcpFetch, err = nodeTestData.RunTCPFetch(pctx, pIndex, runNum, runenv, testVars)
-			default:
-				err = nodeTestData.SignalAndWaitForAll(
-					fmt.Sprintf("tcp-fetch-%d-%d", pIndex, runNum),
-				)
-			}
-
-			if err != nil {
-				return err
-			}
-		}
-
-		runenv.RecordMessage("Starting Fetch...")
-
 		for runNum := 1; runNum < testVars.RunCount+1; runNum++ {
 			// Reset the timeout for each run
 			sctx, scancel := context.WithTimeout(pctx, testVars.RunTimeout)
 			defer scancel()
+
+			// used for sync topics
+			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
+
+			nodeTestData, err := initializeIPFSTest(
+				pctx,
+				runenv,
+				testData,
+			)
+			transferNode := nodeTestData.Node
+			signalAndWaitForAll := nodeTestData.SignalAndWaitForAll
+
+			// Log node info
+			globalInfoRecorder.RecordNodeInfo(
+				fmt.Sprintf(
+					"\"nodeId\": \"%s\", \"nodeType\": \"%s\"",
+					transferNode.Host().ID().String(),
+					nodeTestData.NodeType.String(),
+				),
+			)
+
+			// Accounts for every file that couldn't be found.
+			var leechFails int64
+			var rootCid cid.Cid
+
+			// Wait for all nodes to be ready to start the run
+			err = signalAndWaitForAll(fmt.Sprintf("start-file-%v", runID))
+			if err != nil {
+				return err
+			}
+
+			switch nodeTestData.NodeType {
+			case utils.Seed:
+				rootCid, err = nodeTestData.AddPublishFile(
+					pctx,
+					runID,
+					testParams.File,
+					runenv,
+				)
+			case utils.Leech:
+				rootCid, err = nodeTestData.ReadFile(pctx, runID, runenv, testVars)
+			}
+			if err != nil {
+				return err
+			}
+
+			runenv.RecordMessage("File injest complete...")
+			// Wait for all nodes to be ready to dial
+			err = signalAndWaitForAll(
+				fmt.Sprintf("injest-complete-%d", pIndex),
+			)
+			if err != nil {
+				return err
+			}
+
+			runenv.RecordMessage("Starting Fetch...", runID)
 
 			// Used for logging
 			meta := CreateMetaFromParams(
@@ -286,8 +264,6 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 				nodeTestData.NodeType,
 				nodeTestData.TypeIndex,
 			)
-
-			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
 
 			// Wait for all nodes to be ready to start the run
 			err = signalAndWaitForAll(
@@ -393,17 +369,11 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 
 			runenv.RecordMessage("Finishing emitting metrics. Starting to clean...")
 
-			// Disconnect and clear data
-			err = nodeTestData.CleanupRun(sctx, rootCid, runenv)
+			err = nodeTestData.CleanupRun()
 			if err != nil {
 				return err
 			}
 		}
-		err = nodeTestData.CleanupFile(pctx, rootCid)
-		if err != nil {
-			return err
-		}
-
 		// cancel permutation context
 		pcancel()
 	}

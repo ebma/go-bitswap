@@ -20,7 +20,6 @@ type PeerInfo struct {
 type Node interface {
 	Add(ctx context.Context, file files.Node) (cid.Cid, error)
 	Fetch(ctx context.Context, cid cid.Cid, peers []PeerInfo) (files.Node, error)
-	ClearDatastore(ctx context.Context, rootCid cid.Cid) error
 	Instance() *IPFSNode
 	EmitMetrics(recorder MetricsRecorder) error
 	Host() host.Host

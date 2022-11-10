@@ -6,7 +6,6 @@ import (
 	bsmsg "github.com/ipfs/go-bitswap/message"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/testground/plans/trickle-bitswap/test/utils"
-	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -99,7 +98,7 @@ func GetEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 
 func (t *TestData) publishFile(
 	ctx context.Context,
-	fIndex int,
+	fIndex string,
 	cid *cid.Cid,
 	runenv *runtime.RunEnv,
 ) error {
@@ -114,12 +113,7 @@ func (t *TestData) publishFile(
 	return nil
 }
 
-func (t *TestData) ReadFile(
-	ctx context.Context,
-	fIndex int,
-	runenv *runtime.RunEnv,
-	testvars *TestVars,
-) (cid.Cid, error) {
+func (t *TestData) ReadFile(ctx context.Context, fIndex string, runenv *runtime.RunEnv, testvars *TestVars) (cid.Cid, error) {
 	// Create identifier for specific file size.
 	rootCidTopic := getRootCidTopic(fIndex)
 	// Get the root CID from a seed
@@ -139,93 +133,13 @@ func (t *TestData) ReadFile(
 	return rootCid, nil
 }
 
-func (t *TestData) RunTCPServer(
-	ctx context.Context,
-	fIndex int,
-	runNum int,
-	f utils.TestFile,
-	runenv *runtime.RunEnv,
-) error {
-	// TCP variables
-	tcpAddrTopic := getTCPAddrTopic(fIndex, runNum)
-	runenv.RecordMessage("Starting TCP server in seed")
-
-	// Start TCP server for file
-	tcpServer, err := utils.SpawnTCPServer(ctx, t.NwClient.MustGetDataNetworkIP().String(), f)
-	if err != nil {
-		return fmt.Errorf("Failed to start tcpServer in seed %w", err)
-	}
-	// Inform other nodes of the TCPServerAddr
-	runenv.RecordMessage("Publishing TCP address %v", tcpServer.Addr)
-	if _, err = t.Client.Publish(ctx, tcpAddrTopic, tcpServer.Addr); err != nil {
-		return fmt.Errorf("Failed to get Redis Sync tcpAddr %w", err)
-	}
-	runenv.RecordMessage("Waiting to end finish TCP fetch")
-
-	// Wait for all nodes to be done with TCP Fetch
-	err = t.SignalAndWaitForAll(fmt.Sprintf("tcp-fetch-%d-%d", fIndex, runNum))
-	if err != nil {
-		return err
-	}
-
-	// At this point TCP interactions are finished.
-	runenv.RecordMessage("Closing TCP server")
-	tcpServer.Close()
-	return nil
-}
-
-func (t *TestData) RunTCPFetch(
-	ctx context.Context,
-	fIndex int,
-	runNum int,
-	runenv *runtime.RunEnv,
-	testvars *TestVars,
-) (int64, error) {
-	// TCP variables
-	tcpAddrTopic := getTCPAddrTopic(fIndex, runNum)
-	tcpAddrCh := make(chan *string, 1)
-	if _, err := t.Client.Subscribe(ctx, tcpAddrTopic, tcpAddrCh); err != nil {
-		return 0, fmt.Errorf("Failed to subscribe to tcpServerTopic %w", err)
-	}
-	tcpAddrPtr, ok := <-tcpAddrCh
-
-	runenv.RecordMessage("Received tcp server %v", tcpAddrPtr)
-	if !ok {
-		return 0, fmt.Errorf(
-			"no tcp server addr received in %d seconds",
-			testvars.Timeout/time.Second,
-		)
-	}
-	runenv.RecordMessage("Start fetching a TCP file from seed")
-	// open a connection
-	connection, err := net.Dial("tcp", *tcpAddrPtr)
-	if err != nil {
-		runenv.RecordFailure(err)
-		return 0, err
-	}
-	defer connection.Close()
-
-	start := time.Now()
-	utils.FetchFileTCP(connection, runenv)
-	tcpFetch := time.Since(start).Nanoseconds()
-	runenv.RecordMessage("Fetched TCP file after %d (ns)", tcpFetch)
-
-	// Wait for all nodes to be done with TCP Fetch
-	return tcpFetch, t.SignalAndWaitForAll(fmt.Sprintf("tcp-fetch-%d-%d", fIndex, runNum))
-}
-
 type NetworkTestData struct {
 	*TestData
 	Node utils.Node
 	Host *host.Host
 }
 
-func (t *NetworkTestData) AddPublishFile(
-	ctx context.Context,
-	fIndex int,
-	f utils.TestFile,
-	runenv *runtime.RunEnv,
-) (cid.Cid, error) {
+func (t *NetworkTestData) AddPublishFile(ctx context.Context, fIndex string, f utils.TestFile, runenv *runtime.RunEnv) (cid.Cid, error) {
 	// Generating and adding file to IPFS
 	c, err := generateAndAdd(ctx, runenv, t.Node, f)
 	if err != nil {
@@ -236,53 +150,22 @@ func (t *NetworkTestData) AddPublishFile(
 		return cid.Undef, err
 	}
 	return *c, t.publishFile(ctx, fIndex, c, runenv)
-	return cid.Undef, nil
 }
 
-func (t *NetworkTestData) CleanupRun(
-	ctx context.Context,
-	rootCid cid.Cid,
-	runenv *runtime.RunEnv,
-) error {
-	// Disconnect peers
+func (t *NetworkTestData) CleanupRun() error {
 	for _, c := range t.Node.Host().Network().Conns() {
-		// is this not enough to disconnect? is the node still stored in the swarm?
-		//runenv.RecordMessage("Closing connection to %v", c.RemotePeer().String())
 		err := c.Close()
 		if err != nil {
 			return fmt.Errorf("Error disconnecting: %w", err)
 		}
 	}
 
-	if t.NodeType == utils.Leech || t.NodeType == utils.Passive {
-		// Clearing datastore
-		// Also clean passive nodes so they don't store blocks from
-		// previous runs.
-		// TODO fixme
-		if err := t.Node.ClearDatastore(ctx, rootCid); err != nil {
-			return fmt.Errorf("Error clearing datastore: %w", err)
-		}
+	// Completely close the host to avoid caching issues
+	err := t.Node.Instance().Node.Close()
+	if err != nil {
+		return err
 	}
 	return nil
-}
-
-func (t *NetworkTestData) CleanupFile(ctx context.Context, rootCid cid.Cid) error {
-	if t.NodeType == utils.Seed {
-		// Between every file close the seed Node.
-		// ipfsNode.Close()
-		// runenv.RecordMessage("Closed Seed Node")
-		if err := t.Node.ClearDatastore(ctx, rootCid); err != nil {
-			return fmt.Errorf("Error clearing datastore: %w", err)
-		}
-	}
-	return nil
-}
-
-func (t *NetworkTestData) close() error {
-	if t.Host == nil {
-		return nil
-	}
-	return (*t.Host).Close()
 }
 
 func (t *NetworkTestData) EmitMetrics(runenv *runtime.RunEnv, meta string,
@@ -437,8 +320,8 @@ func getLeafNodes(ctx context.Context, node ipld.Node, dserv ipld.DAGService) ([
 	return leaves, nil
 }
 
-func getRootCidTopic(id int) *sync.Topic {
-	return sync.NewTopic(fmt.Sprintf("root-cid-%d", id), &cid.Cid{})
+func getRootCidTopic(id string) *sync.Topic {
+	return sync.NewTopic(fmt.Sprintf("root-cid-%v", id), &cid.Cid{})
 }
 
 func getTCPAddrTopic(id int, run int) *sync.Topic {
