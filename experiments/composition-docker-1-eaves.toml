@@ -19,16 +19,16 @@ skip_runtime_image = "true"
 
 [groups.run]
 [groups.run.test_params]
-#file_size = "512"
+file_size = "512"
 #file_size = "153600" # 150 kib
-file_size = "3145728" # 3 mib
+#file_size = "3145728" # 3 mib
 run_timeout_secs = "60"
 timeout_secs = "3400"
 #timeout_secs = "1500"
-run_count = "40"
+run_count = "20"
 eavesdropper_count = "1"
 #trickling_delay_ms = "0,50,100,150,200,250,300,350,400"
-trickling_delay_ms = "0,50,100,150,200,250,300"
+trickling_delay_ms = "0,50"
 latency_ms = "50"
 #latency_ms = "100"
 #latency_ms = "150"

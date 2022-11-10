@@ -20,19 +20,24 @@ skip_runtime_image = "true"
 [groups.run]
 [groups.run.test_params]
 #file_size = "512"
-#file_size = "153600" # 150 kib
-file_size = "3145728" # 3 mib
-run_timeout_secs = "60"
+file_size = "153600" # 150 kib
+#file_size = "1048576" # 1 mib
+run_timeout_secs = "100" # try with 180 seconds for 1 mib
 timeout_secs = "3400"
-run_count = "40"
+#run_count = "30" # for 512 bytes and 150 kib and 150 latency
+run_count = "25" # for 150 kib and 150 latency
+#run_count = "10" # for 1 mib and 150 latency
 eavesdropper_count = "7"
 trickling_delay_ms = "0,50,100,150,200,250,300"
+#trickling_delay_ms = "300,250,200,150,100,50,0"
 #latency_ms = "50"
 #latency_ms = "100"
-#latency_ms = "150"
-#latency_ms = "200" # ignore this
+latency_ms = "150"
 enable_tcp = "true"
 dialer = "edge"
 #dialer = "center"
+
+# 14780198039 ns
+# 15854827342 ns
 
 #error while reading socket      {"error": "failed to read JSON message: failed to get reader: received close frame: status = StatusPolicyViolation and reason = \"timed out\""}

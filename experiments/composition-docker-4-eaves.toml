@@ -20,22 +20,17 @@ skip_runtime_image = "true"
 [groups.run]
 [groups.run.test_params]
 file_size = "512"
-#file_size = "153600" # 150 KiB
-#file_size = "3145728" # 3 mib
-run_timeout_secs = "60"
+#file_size = "153600" # 150 kib
+#file_size = "1048576" # 1 mib
+run_timeout_secs = "120"
 timeout_secs = "3400"
-run_count = "30"
+run_count = "40" # for 512 bytes and 150 kib and 150 latency
+#run_count = "15" # for 1 mib and 150 latency
 eavesdropper_count = "4"
-#trickling_delay_ms = "0,50,100,150,200,250,300,350,400"
 trickling_delay_ms = "0,50,100,150,200,250,300"
-#run_count = "20"
 latency_ms = "50"
 #latency_ms = "100"
 #latency_ms = "150"
-#latency_ms = "200" # ignore this
 enable_tcp = "true"
 dialer = "edge"
 #dialer = "center"
-
-# TODO count Cids for filesize
-#Eavesdropper mode: not sending want-haves       {"wantHaves": [{"/":"QmbnXoy6sF5KrwBbtdXSqqULwnLRzjEaDi1Tw9i3szWhVR"},{"/":"QmeKB48au2hPtcQ1Eq2BUThwtGuLCmHRPgwW4FFiud6NMQ"},{"/":"QmPdQEJSUPtvVT236gvuB4upBrNase6D7DSeUFLRgp8Y5q"},{"/":"QmbHuuPkGNKqdtWDAWouygzp6rpmKPSK74NkWxEEuEwcXa"},{"/":"QmPuFSWPn2nRDPQPehNYx57iWHVkEbjUGhZ4h8gPi6aFXa"},{"/":"QmaGWuJHfX3aBMc6ez2xsa6k2VUa8BQqvVUChgpXekhgpt"},{"/":"QmcuuBbUGSRnboLGimeuPJRsrtt6wsdpWpjaHhLkK1jvR2"},{"/":"QmXqD1H7zerx8wEieYnQaaqgFNfGEvjxSu3KNdqsrs2jnb"},{"/":"QmP5HdYL5qQ4CdSbMzSybLJss7yirDSiXFME5y8h3KKzE3"},{"/":"QmVwUHmRnMEuoHThyTU1GxKw7sHXctryLJQRZjXukjyMNJ"},{"/":"QmZaevayM7UrqM4akJV1Vqc4gJ4FuYqmmrEHMQKs4Qx4EL"},{"/":"QmXdgkwa4XqXUqLW4v8wXPpGvKT3NdxNaFM9jQboeFZKEu"},{"/":"QmQssbcubEb4vu134Yaop3RcEpKrgvk6XsbA2PtbXsDzAF"},{"/":"QmPKeUtXRSrgU6t7XdHyxYnvekW6WVJDgdcuA8x1gvnh3q"},{"/":"QmdToEndsavZARrqrnzaHwR6h6vQQJQKMYWiiMyZtog8VR"},{"/":"QmP1rPZ7YKHVj2HhUsxvPa4TkBRHTRgJQ6tKFCqmVE4FWG"},{"/":"QmPRzMaGh89CqxUV3p9o2LKzYSDmUg86EcQsycYvHDQyGZ"}]}
