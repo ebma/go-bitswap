@@ -271,8 +271,8 @@ func ClearBlockstore(ctx context.Context, bstore blockstore.Blockstore) error {
 }
 
 func TestComplexTopologyAndWaves(t *testing.T) {
-	// logging.SetLogLevel("engine", "DEBUG")
-	// logging.SetLogLevel("bitswap", "DEBUG")
+	logging.SetLogLevel("engine", "DEBUG")
+	logging.SetLogLevel("bitswap", "DEBUG")
 
 	//var ttl int32 = 1
 	bsOpts := []bitswap.Option{
@@ -291,15 +291,16 @@ func TestComplexTopologyAndWaves(t *testing.T) {
 	t.Logf("Passive2: %s", passive2.ID())
 	t.Logf("Leech1: %s", leech1.ID())
 
-	//seedNode1, _, _ := CreateBitswapNode(ctx, seed1, bsOpts)
-	//seedNode2, _, _ := CreateBitswapNode(ctx, seed2, bsOpts)
+	seedNode1, bs1, _ := CreateBitswapNode(ctx, seed1, bsOpts)
+	seedNode2, bs2, _ := CreateBitswapNode(ctx, seed2, bsOpts)
 	_, bstorePassive1, _ := CreateBitswapNode(ctx, passive1, bsOpts)
 	_, bstorePassive2, _ := CreateBitswapNode(ctx, passive2, bsOpts)
 	leechNode1, bstoreLeech1, _ := CreateBitswapNode(ctx, leech1, bsOpts)
 
 	// bg := blocksutil.NewBlockGenerator()
 	// blks := bg.Blocks(1)
-	blks := GenerateBlocksOfSize(6, 123456)
+	//blks := GenerateBlocksOfSize(6, 123456) // 123456 bytes
+	blks := GenerateBlocksOfSize(16, 1048576) // 123456 bytes
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
@@ -307,13 +308,9 @@ func TestComplexTopologyAndWaves(t *testing.T) {
 	keys := make([]cid.Cid, 0)
 	for _, b := range blks {
 		keys = append(keys, b.Cid())
-		// Seeder nodes have the block
-		//if err := seedNode1.HasBlock(b); err != nil {
-		//	t.Fatal(err)
-		//}
-		//if err := seedNode2.HasBlock(b); err != nil {
-		//	t.Fatal(err)
-		//}
+		//Seeder nodes have the block
+		addBlockCustom(t, ctx, seedNode1, bs1, b)
+		addBlockCustom(t, ctx, seedNode2, bs2, b)
 	}
 
 	// Connect peers. Seed can only connect to seeds and passive.
@@ -362,6 +359,194 @@ func TestComplexTopologyAndWaves(t *testing.T) {
 
 	for i := 0; i < len(blks); i++ {
 		b := <-ch
+		got = append(got, b)
+		t.Log("::::: BLOCK", b.Cid())
+	}
+
+	if err := assertBlockLists(got, blks); err != nil {
+		t.Fatal(err)
+	}
+
+	// Closing peers
+	for _, h := range []host.Host{seed1, seed2, passive1, passive2, leech1} {
+		h.Close()
+	}
+	// t.Fatal()
+}
+
+func TestEavesdropperTopologyWithTrickling(t *testing.T) {
+	logging.SetLogLevel("engine", "DEBUG")
+	logging.SetLogLevel("bitswap", "DEBUG")
+
+	bsOpts := []bitswap.Option{
+		bitswap.SetTricklingDelay(time.Millisecond * 300),
+	}
+	eavesdropperOpts := []bitswap.Option{
+		bitswap.SetEavesdropper(true),
+	}
+	ctx := context.Background()
+	seed1, _ := libp2p.New()
+	seed2, _ := libp2p.New()
+	eavesdropper1, _ := libp2p.New()
+	eavesdropper2, _ := libp2p.New()
+	eavesdropper3, _ := libp2p.New()
+	passive1, _ := libp2p.New()
+	passive2, _ := libp2p.New()
+	leech1, _ := libp2p.New()
+
+	t.Logf("Seed1: %s", seed1.ID())
+	t.Logf("Seed2: %s", seed2.ID())
+	t.Logf("Eavesdropper1: %s", eavesdropper1.ID())
+	t.Logf("Eavesdropper2: %s", eavesdropper2.ID())
+	t.Logf("Eavesdropper3: %s", eavesdropper3.ID())
+	t.Logf("Passive1: %s", passive1.ID())
+	t.Logf("Passive2: %s", passive2.ID())
+	t.Logf("Leech1: %s", leech1.ID())
+
+	seedNode1, bs1, _ := CreateBitswapNode(ctx, seed1, bsOpts)
+	seedNode2, bs2, _ := CreateBitswapNode(ctx, seed2, bsOpts)
+	_, _, _ = CreateBitswapNode(ctx, passive1, bsOpts)
+	_, _, _ = CreateBitswapNode(ctx, passive2, bsOpts)
+	_, _, _ = CreateBitswapNode(ctx, eavesdropper1, eavesdropperOpts)
+	_, _, _ = CreateBitswapNode(ctx, eavesdropper2, eavesdropperOpts)
+	_, _, _ = CreateBitswapNode(ctx, eavesdropper3, eavesdropperOpts)
+	leechNode1, _, _ := CreateBitswapNode(ctx, leech1, bsOpts)
+
+	// bg := blocksutil.NewBlockGenerator()
+	// blks := bg.Blocks(1)
+	blks := GenerateBlocksOfSize(4, 1234560)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*25)
+	defer cancel()
+
+	keys := make([]cid.Cid, 0)
+	for _, block := range blks {
+		keys = append(keys, block.Cid())
+	}
+	for _, b := range blks {
+		addBlockCustom(t, ctx, seedNode1, bs1, b)
+		addBlockCustom(t, ctx, seedNode2, bs2, b)
+	}
+
+	// Connect peers. Seed can only connect to seeds and passive.
+	// And leeches can only connect to leechers and passive so no seed-leech connection possible.
+	if err := SetupConnections(ctx, seed1, []host.Host{seed2, passive1, passive2}); err != nil {
+		t.Fatal("Error dialing peers seed1", err)
+	}
+	if err := SetupConnections(ctx, seed2, []host.Host{seed1, passive1, passive2}); err != nil {
+		t.Fatal("Error dialing peers seed2", err)
+	}
+	if err := SetupConnections(ctx, leech1, []host.Host{passive1, passive2}); err != nil {
+		t.Fatal("Error dialing peers leech1", err)
+	}
+	if err := SetupConnections(ctx, passive1, []host.Host{passive2}); err != nil {
+		t.Fatal("Error dialing peers passive1", err)
+	}
+
+	// eavesdroppers connect to all peers
+	if err := SetupConnections(ctx, eavesdropper1, []host.Host{seed1, seed2, passive1, passive2, leech1}); err != nil {
+		t.Fatal("Error dialing peers eavesdropper1", err)
+	}
+	if err := SetupConnections(ctx, eavesdropper2, []host.Host{seed1, seed2, passive1, passive2, leech1}); err != nil {
+		t.Fatal("Error dialing peers eavesdropper2", err)
+	}
+	if err := SetupConnections(ctx, eavesdropper3, []host.Host{seed1, seed2, passive1, passive2, leech1}); err != nil {
+		t.Fatal("Error dialing peers eavesdropper3", err)
+	}
+
+	ch, err := leechNode1.GetBlocks(ctx, keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got []blocks.Block
+	for i := 0; i < len(blks); i++ {
+		b := <-ch
+		if b == nil {
+			t.Fatal("didn't get any blocks")
+		}
+		got = append(got, b)
+		t.Log("::::: BLOCK", b.Cid())
+	}
+
+	if err := assertBlockLists(got, blks); err != nil {
+		t.Fatal(err)
+	}
+
+	// Closing peers
+	for _, h := range []host.Host{seed1, seed2, passive1, passive2, leech1} {
+		h.Close()
+	}
+	// t.Fatal()
+}
+func TestSimpleTopologyWithTrickling(t *testing.T) {
+	logging.SetLogLevel("engine", "DEBUG")
+	logging.SetLogLevel("bitswap", "DEBUG")
+
+	bsOpts := []bitswap.Option{
+		bitswap.SetTricklingDelay(time.Millisecond * 300),
+	}
+	ctx := context.Background()
+	seed1, _ := libp2p.New()
+	seed2, _ := libp2p.New()
+	passive1, _ := libp2p.New()
+	passive2, _ := libp2p.New()
+	leech1, _ := libp2p.New()
+
+	t.Logf("Seed1: %s", seed1.ID())
+	t.Logf("Seed2: %s", seed2.ID())
+	t.Logf("Passive1: %s", passive1.ID())
+	t.Logf("Passive2: %s", passive2.ID())
+	t.Logf("Leech1: %s", leech1.ID())
+
+	seedNode1, bs1, _ := CreateBitswapNode(ctx, seed1, bsOpts)
+	seedNode2, bs2, _ := CreateBitswapNode(ctx, seed2, bsOpts)
+	_, _, _ = CreateBitswapNode(ctx, passive1, bsOpts)
+	_, _, _ = CreateBitswapNode(ctx, passive2, bsOpts)
+	leechNode1, _, _ := CreateBitswapNode(ctx, leech1, bsOpts)
+
+	// bg := blocksutil.NewBlockGenerator()
+	// blks := bg.Blocks(1)
+	blks := GenerateBlocksOfSize(10, 1234560)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
+	keys := make([]cid.Cid, 0)
+	for _, block := range blks {
+		keys = append(keys, block.Cid())
+	}
+	for _, b := range blks {
+		addBlockCustom(t, ctx, seedNode1, bs1, b)
+		addBlockCustom(t, ctx, seedNode2, bs2, b)
+	}
+
+	// Connect peers. Seed can only connect to seeds and passive.
+	// And leeches can only connect to leechers and passive so no seed-leech connection possible.
+	if err := SetupConnections(ctx, seed1, []host.Host{seed2, passive1, passive2}); err != nil {
+		t.Fatal("Error dialing peers seed1", err)
+	}
+	if err := SetupConnections(ctx, seed2, []host.Host{seed1, passive1, passive2}); err != nil {
+		t.Fatal("Error dialing peers seed2", err)
+	}
+	if err := SetupConnections(ctx, leech1, []host.Host{passive1, passive2}); err != nil {
+		t.Fatal("Error dialing peers leech1", err)
+	}
+	if err := SetupConnections(ctx, passive1, []host.Host{passive2}); err != nil {
+		t.Fatal("Error dialing peers passive1", err)
+	}
+
+	ch, err := leechNode1.GetBlocks(ctx, keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got []blocks.Block
+	for i := 0; i < len(blks); i++ {
+		b := <-ch
+		if b == nil {
+			t.Fatal("didn't get any blocks")
+		}
 		got = append(got, b)
 		t.Log("::::: BLOCK", b.Cid())
 	}
