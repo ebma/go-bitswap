@@ -44,6 +44,10 @@ func (nt NodeType) String() string {
 	return [...]string{"Seed", "Leech", "Passive"}[nt]
 }
 
+func (n *IPFSNode) Instance() *IPFSNode {
+	return n
+}
+
 // CreateIPFSNodeWithConfig constructs and returns an IpfsNode using the given cfg.
 func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig, runenv *runtime.RunEnv) (*IPFSNode, error) {
 	// Create new Datastore
@@ -61,7 +65,10 @@ func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig, runenv *
 	cfg.Identity.PrivKey = base64.StdEncoding.EncodeToString(nConfig.PrivKey)
 
 	cfg.Experimental.FilestoreEnabled = false
-	cfg.Experimental.AcceleratedDHTClient = true
+	cfg.Experimental.AcceleratedDHTClient = false
+	cfg.Experimental.GraphsyncEnabled = false
+	cfg.Experimental.StrategicProviding = false
+	cfg.Experimental.UrlstoreEnabled = false
 
 	// Repo structure that encapsulate the config and datastore for dependency injection.
 	buildRepo := &repo.Mock{
@@ -92,12 +99,12 @@ func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig, runenv *
 
 // ClearDatastore removes a block from the datastore.
 func (n *IPFSNode) ClearDatastore(ctx context.Context, rootCid cid.Cid) error {
-	//err := n.Node.DAG.Remove(ctx, rootCid)
-	//(*n.Node).Blocks.
-	//if err != nil {
-	//	return err
-	//}
+	err := n.Node.DAG.Remove(ctx, rootCid)
+	if err != nil {
+		return err
+	}
 
+	//(*n.Node).Blocks.
 	//return nil
 
 	_, pinned, err := n.API.Pin().IsPinned(ctx, path.IpfsPath(rootCid))

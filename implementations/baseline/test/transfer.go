@@ -132,10 +132,11 @@ func initializeIPFSTest(ctx context.Context, runenv *runtime.RunEnv, baseT *Test
 		return nil, err
 	}
 
+	host := ipfsNode.Host()
 	return &NetworkTestData{
 		baseT,
 		ipfsNode,
-		nil,
+		&host,
 	}, nil
 }
 
@@ -371,7 +372,7 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 					}
 					timeToFetch = time.Since(start)
 					s, _ := rcvFile.Size()
-					runenv.RecordMessage("Leech fetch of %d complete (%d ns)", s, timeToFetch)
+					runenv.RecordMessage("Leech fetch of %d complete (%d ms)", s, timeToFetch.Milliseconds())
 				}
 				fetchCancel()
 			}

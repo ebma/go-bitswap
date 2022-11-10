@@ -246,12 +246,13 @@ func (t *NetworkTestData) CleanupRun(
 ) error {
 	// Disconnect peers
 	for _, c := range t.Node.Host().Network().Conns() {
+		// is this not enough to disconnect? is the node still stored in the swarm?
+		//runenv.RecordMessage("Closing connection to %v", c.RemotePeer().String())
 		err := c.Close()
 		if err != nil {
 			return fmt.Errorf("Error disconnecting: %w", err)
 		}
 	}
-	runenv.RecordMessage("Closed Connections")
 
 	if t.NodeType == utils.Leech || t.NodeType == utils.Passive {
 		// Clearing datastore
