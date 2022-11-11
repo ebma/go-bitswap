@@ -138,9 +138,9 @@ def create_ttf_dataframe(metrics, eaves_count, filter_outliers=True):
                         avg_tc.append(0)
 
                 test = pd.DataFrame({'x': [int(last_delay)] * len(scaled_y), 'y': scaled_y, 'tc': scaled_tc,
-                                     'Latency (ms)': [int(latency)] * len(scaled_y),
-                                     'File Size': [int(filesize)] * len(scaled_y),
-                                     'Eaves Count': [eaves_count] * len(scaled_y)}, dtype=float)
+                                     'Latency': [latency + ' ms'] * len(scaled_y),
+                                     'File Size': [filesize + ' bytes'] * len(scaled_y),
+                                     'Eaves Count': [eaves_count] * len(scaled_y)})
                 overall_frame = pd.concat([overall_frame, test])
 
             averages.append(
@@ -161,13 +161,17 @@ def get_color_for_index(index, palette):
 def plot_time_to_fetch_per_topology(df, combined_averages):
     # sort combined averages by eavesdropper count ascending
     combined_averages = sorted(combined_averages, key=lambda x: x[0]['eaves_count'])
+    df.sort_values(by=['Eaves Count'], inplace=True)
+
+    # replace eavesdropper 0 with 'baseline' for better readability
+    df['Eaves Count'] = df['Eaves Count'].replace('0', 'baseline')
 
     plt.figure(figsize=(15, 15))
     sns.set_style("darkgrid", {"grid.color": ".6", "grid.linestyle": ":"})
     # palette = sns.color_palette("bright", 10)
     palette = ['r', 'g', 'b', 'y']
     g = sns.FacetGrid(df, hue='Eaves Count', col="File Size", palette=palette,
-                      row="Latency (ms)", margin_titles=True)
+                      row="Latency", margin_titles=True)
     g.map(sns.scatterplot, "x", "y", alpha=0.5, )
 
     # Draw the averages onto the plots
@@ -177,9 +181,12 @@ def plot_time_to_fetch_per_topology(df, combined_averages):
         index = flatiter.index - 1
         for idx, averages in enumerate(combined_averages):
             # check if the current plot is the one we want to draw the averages on
-            # try to find matching item in dataframe
             ax_latency, ax_filesize = list(g.axes_dict.keys())[index]
-            targeted_averages = [i for i in averages if int(i['latency']) == ax_latency and int(i['filesize']) == ax_filesize]
+            # convert to ints for comparison
+            ax_latency = int(ax_latency.split(' ')[0])
+            ax_filesize = int(ax_filesize.split(' ')[0])
+            targeted_averages = [i for i in averages if
+                                 int(i['latency']) == ax_latency and int(i['filesize']) == ax_filesize]
             if len(targeted_averages) > 0:
                 # we can assume that there is only one item in the list
                 average_to_draw = targeted_averages[0]
