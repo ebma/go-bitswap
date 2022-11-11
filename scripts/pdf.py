@@ -2,6 +2,7 @@ import os
 import sys
 import json
 
+import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 
 import first_timestamp_estimator
@@ -52,15 +53,23 @@ message_items = [item for item in message_items if item["nodeType"] == "Eavesdro
 messages_by_eavescount = process.groupBy(message_items, "eavesCount")
 metrics_by_eavescount = process.groupBy(metrics, "eavesCount")
 
+# unify everything in one plot
+combined_frame = pd.DataFrame()
+all_averages = list()
 for eaves_count, metrics_for_eaves_count in metrics_by_eavescount.items():
-    by_latency = process.groupBy(metrics_for_eaves_count, "latencyMS")
-    with PdfPages(target_dir + "/" + f"time-to-fetch-{eaves_count}.pdf") as export_pdf_ttf:
-        process.plot_time_to_fetch_per_topology(eaves_count, metrics_for_eaves_count)
-        export_pdf_ttf.savefig(pad_inches=0.4, bbox_inches='tight')
+    df, averages = process.create_ttf_dataframe(metrics_for_eaves_count, eaves_count)
+    combined_frame = pd.concat([combined_frame, df])
+    all_averages.append(averages)
 
-    with PdfPages(target_dir + "/" + f"messages-{eaves_count}.pdf") as export_pdf_messages:
-        process.plot_messages(eaves_count, by_latency)
-        export_pdf_messages.savefig()
+with PdfPages(target_dir + "/" + f"time-to-fetch.pdf") as export_pdf_ttf:
+    process.plot_time_to_fetch_per_topology(combined_frame, all_averages)
+    export_pdf_ttf.savefig(pad_inches=0.4, bbox_inches='tight')
+#     by_latency = process.groupBy(metrics_for_eaves_count, "latencyMS")
+#         process.plot_time_to_fetch_per_topology(eaves_count, metrics_for_eaves_count)
+#
+#     with PdfPages(target_dir + "/" + f"messages-{eaves_count}.pdf") as export_pdf_messages:
+#         process.plot_messages(eaves_count, by_latency)
+#         export_pdf_messages.savefig()
 
 # with PdfPages(target_dir + "/" + "prediction_rates_agg.pdf") as export_pdf:
 #     first_timestamp_estimator.plot_estimate(results_dir)

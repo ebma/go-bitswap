@@ -34,7 +34,7 @@ def process_metric_line(line, experiment_id):
     name = line["name"].split('/')
     value = (line["measures"])["value"]
     # set default values
-    item = {'eavesCount': 0, 'exType': 'trickle', 'dialer': 'edge'}
+    item = {'eavesCount': 0, 'exType': 'trickle', 'dialer': 'edge', 'tricklingDelay': 0}
     for attr in name:
         attr = attr.split(":")
         item[attr[0]] = attr[1]
@@ -80,13 +80,12 @@ def autolabel(ax, rects):
                     ha='center', va='bottom')
 
 
-def plot_time_to_fetch_per_topology(topology, metrics, filter_outliers=True):
+def create_ttf_dataframe(metrics, eaves_count, filter_outliers=True):
     outlier_threshold = 2
 
     overall_frame = pd.DataFrame(columns=['x', 'y', 'tc'])
     averages = list()
-    averages_frame = pd.DataFrame(columns=['x', 'avg_normal', 'avg_tc'])
-    # Do calculations first
+
     by_latency = process.groupBy(metrics, "latencyMS")
     by_latency = sorted(by_latency.items(), key=lambda x: int(x[0]))
     for latency, latency_items in by_latency:
@@ -140,28 +139,57 @@ def plot_time_to_fetch_per_topology(topology, metrics, filter_outliers=True):
 
                 test = pd.DataFrame({'x': [int(last_delay)] * len(scaled_y), 'y': scaled_y, 'tc': scaled_tc,
                                      'Latency (ms)': [int(latency)] * len(scaled_y),
-                                     'File Size': [int(filesize)] * len(scaled_y)}, dtype=float)
+                                     'File Size': [int(filesize)] * len(scaled_y),
+                                     'Eaves Count': [eaves_count] * len(scaled_y)}, dtype=float)
                 overall_frame = pd.concat([overall_frame, test])
 
-            averages.append({'x': x, 'avg_normal': avg, 'avg_tc': avg_tc})
-            # average_frame = pd.DataFrame({'x': x, 'avg_normal': avg, 'avg_tc': avg_tc})
-            # averages_frame = pd.concat([averages_frame, average_frame])
+            averages.append(
+                {'x': x, 'avg_normal': avg, 'avg_tc': avg_tc, 'eaves_count': eaves_count, 'latency': latency,
+                 'filesize': filesize})
+
+    return overall_frame, averages
+
+
+def get_color_for_index(index, palette):
+    return palette[index % len(palette)]
+
+
+# Parameters
+# ----------
+# df : dataframe consisting of the data to be plotted
+# combined_averages : list of dictionaries containing the average values for each eavesdropper count
+def plot_time_to_fetch_per_topology(df, combined_averages):
+    # sort combined averages by eavesdropper count ascending
+    combined_averages = sorted(combined_averages, key=lambda x: x[0]['eaves_count'])
 
     plt.figure(figsize=(15, 15))
     sns.set_style("darkgrid", {"grid.color": ".6", "grid.linestyle": ":"})
-    g = sns.FacetGrid(overall_frame, col="File Size", row="Latency (ms)",
-                      margin_titles=True)
-    g.map(sns.scatterplot, "x", "y")
+    # palette = sns.color_palette("bright", 10)
+    palette = ['r', 'g', 'b', 'y']
+    g = sns.FacetGrid(df, hue='Eaves Count', col="File Size", palette=palette,
+                      row="Latency (ms)", margin_titles=True)
+    g.map(sns.scatterplot, "x", "y", alpha=0.5, )
 
     # Draw the averages onto the plots
     # The flatiter is used to iterate over all axes in the facetgrid
     flatiter = g.axes.flat
     for ax in flatiter:
         index = flatiter.index - 1
-        if index < len(averages):
-            ax.plot(averages[index]['x'], averages[index]['avg_normal'], label="Protocol fetch")
-            ax.plot(averages[index]['x'], averages[index]['avg_tc'], label="TCP fetch")
-            ax.legend()
+        for idx, averages in enumerate(combined_averages):
+            # check if the current plot is the one we want to draw the averages on
+            # try to find matching item in dataframe
+            ax_latency, ax_filesize = list(g.axes_dict.keys())[index]
+            targeted_averages = [i for i in averages if int(i['latency']) == ax_latency and int(i['filesize']) == ax_filesize]
+            if len(targeted_averages) > 0:
+                # we can assume that there is only one item in the list
+                average_to_draw = targeted_averages[0]
+                color = get_color_for_index(idx, palette)
+                ax.plot(average_to_draw['x'], average_to_draw['avg_normal'],
+                        label=f"Protocol fetch - {average_to_draw['eaves_count']} eaves", color=color)
+                # don't draw the tcp fetch average if eavesdropper count is 0
+                if average_to_draw['eaves_count'] != '0':
+                    ax.plot(average_to_draw['x'], average_to_draw['avg_tc'], label="TCP fetch", color='k')
+                # ax.legend()
 
     g.set(xlabel='Trickling delay (ms)', ylabel='Time to Fetch (ms)')
     # plt.suptitle("Time to fetch for topology " + topology)
@@ -434,6 +462,11 @@ def plot_tcp_latency(byLatency, byBandwidth, byFileSize):
             pindex += 1
             x = []
             tc = {}
+
+
+def plot_messages_per_eaves(eaves_count, messages):
+    # TODO
+    pass
 
 
 def plot_messages(topology, by_latency):
