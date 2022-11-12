@@ -9,7 +9,58 @@ import first_timestamp_estimator
 import process
 
 
-def analyse_prediction_rates(messages, info_items, export_pdf):
+def analyse_prediction_rates_per_eaves(messages, info_items):
+    # Store results for each experiment and trickling delay in a dict
+    results = list()
+
+    # Holds the items that describe the true target of the prediction
+    prediction_targets = [item for item in info_items if item['type'] == 'LeechInfo']
+
+    messages_by_eaves_count = process.groupBy(messages, "eavesCount")
+    for eavesCount, messages_for_eavesCount in messages_by_eaves_count.items():
+        by_latency = process.groupBy(messages_for_eavesCount, "latencyMS")
+
+        # Get prediction rates for each latency (contains multiple experiments)
+        for latency, messagesWithLatency in by_latency.items():
+            # Group by experiments
+            by_latency_and_experiment = process.groupBy(messagesWithLatency, "experiment")
+            for experiment, messagesWithExperiment in by_latency_and_experiment.items():
+                by_trickling_delay_with_latency_and_experiment = process.groupBy(messagesWithExperiment,
+                                                                                 "tricklingDelay")
+
+                # Group by delay
+                for delay, messagesWithDelay in by_trickling_delay_with_latency_and_experiment.items():
+                    targets = [item for item in prediction_targets if
+                               item['experiment'] == experiment and item['latencyMS'] == latency and item[
+                                   'tricklingDelay'] == delay and item[
+                                   'eavesCount'] == eavesCount]
+                    rate = first_timestamp_estimator.get_prediction_rate(messagesWithDelay, targets)
+                    results.append(
+                        {'latency': latency, 'experiment': experiment, 'delay': delay,
+                         'eavesdroppers': eavesCount,
+                         'rate': rate})
+
+    df = pd.DataFrame({'Delay': [int(item['delay']) for item in results],
+                       'Latency': [item['latency'] + ' ms' for item in results],
+                       'Rate': [item['rate'] for item in results],
+                       'Eavesdroppers': [item['eavesdroppers'] for item in results],
+                       })
+
+    plt.figure(figsize=(10, 10))
+    sns.set_style("darkgrid", {"grid.color": ".6", "grid.linestyle": ":"})
+
+    # Sort dataframe by eavesdroppers ascending
+    df.sort_values(by=['Eavesdroppers', 'Delay'], ascending=True, inplace=True)
+
+    # Maybe turn some cols to integer type
+    g = sns.FacetGrid(df, col="Eavesdroppers", hue="Latency", margin_titles=True)
+    g.map(sns.lineplot, "Delay", "Rate")
+    g.set(xlabel='Trickling delay (ms)', ylabel='Prediction rate', ylim=(0, 1.1))
+    g.add_legend()
+    sns.despine(offset=10, trim=False)
+
+
+def analyse_prediction_rates_per_eaves_and_filesize(messages, info_items, export_pdf):
     # Store results for each experiment and trickling delay in a dict
     results = list()
 
@@ -133,7 +184,7 @@ if __name__ == '__main__':
     message_items = [item for item in message_items if item["nodeType"] == "Eavesdropper"]
 
     with PdfPages(target_dir + "/" + "prediction_rates-averaged.pdf") as export_pdf:
-        analyse_prediction_rates(message_items, info_items, export_pdf)
+        analyse_prediction_rates_per_eaves_and_filesize(message_items, info_items, export_pdf)
 
     # Split per topology
     # messages_by_topology = process.groupBy(message_items, "topology")

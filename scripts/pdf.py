@@ -22,12 +22,12 @@ def print_overview(metrics):
     print(json.dumps(overall_experiments, indent=4))
 
 
-def analyse_prediction_rates(message_items, info_items, export_pdf):
+def analyse_prediction_rates(message_items, info_items):
     # Analyse all prediction rates for all topologies
-    prediction_analysis.analyse_prediction_rates(message_items, info_items, export_pdf)
+    prediction_analysis.analyse_prediction_rates_per_eaves(message_items, info_items)
 
 
-def analyse_ttfb(metrics, target_dir, export_pdf):
+def analyse_ttf(metrics):
     metrics_by_eavescount = process.groupBy(metrics, "eavesCount")
 
     # unify everything in one plot
@@ -39,7 +39,6 @@ def analyse_ttfb(metrics, target_dir, export_pdf):
         all_averages.append(averages)
 
     process.plot_time_to_fetch_per_topology(combined_frame, all_averages)
-    export_pdf.savefig(pad_inches=0.4, bbox_inches='tight')
 
 
 def analyse_average_messages(metrics, export_pdf):
@@ -76,15 +75,17 @@ def create_pdfs():
 
     # print_overview(metrics) # this somehow consumes some of the metrics items in the given list
 
-    # with PdfPages(target_dir + "/" + f"prediction_rates-overall.pdf") as export_pdf_prediction_rates:
-    #     analyse_prediction_rates(message_items, info_items, export_pdf_prediction_rates)
+    with PdfPages(target_dir + "/" + f"prediction_rates-overall.pdf") as export_pdf_prediction_rates:
+        analyse_prediction_rates(message_items, info_items)
+        export_pdf_prediction_rates.savefig(pad_inches=0.4, bbox_inches='tight')
 
-    # with PdfPages(target_dir + "/" + f"time-to-fetch.pdf") as export_pdf_ttf:
-    #     analyse_ttfb(metrics, target_dir, export_pdf_ttf)
+    with PdfPages(target_dir + "/" + f"time-to-fetch.pdf") as export_pdf_ttf:
+        analyse_ttf(metrics)
+        export_pdf_ttf.savefig(pad_inches=0.4, bbox_inches='tight')
 
-    with PdfPages(target_dir + "/" + f"messages.pdf") as export_pdf_messages:
-        # Pass metrics to analyse average messages (per type)
-        analyse_average_messages(metrics, export_pdf_messages)
+    # with PdfPages(target_dir + "/" + f"messages.pdf") as export_pdf_messages:
+    #     Pass metrics to analyse average messages (per type)
+        # analyse_average_messages(metrics, export_pdf_messages)
 
 
 if __name__ == '__main__':
