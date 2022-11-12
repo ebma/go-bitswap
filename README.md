@@ -9,7 +9,18 @@ go mod tidy
 
 # Prerequisites
 - Don't use Docker Desktop, as this can cause issues when running testground
-- 
+
+
+## For the scrips
+- Install python3
+- Then
+```shell
+pip3 install virtualenv
+virtualenv env
+source ~/env/bin/activate
+cd scripts
+pip install -r requirements.txt
+```
 
 # Run the simulation
 
