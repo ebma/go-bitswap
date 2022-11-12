@@ -510,272 +510,161 @@ def plot_tcp_latency(byLatency, byBandwidth, byFileSize):
             tc = {}
 
 
-def create_average_messages_dataframe(metrics, eaves_count):
-    df = pd.DataFrame(columns=["Latency", "Trickling Delay", "File Size", "Type", "Eaves Count"])
+def create_average_messages_dataframe_compact(metrics, eaves_count):
+    df = pd.DataFrame(columns=["Latency", "Trickling Delay", "File Size", "Type", "Eaves Count", "Experiment Type"])
 
-    by_latency = process.groupBy(metrics, "latencyMS")
-    by_latency = sorted(by_latency.items(), key=lambda x: int(x[0]))
-    for latency, latency_items in by_latency:
-        by_filesize = process.groupBy(latency_items, "fileSize")
-        by_filesize = sorted(by_filesize.items(), key=lambda x: int(x[0]))
-        for filesize, filesize_items in by_filesize:
-            by_trickling_delay = process.groupBy(filesize_items, "tricklingDelay")
-            by_trickling_delay = sorted(by_trickling_delay.items(), key=lambda x: int(x[0]))
+    by_experiment_type = process.groupBy(metrics, "exType")
+    for ex_type, ex_type_items in by_experiment_type.items():
+        by_latency = process.groupBy(ex_type_items, "latencyMS")
+        by_latency = sorted(by_latency.items(), key=lambda x: int(x[0]))
+        for latency, latency_items in by_latency:
+            by_filesize = process.groupBy(latency_items, "fileSize")
+            by_filesize = sorted(by_filesize.items(), key=lambda x: int(x[0]))
+            for filesize, filesize_items in by_filesize:
+                by_trickling_delay = process.groupBy(filesize_items, "tricklingDelay")
+                by_trickling_delay = sorted(by_trickling_delay.items(), key=lambda x: int(x[0]))
 
-            for delay, value in by_trickling_delay:
-                blks_sent = blks_rcvd = dup_blks_rcvd = msgs_rcvd = 0
-                blks_sent_n = blks_rcvd_n = dup_blks_rcvd_n = msgs_rcvd_n = 0
-                for i in value:
-                    if i["meta"] == "blks_sent":
-                        blks_sent += i["value"]
-                        blks_sent_n += 1
-                    if i["meta"] == "blks_rcvd":
-                        blks_rcvd += i["value"]
-                        blks_rcvd_n += 1
-                    if i["meta"] == "dup_blks_rcvd":
-                        dup_blks_rcvd += i["value"]
-                        dup_blks_rcvd_n += 1
-                    if i["meta"] == "msgs_rcvd":
-                        msgs_rcvd += i["value"]
-                        msgs_rcvd_n += 1
+                for delay, value in by_trickling_delay:
+                    blks_sent = blks_rcvd = dup_blks_rcvd = msgs_rcvd = 0
+                    blks_sent_n = blks_rcvd_n = dup_blks_rcvd_n = msgs_rcvd_n = 0
+                    for i in value:
+                        if i["meta"] == "blks_sent":
+                            blks_sent += i["value"]
+                            blks_sent_n += 1
+                        if i["meta"] == "blks_rcvd":
+                            blks_rcvd += i["value"]
+                            blks_rcvd_n += 1
+                        if i["meta"] == "dup_blks_rcvd":
+                            dup_blks_rcvd += i["value"]
+                            dup_blks_rcvd_n += 1
+                        if i["meta"] == "msgs_rcvd":
+                            msgs_rcvd += i["value"]
+                            msgs_rcvd_n += 1
 
-                df = df.append({"Latency": latency, "Trickling Delay": delay,
-                                "File Size": filesize,
-                                "Type": "Blocks Sent",
-                                "value": blks_sent / blks_sent_n,
-                                "Eaves Count": eaves_count}, ignore_index=True)
-                df = df.append({"Latency": latency, "Trickling Delay": delay,
-                                "File Size": filesize,
-                                "Type": "Blocks Received",
-                                "value": blks_rcvd / blks_rcvd_n,
-                                "Eaves Count": eaves_count}, ignore_index=True)
-                df = df.append({"Latency": latency, "Trickling Delay": delay,
-                                "File Size": filesize,
-                                "Type": "Duplicate Blocks Received",
-                                "value": dup_blks_rcvd / dup_blks_rcvd_n,
-                                "Eaves Count": eaves_count}, ignore_index=True)
-                df = df.append({"Latency": latency, "Trickling Delay": delay,
-                                "File Size": filesize,
-                                "Type": "Messages Received",
-                                "value": msgs_rcvd / msgs_rcvd_n,
-                                "Eaves Count": eaves_count}, ignore_index=True)
+                    df = df.append({"Latency": latency, "Trickling Delay": delay,
+                                    "File Size": filesize,
+                                    "Experiment Type": ex_type,
+                                    "Type": "Blocks Sent",
+                                    "value": blks_sent / blks_sent_n,
+                                    "Eaves Count": eaves_count}, ignore_index=True)
+                    df = df.append({"Latency": latency, "Trickling Delay": delay,
+                                    "File Size": filesize,
+                                    "Experiment Type": ex_type,
+                                    "Type": "Blocks Received",
+                                    "value": blks_rcvd / blks_rcvd_n,
+                                    "Eaves Count": eaves_count}, ignore_index=True)
+                    df = df.append({"Latency": latency, "Trickling Delay": delay,
+                                    "File Size": filesize,
+                                    "Experiment Type": ex_type,
+                                    "Type": "Duplicate Blocks Received",
+                                    "value": dup_blks_rcvd / dup_blks_rcvd_n,
+                                    "Eaves Count": eaves_count}, ignore_index=True)
+                    df = df.append({"Latency": latency, "Trickling Delay": delay,
+                                    "File Size": filesize,
+                                    "Experiment Type": ex_type,
+                                    "Type": "Messages Received",
+                                    "value": msgs_rcvd / msgs_rcvd_n,
+                                    "Eaves Count": eaves_count}, ignore_index=True)
     return df
 
 
-def plot_grouped_stacks(filename, BGV, fig_size=(10, 8),
-                        intra_group_spacing=0.1,
-                        inter_group_spacing=10,
-                        y_loc_for_group_name=-5,
-                        y_loc_for_hstack_name=5,
-                        fontcolor_hstacks='blue',
-                        fontcolor_groups='black',
-                        fontsize_hstacks=20,
-                        fontsize_groups=30,
-                        x_trim_hstack_label=0,
-                        x_trim_group_label=0,
-                        extra_space_on_top=20
-                        ):
-    figure_ = plt.figure(figsize=fig_size)
-    size = figure_.get_size_inches()
-    figure_.add_subplot(1, 1, 1)
+def create_average_messages_dataframe_long(metrics, eaves_count):
+    df = pd.DataFrame(
+        columns=["Latency", "Trickling Delay", "File Size", "Eaves Count", "Experiment Type", "Blocks Sent",
+                 "Blocks Received", "Duplicate Blocks Received", "Messages Received"])
 
-    # sanity check for inputs; some trivial exception handlings
-    if intra_group_spacing >= 100:
-        print("Percentage for than 100 for variables intra_group_spacing, Aborting! ")
-        return
-    else:
-        intra_group_spacing = intra_group_spacing * size[0] / 100  # converting percentanges to inches
+    by_experiment_type = process.groupBy(metrics, "exType")
+    for ex_type, ex_type_items in by_experiment_type.items():
+        by_latency = process.groupBy(ex_type_items, "latencyMS")
+        by_latency = sorted(by_latency.items(), key=lambda x: int(x[0]))
+        for latency, latency_items in by_latency:
+            by_filesize = process.groupBy(latency_items, "fileSize")
+            by_filesize = sorted(by_filesize.items(), key=lambda x: int(x[0]))
+            for filesize, filesize_items in by_filesize:
+                by_trickling_delay = process.groupBy(filesize_items, "tricklingDelay")
+                by_trickling_delay = sorted(by_trickling_delay.items(), key=lambda x: int(x[0]))
 
-    if inter_group_spacing >= 100:
-        print("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
-        return
-    else:
-        inter_group_spacing = inter_group_spacing * size[0] / 100  # converting percentanges to inches
+                for delay, value in by_trickling_delay:
+                    blks_sent = blks_rcvd = dup_blks_rcvd = msgs_rcvd = 0
+                    blks_sent_n = blks_rcvd_n = dup_blks_rcvd_n = msgs_rcvd_n = 0
+                    for i in value:
+                        if i["meta"] == "blks_sent":
+                            blks_sent += i["value"]
+                            blks_sent_n += 1
+                        if i["meta"] == "blks_rcvd":
+                            blks_rcvd += i["value"]
+                            blks_rcvd_n += 1
+                        if i["meta"] == "dup_blks_rcvd":
+                            dup_blks_rcvd += i["value"]
+                            dup_blks_rcvd_n += 1
+                        if i["meta"] == "msgs_rcvd":
+                            msgs_rcvd += i["value"]
+                            msgs_rcvd_n += 1
 
-    if y_loc_for_group_name >= 100:
-        print("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
-        return
-    else:
-        # the multiplier 90 is set empirically to roughly align the percentage value
-        # <this is a quick fix solution, which needs to be improved later>
-        y_loc_for_group_name = 90 * y_loc_for_group_name * size[1] / 100  # converting percentanges to inches
-
-    if y_loc_for_hstack_name >= 100:
-        print("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
-        return
-    else:
-        y_loc_for_hstack_name = 70 * y_loc_for_hstack_name * size[1] / 100  # converting percentanges to inches
-
-    if x_trim_hstack_label >= 100:
-        print("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
-        return
-    else:
-        x_trim_hstack_label = x_trim_hstack_label * size[0] / 100  # converting percentanges to inches
-
-    if x_trim_group_label >= 100:
-        print("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
-        return
-    else:
-        x_trim_group_label = x_trim_group_label * size[0] / 100  # converting percentanges to inches
-
-    fileread_list = []
-
-    with open(filename) as f:
-        for row in f:
-            r = row.strip().split(',')
-            if len(r) != 4:
-                print('4 items not found @ line ', c, ' of ', filename)
-                return
-            else:
-                fileread_list.append(r)
-
-    # inputs:
-    bar_variable = BGV[0]
-    group_variable = BGV[1]
-    vertical_stacking_variable = BGV[2]
-
-    first_line = fileread_list[0]
-    for i in range(4):
-        if first_line[i] == vertical_stacking_variable:
-            header_num_Of_vertical_stacking = i
-            break
-
-    sorted_order_for_stacking = []
-    for listed in fileread_list[1:]:  # skipping the first line
-        sorted_order_for_stacking.append(listed[header_num_Of_vertical_stacking])
-    sorted_order_for_stacking = list(set(sorted_order_for_stacking))
-    list.sort(sorted_order_for_stacking)
-    sorted_order_for_stacking_V = list(sorted_order_for_stacking)
-    #####################
-
-    first_line = fileread_list[0]
-    for i in range(4):
-        if first_line[i] == bar_variable:
-            header_num_Of_bar_Variable = i
-            break
-
-    sorted_order_for_stacking = []
-    for listed in fileread_list[1:]:  # skipping the first line
-        sorted_order_for_stacking.append(listed[header_num_Of_bar_Variable])
-    sorted_order_for_stacking = list(set(sorted_order_for_stacking))
-    list.sort(sorted_order_for_stacking)
-    sorted_order_for_stacking_H = list(sorted_order_for_stacking)
-    ######################
-
-    first_line = fileread_list[0]
-    for i in range(4):
-        if first_line[i] == group_variable:
-            header_num_Of_bar_Variable = i
-            break
-
-    sorted_order_for_stacking = []
-    for listed in fileread_list[1:]:  # skipping the first line
-        sorted_order_for_stacking.append(listed[header_num_Of_bar_Variable])
-    sorted_order_for_stacking = list(set(sorted_order_for_stacking))
-    list.sort(sorted_order_for_stacking)
-    sorted_order_for_stacking_G = list(sorted_order_for_stacking)
-    #########################
-
-    print(" Vertical/Horizontal/Groups  ")
-    print(sorted_order_for_stacking_V, " : Vertical stacking labels")
-    print(sorted_order_for_stacking_H, " : Horizontal stacking labels")
-    print(sorted_order_for_stacking_G, " : Group names")
-
-    # +1 because we need one space before and after as well
-    each_group_width = (size[0] - (len(sorted_order_for_stacking_G) + 1) *
-                        inter_group_spacing) / len(sorted_order_for_stacking_G)
-
-    # -1 because we need n-1 spaces between bars if there are n bars in each group
-    each_bar_width = (each_group_width - (len(sorted_order_for_stacking_H) - 1) *
-                      intra_group_spacing) / len(sorted_order_for_stacking_H)
-
-    # colormaps
-    number_of_color_maps_needed = len(sorted_order_for_stacking_H)
-    number_of_levels_in_each_map = len(sorted_order_for_stacking_V)
-    c_map_vertical = {}
-
-    for i in range(number_of_color_maps_needed):
-        try:
-            c_map_vertical[sorted_order_for_stacking_H[i]] = sequential_colors[i]
-        except:
-            print("Something went wrong with hardcoded colors!\n reverting to custom colors (linear in RGB) ")
-            c_map_vertical[sorted_order_for_stacking_H[i]] = getColorMaps(N=number_of_levels_in_each_map, type='S')
-
-    ##
-
-    state_num = -1
-    max_bar_height = 0
-    for state in sorted_order_for_stacking_H:
-        state_num += 1
-        week_num = -1
-        for week in ['Week 1', 'Week 2', 'Week 3']:
-            week_num += 1
-
-            a = [0] * len(sorted_order_for_stacking_V)
-            for i in range(len(sorted_order_for_stacking_V)):
-
-                for line_num in range(1, len(fileread_list)):  # skipping the first line
-                    listed = fileread_list[line_num]
-
-                    if listed[1] == state and listed[0] == week and listed[2] == sorted_order_for_stacking_V[i]:
-                        a[i] = (float(listed[3]))
-
-            # get cumulative values
-            cum_val = [a[0]]
-            for j in range(1, len(a)):
-                cum_val.append(cum_val[j - 1] + a[j])
-            max_bar_height = max([max_bar_height, max(cum_val)])
-
-            plt.text(x=(week_num) * (each_group_width + inter_group_spacing) - x_trim_group_label
-                     , y=y_loc_for_group_name, s=sorted_order_for_stacking_G[week_num], fontsize=fontsize_groups,
-                     color=fontcolor_groups)
-
-            # state labels need to be printed just once for each week, hence putting them outside the loop
-            plt.text(x=week_num * (each_group_width + inter_group_spacing) + (state_num) * (
-                    each_bar_width + intra_group_spacing) - x_trim_hstack_label
-                     , y=y_loc_for_hstack_name, s=sorted_order_for_stacking_H[state_num], fontsize=fontsize_hstacks,
-                     color=fontcolor_hstacks)
-
-            if week_num == 1:
-                # label only in the first week
-
-                for i in range(len(sorted_order_for_stacking_V) - 1, -1, -1):
-                    # trick to make them all visible: Plot in descending order of their height!! :)
-                    plt.bar(week_num * (each_group_width + inter_group_spacing) +
-                            state_num * (each_bar_width + intra_group_spacing),
-                            height=cum_val[i],
-                            width=each_bar_width,
-                            color=c_map_vertical[state][i],
-                            label=state + "_" + sorted_order_for_stacking_V[i])
-            else:
-                # no label after the first week, (as it is just repetition)
-                for i in range(len(sorted_order_for_stacking_V) - 1, -1, -1):
-                    plt.bar(week_num * (each_group_width + inter_group_spacing) +
-                            state_num * (each_bar_width + intra_group_spacing),
-                            height=cum_val[i],
-                            width=each_bar_width,
-                            color=c_map_vertical[state][i])
-
-    plt.ylim(0, max_bar_height * (1 + extra_space_on_top / 100))
-    plt.tight_layout()
-    plt.xticks([], [])
-    plt.legend(ncol=len(sorted_order_for_stacking_H))
-    return figure_
+                    df = df.append({"Latency": latency, "Trickling Delay": delay,
+                                    "File Size": filesize,
+                                    "Experiment Type": ex_type,
+                                    "value": blks_sent / blks_sent_n,
+                                    "Eaves Count": eaves_count,
+                                    "Blocks Sent": blks_sent / blks_sent_n,
+                                    "Blocks Received": blks_rcvd / blks_rcvd_n,
+                                    "Duplicate Blocks Received": dup_blks_rcvd / dup_blks_rcvd_n,
+                                    "Messages Received": msgs_rcvd / msgs_rcvd_n}, ignore_index=True)
+    return df
 
 
-def plot_messages_overall(df):
+def plot_messages_overall(dataframe_long):
+    # rename variable to make it shorter
+    df = dataframe_long
     df.sort_values(by=['Eaves Count'], inplace=True)
 
-    # replace eavesdropper 0 with 'baseline' for better readability
-    df['Eaves Count'] = df['Eaves Count'].replace('0', 'baseline')
+    plt.figure(figsize=(15, 15))
 
-    df.to_csv('message_metrics.csv', index=False)
+    # labels = []
+    axes = []
+    unique_latencies = dataframe_long["Latency"].unique()
+    unique_file_sizes = dataframe_long["File Size"].unique()
+    labels = df['Trickling Delay'].unique()
 
-    f = plot_grouped_stacks('message_metrics.csv', BGV=['Eaves Count', 'Trickling Delay', 'Type'],
-                            extra_space_on_top=30)
+    p1, p2 = unique_latencies, unique_file_sizes
+    p_index = 1
 
-    # g.set(xlabel='Trickling delay (ms)', ylabel='Count')
-    # g.add_legend()
+    for latency in unique_latencies:
+        for filesize in unique_file_sizes:
+            
+            ax = plt.subplot(len(unique_latencies), len(unique_file_sizes), p_index)
+            data = df[(df["Latency"] == latency) & (df["File Size"] == filesize)]
+            # entry = dataframe_long.find(lambda x: x["Latency"] == latency and x["File Size"] == filesize)
+            # ax.set_title(f"Latency: {latency} File Size: {filesize}")
+            # ax.set_xlabel('Eaves Count')
+            # ax.set_ylabel('Messages')
+
+            if len(data) > 0:
+                entry = data.iloc[0]
+            else:
+                pass
+
+            x = int(entry['Trickling Delay'])
+
+            width = 1 / 4
+            bar1 = ax.bar(x - (3 / 2) * width, entry['Messages Received'], width, label="Messages Received")
+            bar2 = ax.bar(x - width / 2, entry['Blocks Received'], width, label="Blocks Received")
+            bar3 = ax.bar(x + width / 2, entry['Blocks Sent'], width, label="Blocks Sent")
+            bar4 = ax.bar(x + (3 / 2) * width, entry['Duplicate Blocks Received'], width, label="Duplicate Blocks Received")
+
+            autolabel(ax, bar1)
+            autolabel(ax, bar2)
+            autolabel(ax, bar3)
+            autolabel(ax, bar4)
+
+            ax.set_title('Average number of messages exchanged for latency ' + latency + 'ms')
+            # ax.set(xticks=x, xticklabels=labels, xlabel="Trickling Delay (ms)", ylabel="Number of Messages")
+            ax.legend()
+            ax.grid()
+            p_index += 1
+            axes.append(ax)
+
+    plt.tight_layout()
 
 
 def plot_messages(topology, by_latency):
