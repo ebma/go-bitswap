@@ -42,23 +42,15 @@ def analyse_ttfb(metrics, target_dir, export_pdf):
     export_pdf.savefig(pad_inches=0.4, bbox_inches='tight')
 
 
-def analyse_messages(messages, export_pdf):
-    messages_by_eavescount = process.groupBy(messages, "eavesCount")
-    for eaves_count, messages_for_eaves_count in messages_by_eavescount.items():
-        process.plot_messages_per_eaves(messages_for_eaves_count, info_items)
-        export_pdf.savefig(pad_inches=0.4, bbox_inches='tight')
+def analyse_average_messages(metrics, export_pdf):
+    metrics_by_eaves_count = process.groupBy(metrics, "eavesCount")
+    combined_frame = pd.DataFrame()
+    for eaves_count, metrics_for_eaves_count in metrics_by_eaves_count.items():
+        df = process.create_average_messages_dataframe(metrics_for_eaves_count, eaves_count)
+        combined_frame = pd.concat([combined_frame, df])
 
-
-#     with PdfPages(target_dir + "/" + f"messages-{eaves_count}.pdf") as export_pdf_messages:
-#         process.plot_messages(eaves_count, by_latency)
-#         export_pdf_messages.savefig()
-#     by_latency = process.groupBy(metrics_for_eaves_count, "latencyMS")
-#         process.plot_time_to_fetch_per_topology(eaves_count, metrics_for_eaves_count)
-#
-
-# with PdfPages(target_dir + "/" + "prediction_rates_agg.pdf") as export_pdf:
-#     first_timestamp_estimator.plot_estimate(results_dir)
-#     export_pdf.savefig()
+    process.plot_messages_overall(combined_frame)
+    export_pdf.savefig(pad_inches=0.4, bbox_inches='tight')
 
 
 def create_pdfs():
@@ -72,30 +64,27 @@ def create_pdfs():
     # target_dir = dir_path + "/../../experiments"
     target_dir = results_dir
 
+    # Load all metrics (ttf, duplicate blocks, ...)
     metrics, testcases = process.aggregate_metrics(results_dir)
-    by_latency = process.groupBy(metrics, "latencyMS")
 
-    metrics_by_experiment_type = process.groupBy(metrics, "exType")
-    metrics_by_dialer = process.groupBy(metrics, "dialer")
-
-    # Split per topology
-    # messages_by_eavescount = process.groupBy(message_items, "eavesCount")
-
-    # print_overview(metrics) # this somehow consumes some of the metrics items in the given list
-
-    info_items = first_timestamp_estimator.aggregate_global_info(results_dir)
+    # Load the messages
     message_items = first_timestamp_estimator.aggregate_message_histories(results_dir)
     # Only consider the messages received by Eavesdropper nodes
     message_items = [item for item in message_items if item["nodeType"] == "Eavesdropper"]
+    # Load the info items containing the meta info about everly leech fetch
+    info_items = first_timestamp_estimator.aggregate_global_info(results_dir)
 
-    with PdfPages(target_dir + "/" + f"prediction_rates-overall.pdf") as export_pdf:
-        analyse_prediction_rates(message_items, info_items, export_pdf)
+    # print_overview(metrics) # this somehow consumes some of the metrics items in the given list
 
-    with PdfPages(target_dir + "/" + f"time-to-fetch.pdf") as export_pdf:
-        analyse_ttfb(metrics, target_dir, export_pdf)
+    # with PdfPages(target_dir + "/" + f"prediction_rates-overall.pdf") as export_pdf_prediction_rates:
+    #     analyse_prediction_rates(message_items, info_items, export_pdf_prediction_rates)
 
-    with PdfPages(target_dir + "/" + f"messages.pdf") as export_pdf:
-        analyse_messages(message_items, export_pdf)
+    # with PdfPages(target_dir + "/" + f"time-to-fetch.pdf") as export_pdf_ttf:
+    #     analyse_ttfb(metrics, target_dir, export_pdf_ttf)
+
+    with PdfPages(target_dir + "/" + f"messages.pdf") as export_pdf_messages:
+        # Pass metrics to analyse average messages (per type)
+        analyse_average_messages(metrics, export_pdf_messages)
 
 
 if __name__ == '__main__':

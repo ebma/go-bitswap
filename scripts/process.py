@@ -172,7 +172,7 @@ def plot_time_to_fetch_per_topology(df, combined_averages):
     palette = ['r', 'g', 'b', 'y']
     g = sns.FacetGrid(df, hue='Eaves Count', col="File Size", palette=palette,
                       row="Latency", margin_titles=True)
-    g.map(sns.scatterplot, "x", "y", alpha=0.5, )
+    g.map(sns.scatterplot, "x", "y", alpha=0.5)
 
     # Draw the averages onto the plots
     # The flatiter is used to iterate over all axes in the facetgrid
@@ -471,8 +471,51 @@ def plot_tcp_latency(byLatency, byBandwidth, byFileSize):
             tc = {}
 
 
-def plot_messages_per_eaves(eaves_count, messages):
+def create_average_messages_dataframe(metrics, eaves_count):
+    df = pd.DataFrame(columns=["Latency", "Trickling Delay", "File Size", "Blocks Sent", "Blocks Received",
+                               "Duplicate Blocks Received", "Messages Received", "Eaves Count"])
+
+    by_latency = process.groupBy(metrics, "latencyMS")
+    by_latency = sorted(by_latency.items(), key=lambda x: int(x[0]))
+    for latency, latency_items in by_latency:
+        by_filesize = process.groupBy(latency_items, "fileSize")
+        by_filesize = sorted(by_filesize.items(), key=lambda x: int(x[0]))
+        for filesize, filesize_items in by_filesize:
+            by_trickling_delay = process.groupBy(filesize_items, "tricklingDelay")
+            by_trickling_delay = sorted(by_trickling_delay.items(), key=lambda x: int(x[0]))
+
+            for delay, value in by_trickling_delay:
+                blks_sent = blks_rcvd = dup_blks_rcvd = msgs_rcvd = 0
+                blks_sent_n = blks_rcvd_n = dup_blks_rcvd_n = msgs_rcvd_n = 0
+                for i in value:
+                    if i["meta"] == "blks_sent":
+                        blks_sent += i["value"]
+                        blks_sent_n += 1
+                    if i["meta"] == "blks_rcvd":
+                        blks_rcvd += i["value"]
+                        blks_rcvd_n += 1
+                    if i["meta"] == "dup_blks_rcvd":
+                        dup_blks_rcvd += i["value"]
+                        dup_blks_rcvd_n += 1
+                    if i["meta"] == "msgs_rcvd":
+                        msgs_rcvd += i["value"]
+                        msgs_rcvd_n += 1
+
+                df = df.append({"Latency": latency, "Trickling Delay": delay, "File Size": filesize,
+                                "Blocks Sent": blks_sent / blks_sent_n,
+                                "Blocks Received": blks_rcvd / blks_rcvd_n,
+                                "Duplicate Blocks Received": dup_blks_rcvd / dup_blks_rcvd_n,
+                                "Messages Received": msgs_rcvd / msgs_rcvd_n,
+                                "Eaves Count": eaves_count}, ignore_index=True)
+
+    return df
+
+
+def plot_messages_overall(dataframe):
     # TODO
+
+    sns.histplot(penguins, x="flipper_length_mm", hue="species", element="step")
+
     pass
 
 
