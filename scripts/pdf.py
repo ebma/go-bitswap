@@ -27,7 +27,16 @@ def analyse_prediction_rates(message_items, info_items):
     prediction_analysis.analyse_prediction_rates_per_eaves(message_items, info_items)
 
 
-def analyse_ttf(metrics):
+def analyse_ttf_for_0_eaves(metrics):
+    metrics_by_eavescount = process.groupBy(metrics, "eavesCount")
+
+    # Only consider the metrics for 0 eavesdroppers
+    metrics_for_eaves_count = metrics_by_eavescount["0"]
+
+    df, averages = process.create_ttf_dataframe(metrics_for_eaves_count, 0)
+    process.plot_time_to_fetch_per_extype(df, averages)
+
+def analyse_ttf_for_all(metrics):
     metrics_by_eavescount = process.groupBy(metrics, "eavesCount")
 
     # unify everything in one plot
@@ -38,7 +47,7 @@ def analyse_ttf(metrics):
         combined_frame = pd.concat([combined_frame, df])
         all_averages.append(averages)
 
-    process.plot_time_to_fetch_per_topology(combined_frame, all_averages)
+    process.plot_time_to_fetch_for_all_eavescounts(combined_frame, all_averages)
 
 
 def analyse_average_messages(metrics, export_pdf):
@@ -80,7 +89,8 @@ def create_pdfs():
         export_pdf_prediction_rates.savefig(pad_inches=0.4, bbox_inches='tight')
 
     with PdfPages(target_dir + "/" + f"time-to-fetch.pdf") as export_pdf_ttf:
-        analyse_ttf(metrics)
+        # analyse_ttf_for_all(metrics)
+        analyse_ttf_for_0_eaves(metrics)
         export_pdf_ttf.savefig(pad_inches=0.4, bbox_inches='tight')
 
     # with PdfPages(target_dir + "/" + f"messages.pdf") as export_pdf_messages:

@@ -86,66 +86,69 @@ def create_ttf_dataframe(metrics, eaves_count, filter_outliers=True):
     overall_frame = pd.DataFrame(columns=['x', 'y', 'tc'])
     averages = list()
 
-    by_latency = process.groupBy(metrics, "latencyMS")
-    by_latency = sorted(by_latency.items(), key=lambda x: int(x[0]))
-    for latency, latency_items in by_latency:
-        by_filesize = process.groupBy(latency_items, "fileSize")
-        by_filesize = sorted(by_filesize.items(), key=lambda x: int(x[0]))
-        for filesize, filesize_items in by_filesize:
-            by_trickling_delay = process.groupBy(filesize_items, "tricklingDelay")
-            by_trickling_delay = sorted(by_trickling_delay.items(), key=lambda x: int(x[0]))
+    by_ex_type = groupBy(metrics, 'exType')
+    for ex_type, ex_type_items in by_ex_type.items():
+        by_latency = process.groupBy(ex_type_items, "latencyMS")
+        by_latency = sorted(by_latency.items(), key=lambda x: int(x[0]))
+        for latency, latency_items in by_latency:
+            by_filesize = process.groupBy(latency_items, "fileSize")
+            by_filesize = sorted(by_filesize.items(), key=lambda x: int(x[0]))
+            for filesize, filesize_items in by_filesize:
+                by_trickling_delay = process.groupBy(filesize_items, "tricklingDelay")
+                by_trickling_delay = sorted(by_trickling_delay.items(), key=lambda x: int(x[0]))
 
-            x = []
-            labels = []
-            y = {}
-            tc = {}
+                x = []
+                labels = []
+                y = {}
+                tc = {}
 
-            for delay, values in by_trickling_delay:
-                x.append(int(delay))
-                labels.append(int(delay))
+                for delay, values in by_trickling_delay:
+                    x.append(int(delay))
+                    labels.append(int(delay))
 
-                y[delay] = []
-                tc[delay] = []
-                for i in values:
-                    if i["nodeType"] == "Leech":
-                        if i["meta"] == "time_to_fetch":
-                            y[delay].append(i["value"])
-                        if i["meta"] == "tcp_fetch":
-                            tc[delay].append(i["value"])
+                    y[delay] = []
+                    tc[delay] = []
+                    for i in values:
+                        if i["nodeType"] == "Leech":
+                            if i["meta"] == "time_to_fetch":
+                                y[delay].append(i["value"])
+                            if i["meta"] == "tcp_fetch":
+                                tc[delay].append(i["value"])
 
-                avg = []
-                # calculate average first for outlier detection
-                for i in y:
-                    scaled_y = [i / 1e6 for i in y[i]]
-                    if len(scaled_y) > 0:
-                        avg.append(sum(scaled_y) / len(scaled_y))
-                    else:
-                        avg.append(0)
+                    avg = []
+                    # calculate average first for outlier detection
+                    for i in y:
+                        scaled_y = [i / 1e6 for i in y[i]]
+                        if len(scaled_y) > 0:
+                            avg.append(sum(scaled_y) / len(scaled_y))
+                        else:
+                            avg.append(0)
 
-                for index, i in enumerate(y.keys()):
-                    last_delay = i
-                    scaled_y = [i / 1e6 for i in y[i]]
-                    # Replace outliers with average
-                    if filter_outliers:
-                        scaled_y = [i if i < avg[index] * outlier_threshold else avg[index] for i in scaled_y]
+                    for index, i in enumerate(y.keys()):
+                        last_delay = i
+                        scaled_y = [i / 1e6 for i in y[i]]
+                        # Replace outliers with average
+                        if filter_outliers:
+                            scaled_y = [i if i < avg[index] * outlier_threshold else avg[index] for i in scaled_y]
 
-                avg_tc = []
-                for i in tc:
-                    scaled_tc = [i / 1e6 for i in tc[i]]
-                    if len(scaled_tc) > 0:
-                        avg_tc.append(sum(scaled_tc) / len(scaled_tc))
-                    else:
-                        avg_tc.append(0)
+                    avg_tc = []
+                    for i in tc:
+                        scaled_tc = [i / 1e6 for i in tc[i]]
+                        if len(scaled_tc) > 0:
+                            avg_tc.append(sum(scaled_tc) / len(scaled_tc))
+                        else:
+                            avg_tc.append(0)
 
-                test = pd.DataFrame({'x': [int(last_delay)] * len(scaled_y), 'y': scaled_y, 'tc': scaled_tc,
-                                     'Latency': [latency + ' ms'] * len(scaled_y),
-                                     'File Size': [filesize + ' bytes'] * len(scaled_y),
-                                     'Eaves Count': [eaves_count] * len(scaled_y)})
-                overall_frame = pd.concat([overall_frame, test])
+                    test = pd.DataFrame({'x': [int(last_delay)] * len(scaled_y), 'y': scaled_y, 'tc': scaled_tc,
+                                         'Latency': [latency + ' ms'] * len(scaled_y),
+                                         'File Size': [filesize + ' bytes'] * len(scaled_y),
+                                         'Experiment Type': [ex_type] * len(scaled_y),
+                                         'Eaves Count': [eaves_count] * len(scaled_y)})
+                    overall_frame = pd.concat([overall_frame, test])
 
-            averages.append(
-                {'x': x, 'avg_normal': avg, 'avg_tc': avg_tc, 'eaves_count': eaves_count, 'latency': latency,
-                 'filesize': filesize})
+                averages.append(
+                    {'x': x, 'avg_normal': avg, 'avg_tc': avg_tc, 'eaves_count': eaves_count, 'latency': latency,
+                     'filesize': filesize})
 
     return overall_frame, averages
 
@@ -154,11 +157,47 @@ def get_color_for_index(index, palette):
     return palette[index % len(palette)]
 
 
+def plot_time_to_fetch_per_extype(df, combined_averages):
+    df.sort_values(by=['Eaves Count'], inplace=True)
+
+    plt.figure(figsize=(15, 15))
+    sns.set_style("darkgrid", {"grid.color": ".6", "grid.linestyle": ":"})
+    # palette = sns.color_palette("bright", 10)
+    palette = ['r', 'g']
+    g = sns.FacetGrid(df, hue='Experiment Type', col="File Size", palette=palette,
+                      row="Latency", margin_titles=True)
+    g.map(sns.scatterplot, "x", "y", alpha=0.5)
+
+    # Draw the averages onto the plots
+    # The flatiter is used to iterate over all axes in the facetgrid
+    flatiter = g.axes.flat
+    for ax in flatiter:
+        index = flatiter.index - 1
+        for idx, averages in enumerate(combined_averages):
+            ax_latency, ax_filesize = list(g.axes_dict.keys())[index]
+            # convert to ints for comparison
+            ax_latency = int(ax_latency.split(' ')[0])
+            ax_filesize = int(ax_filesize.split(' ')[0])
+            # check if the current plot is the one we want to draw the averages on
+            is_targeted = int(averages['latency']) == ax_latency and int(averages['filesize']) == ax_filesize
+            if is_targeted:
+                average_to_draw = averages
+                color = get_color_for_index(idx, palette)
+                ax.plot(average_to_draw['x'], average_to_draw['avg_normal'],
+                        label=f"Protocol fetch - {average_to_draw['eaves_count']} eaves", color=color)
+                ax.plot(average_to_draw['x'], average_to_draw['avg_tc'], label="TCP fetch", color='k')
+
+    g.set(xlabel='Trickling delay (ms)', ylabel='Time to Fetch (ms)')
+    g.add_legend()
+
+    sns.despine(offset=10, trim=False)
+
+
 # Parameters
 # ----------
 # df : dataframe consisting of the data to be plotted
 # combined_averages : list of dictionaries containing the average values for each eavesdropper count
-def plot_time_to_fetch_per_topology(df, combined_averages):
+def plot_time_to_fetch_for_all_eavescounts(df, combined_averages):
     # sort combined averages by eavesdropper count ascending
     combined_averages = sorted(combined_averages, key=lambda x: x[0]['eaves_count'])
     df.sort_values(by=['Eaves Count'], inplace=True)
@@ -536,52 +575,48 @@ def plot_grouped_stacks(filename, BGV, fig_size=(10, 8),
                         x_trim_group_label=0,
                         extra_space_on_top=20
                         ):
-
     figure_ = plt.figure(figsize=fig_size)
     size = figure_.get_size_inches()
-    figure_.add_subplot(1,1,1)
+    figure_.add_subplot(1, 1, 1)
 
     # sanity check for inputs; some trivial exception handlings
     if intra_group_spacing >= 100:
-        print ("Percentage for than 100 for variables intra_group_spacing, Aborting! ")
+        print("Percentage for than 100 for variables intra_group_spacing, Aborting! ")
         return
     else:
-        intra_group_spacing = intra_group_spacing*size[0]/100  # converting percentanges to inches
+        intra_group_spacing = intra_group_spacing * size[0] / 100  # converting percentanges to inches
 
     if inter_group_spacing >= 100:
-        print ("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
+        print("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
         return
     else:
-        inter_group_spacing = inter_group_spacing*size[0]/100  # converting percentanges to inches
-
+        inter_group_spacing = inter_group_spacing * size[0] / 100  # converting percentanges to inches
 
     if y_loc_for_group_name >= 100:
-        print ("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
+        print("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
         return
     else:
         # the multiplier 90 is set empirically to roughly align the percentage value
         # <this is a quick fix solution, which needs to be improved later>
-        y_loc_for_group_name = 90*y_loc_for_group_name*size[1]/100  # converting percentanges to inches
-
+        y_loc_for_group_name = 90 * y_loc_for_group_name * size[1] / 100  # converting percentanges to inches
 
     if y_loc_for_hstack_name >= 100:
-        print ("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
+        print("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
         return
     else:
-        y_loc_for_hstack_name = 70*y_loc_for_hstack_name*size[1]/100  # converting percentanges to inches
+        y_loc_for_hstack_name = 70 * y_loc_for_hstack_name * size[1] / 100  # converting percentanges to inches
 
     if x_trim_hstack_label >= 100:
-        print ("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
+        print("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
         return
     else:
-        x_trim_hstack_label = x_trim_hstack_label*size[0]/100  # converting percentanges to inches
+        x_trim_hstack_label = x_trim_hstack_label * size[0] / 100  # converting percentanges to inches
 
     if x_trim_group_label >= 100:
-        print ("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
+        print("Percentage for than 100 for variables inter_group_spacing, Aborting! ")
         return
     else:
-        x_trim_group_label = x_trim_group_label*size[0]/100  # converting percentanges to inches
-
+        x_trim_group_label = x_trim_group_label * size[0] / 100  # converting percentanges to inches
 
     fileread_list = []
 
@@ -589,11 +624,10 @@ def plot_grouped_stacks(filename, BGV, fig_size=(10, 8),
         for row in f:
             r = row.strip().split(',')
             if len(r) != 4:
-                print ('4 items not found @ line ', c, ' of ', filename)
+                print('4 items not found @ line ', c, ' of ', filename)
                 return
             else:
                 fileread_list.append(r)
-
 
     # inputs:
     bar_variable = BGV[0]
@@ -642,19 +676,18 @@ def plot_grouped_stacks(filename, BGV, fig_size=(10, 8),
     sorted_order_for_stacking_G = list(sorted_order_for_stacking)
     #########################
 
-    print (" Vertical/Horizontal/Groups  ")
-    print (sorted_order_for_stacking_V, " : Vertical stacking labels")
-    print (sorted_order_for_stacking_H, " : Horizontal stacking labels")
-    print (sorted_order_for_stacking_G, " : Group names")
+    print(" Vertical/Horizontal/Groups  ")
+    print(sorted_order_for_stacking_V, " : Vertical stacking labels")
+    print(sorted_order_for_stacking_H, " : Horizontal stacking labels")
+    print(sorted_order_for_stacking_G, " : Group names")
 
     # +1 because we need one space before and after as well
     each_group_width = (size[0] - (len(sorted_order_for_stacking_G) + 1) *
-                        inter_group_spacing)/len(sorted_order_for_stacking_G)
+                        inter_group_spacing) / len(sorted_order_for_stacking_G)
 
     # -1 because we need n-1 spaces between bars if there are n bars in each group
     each_bar_width = (each_group_width - (len(sorted_order_for_stacking_H) - 1) *
-                      intra_group_spacing)/len(sorted_order_for_stacking_H)
-
+                      intra_group_spacing) / len(sorted_order_for_stacking_H)
 
     # colormaps
     number_of_color_maps_needed = len(sorted_order_for_stacking_H)
@@ -665,8 +698,8 @@ def plot_grouped_stacks(filename, BGV, fig_size=(10, 8),
         try:
             c_map_vertical[sorted_order_for_stacking_H[i]] = sequential_colors[i]
         except:
-            print ("Something went wrong with hardcoded colors!\n reverting to custom colors (linear in RGB) ")
-            c_map_vertical[sorted_order_for_stacking_H[i]] = getColorMaps(N = number_of_levels_in_each_map, type = 'S')
+            print("Something went wrong with hardcoded colors!\n reverting to custom colors (linear in RGB) ")
+            c_map_vertical[sorted_order_for_stacking_H[i]] = getColorMaps(N=number_of_levels_in_each_map, type='S')
 
     ##
 
@@ -675,61 +708,60 @@ def plot_grouped_stacks(filename, BGV, fig_size=(10, 8),
     for state in sorted_order_for_stacking_H:
         state_num += 1
         week_num = -1
-        for week in ['Week 1', 'Week 2','Week 3']:
+        for week in ['Week 1', 'Week 2', 'Week 3']:
             week_num += 1
 
             a = [0] * len(sorted_order_for_stacking_V)
             for i in range(len(sorted_order_for_stacking_V)):
 
-                for line_num in range(1,len(fileread_list)):  # skipping the first line
+                for line_num in range(1, len(fileread_list)):  # skipping the first line
                     listed = fileread_list[line_num]
 
                     if listed[1] == state and listed[0] == week and listed[2] == sorted_order_for_stacking_V[i]:
                         a[i] = (float(listed[3]))
 
-
             # get cumulative values
             cum_val = [a[0]]
-            for j in range(1,len(a)):
-                cum_val.append( cum_val[j-1] + a[j] )
+            for j in range(1, len(a)):
+                cum_val.append(cum_val[j - 1] + a[j])
             max_bar_height = max([max_bar_height, max(cum_val)])
 
-
-            plt.text(x=  (week_num)*(each_group_width+inter_group_spacing) - x_trim_group_label
-                     , y=y_loc_for_group_name, s=sorted_order_for_stacking_G[week_num], fontsize=fontsize_groups, color=fontcolor_groups)
-
-
+            plt.text(x=(week_num) * (each_group_width + inter_group_spacing) - x_trim_group_label
+                     , y=y_loc_for_group_name, s=sorted_order_for_stacking_G[week_num], fontsize=fontsize_groups,
+                     color=fontcolor_groups)
 
             # state labels need to be printed just once for each week, hence putting them outside the loop
-            plt.text(x=  week_num*(each_group_width+inter_group_spacing) + (state_num)*(each_bar_width+intra_group_spacing) - x_trim_hstack_label
-                     , y=y_loc_for_hstack_name, s=sorted_order_for_stacking_H[state_num], fontsize=fontsize_hstacks, color = fontcolor_hstacks)
-
+            plt.text(x=week_num * (each_group_width + inter_group_spacing) + (state_num) * (
+                    each_bar_width + intra_group_spacing) - x_trim_hstack_label
+                     , y=y_loc_for_hstack_name, s=sorted_order_for_stacking_H[state_num], fontsize=fontsize_hstacks,
+                     color=fontcolor_hstacks)
 
             if week_num == 1:
                 # label only in the first week
 
-                for i in range(len(sorted_order_for_stacking_V)-1,-1,-1):
+                for i in range(len(sorted_order_for_stacking_V) - 1, -1, -1):
                     # trick to make them all visible: Plot in descending order of their height!! :)
-                    plt.bar(  week_num*(each_group_width+inter_group_spacing) +
-                              state_num*(each_bar_width+intra_group_spacing),
-                              height=cum_val[i] ,
-                              width=each_bar_width,
-                              color=c_map_vertical[state][i],
-                              label= state + "_" + sorted_order_for_stacking_V[i] )
+                    plt.bar(week_num * (each_group_width + inter_group_spacing) +
+                            state_num * (each_bar_width + intra_group_spacing),
+                            height=cum_val[i],
+                            width=each_bar_width,
+                            color=c_map_vertical[state][i],
+                            label=state + "_" + sorted_order_for_stacking_V[i])
             else:
                 # no label after the first week, (as it is just repetition)
-                for i in range(len(sorted_order_for_stacking_V)-1,-1,-1):
-                    plt.bar(  week_num*(each_group_width+inter_group_spacing) +
-                              state_num*(each_bar_width+intra_group_spacing),
-                              height=cum_val[i] ,
-                              width=each_bar_width,
-                              color=c_map_vertical[state][i])
+                for i in range(len(sorted_order_for_stacking_V) - 1, -1, -1):
+                    plt.bar(week_num * (each_group_width + inter_group_spacing) +
+                            state_num * (each_bar_width + intra_group_spacing),
+                            height=cum_val[i],
+                            width=each_bar_width,
+                            color=c_map_vertical[state][i])
 
-    plt.ylim(0,max_bar_height*(1+extra_space_on_top/100))
+    plt.ylim(0, max_bar_height * (1 + extra_space_on_top / 100))
     plt.tight_layout()
     plt.xticks([], [])
     plt.legend(ncol=len(sorted_order_for_stacking_H))
     return figure_
+
 
 def plot_messages_overall(df):
     df.sort_values(by=['Eaves Count'], inplace=True)
@@ -739,7 +771,8 @@ def plot_messages_overall(df):
 
     df.to_csv('message_metrics.csv', index=False)
 
-    f = plot_grouped_stacks('message_metrics.csv', BGV=['Eaves Count','Trickling Delay','Type'], extra_space_on_top = 30)
+    f = plot_grouped_stacks('message_metrics.csv', BGV=['Eaves Count', 'Trickling Delay', 'Type'],
+                            extra_space_on_top=30)
 
     # g.set(xlabel='Trickling delay (ms)', ylabel='Count')
     # g.add_legend()
@@ -838,7 +871,7 @@ if __name__ == "__main__":
 
     for topology, topology_metrics in byTopology.items():
         with PdfPages(target_dir + "/" + f"time-to-fetch-{topology}.pdf") as export_pdf:
-            plot_time_to_fetch_per_topology(topology, topology_metrics, export_pdf)
+            plot_time_to_fetch_for_all_eavescounts(topology, topology_metrics, export_pdf)
 
     # plot_time_to_fetch(byLatency, byBandwidth)
     # plot_messages(byFileSize, byTopology)
