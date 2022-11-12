@@ -625,22 +625,18 @@ def plot_messages_overall(dataframe_long):
     unique_latencies = dataframe_long["Latency"].unique()
     unique_file_sizes = dataframe_long["File Size"].unique()
     unique_experiment_types = dataframe_long["Experiment Type"].unique()
-    labels = df['Trickling Delay'].unique()
 
-    p1, p2 = unique_latencies, unique_file_sizes
     p_index = 1
 
     for latency in unique_latencies:
         for filesize in unique_file_sizes:
             ax = plt.subplot(len(unique_latencies), len(unique_file_sizes), p_index)
             for ex_type in unique_experiment_types:
+                # TODO make them overlap
+                # TODO only count runs where the fetch did not fail
 
                 data = df[
                     (df["Latency"] == latency) & (df["File Size"] == filesize) & (df["Experiment Type"] == ex_type)]
-                # entry = dataframe_long.find(lambda x: x["Latency"] == latency and x["File Size"] == filesize)
-                # ax.set_title(f"Latency: {latency} File Size: {filesize}")
-                # ax.set_xlabel('Eaves Count')
-                # ax.set_ylabel('Messages')
 
                 if len(data) == 0:
                     continue
@@ -663,7 +659,6 @@ def plot_messages_overall(dataframe_long):
                 ax.set_title(f'Latency: {latency} | File Size: {filesize}')
                 ax.set(xticks=x, xticklabels=labels, xlabel="Trickling Delay (ms)", ylabel="Number of Messages")
                 ax.legend()
-                # ax.grid()
                 p_index += 1
                 axes.append(ax)
 
