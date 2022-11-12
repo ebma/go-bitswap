@@ -34,7 +34,7 @@ def process_metric_line(line, experiment_id):
     name = line["name"].split('/')
     value = (line["measures"])["value"]
     # set default values
-    item = {'eavesCount': 0, 'exType': 'trickle', 'dialer': 'edge', 'tricklingDelay': 0}
+    item = {'eavesCount': '0', 'exType': 'trickle', 'dialer': 'edge', 'tricklingDelay': '0'}
     for attr in name:
         attr = attr.split(":")
         item[attr[0]] = attr[1]
@@ -624,6 +624,7 @@ def plot_messages_overall(dataframe_long):
     axes = []
     unique_latencies = dataframe_long["Latency"].unique()
     unique_file_sizes = dataframe_long["File Size"].unique()
+    unique_experiment_types = dataframe_long["Experiment Type"].unique()
     labels = df['Trickling Delay'].unique()
 
     p1, p2 = unique_latencies, unique_file_sizes
@@ -631,38 +632,40 @@ def plot_messages_overall(dataframe_long):
 
     for latency in unique_latencies:
         for filesize in unique_file_sizes:
-            
             ax = plt.subplot(len(unique_latencies), len(unique_file_sizes), p_index)
-            data = df[(df["Latency"] == latency) & (df["File Size"] == filesize)]
-            # entry = dataframe_long.find(lambda x: x["Latency"] == latency and x["File Size"] == filesize)
-            # ax.set_title(f"Latency: {latency} File Size: {filesize}")
-            # ax.set_xlabel('Eaves Count')
-            # ax.set_ylabel('Messages')
+            for ex_type in unique_experiment_types:
 
-            if len(data) > 0:
-                entry = data.iloc[0]
-            else:
-                pass
+                data = df[
+                    (df["Latency"] == latency) & (df["File Size"] == filesize) & (df["Experiment Type"] == ex_type)]
+                # entry = dataframe_long.find(lambda x: x["Latency"] == latency and x["File Size"] == filesize)
+                # ax.set_title(f"Latency: {latency} File Size: {filesize}")
+                # ax.set_xlabel('Eaves Count')
+                # ax.set_ylabel('Messages')
 
-            x = int(entry['Trickling Delay'])
+                if len(data) == 0:
+                    continue
 
-            width = 1 / 4
-            bar1 = ax.bar(x - (3 / 2) * width, entry['Messages Received'], width, label="Messages Received")
-            bar2 = ax.bar(x - width / 2, entry['Blocks Received'], width, label="Blocks Received")
-            bar3 = ax.bar(x + width / 2, entry['Blocks Sent'], width, label="Blocks Sent")
-            bar4 = ax.bar(x + (3 / 2) * width, entry['Duplicate Blocks Received'], width, label="Duplicate Blocks Received")
+                labels = data['Trickling Delay'].unique()
+                x = np.arange(len(labels))  # the label locations
 
-            autolabel(ax, bar1)
-            autolabel(ax, bar2)
-            autolabel(ax, bar3)
-            autolabel(ax, bar4)
+                width = 1 / 4
+                bar1 = ax.bar(x - (3 / 2) * width, data['Messages Received'], width, label="Messages Received")
+                bar2 = ax.bar(x - width / 2, data['Blocks Received'], width, label="Blocks Received")
+                bar3 = ax.bar(x + width / 2, data['Blocks Sent'], width, label="Blocks Sent")
+                bar4 = ax.bar(x + (3 / 2) * width, data['Duplicate Blocks Received'], width,
+                              label="Duplicate Blocks Received")
 
-            ax.set_title('Average number of messages exchanged for latency ' + latency + 'ms')
-            # ax.set(xticks=x, xticklabels=labels, xlabel="Trickling Delay (ms)", ylabel="Number of Messages")
-            ax.legend()
-            ax.grid()
-            p_index += 1
-            axes.append(ax)
+                autolabel(ax, bar1)
+                autolabel(ax, bar2)
+                autolabel(ax, bar3)
+                autolabel(ax, bar4)
+
+                ax.set_title(f'Latency: {latency} | File Size: {filesize}')
+                ax.set(xticks=x, xticklabels=labels, xlabel="Trickling Delay (ms)", ylabel="Number of Messages")
+                ax.legend()
+                # ax.grid()
+                p_index += 1
+                axes.append(ax)
 
     plt.tight_layout()
 
