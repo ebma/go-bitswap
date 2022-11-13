@@ -20,12 +20,9 @@ skip_runtime_image = "true"
 [groups.run]
 [groups.run.test_params]
 file_size = "512"
-#file_size = "153600" # 150 kib
-#file_size = "1048576" # 1 mib
 run_timeout_secs = "40" # set low timeout here because it is not important for that the fetch is successful
 timeout_secs = "3400"
-run_count = "35" # for 512 bytes and 150 kib and 150 latency
-#run_count = "15" # for 1 mib and 150 latency
+run_count = "35"
 eavesdropper_count = "4"
 trickling_delay_ms = "0,50,100,150,200,250,300"
 #latency_ms = "50"
