@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from matplotlib import pyplot as plt
 
 import process
@@ -36,26 +37,30 @@ def create_average_messages_dataframe_compact(metrics, eaves_count):
                             msgs_rcvd += i["value"]
                             msgs_rcvd_n += 1
 
-                    df = df.append({"Latency": latency, "Trickling Delay": delay,
-                                    "File Size": filesize,
+                    df = df.append({"Latency": latency + ' ms',
+                                    "Trickling Delay": delay,
+                                    "File Size": filesize + ' bytes',
                                     "Experiment Type": ex_type,
                                     "Type": "Blocks Sent",
                                     "value": blks_sent / blks_sent_n,
                                     "Eaves Count": eaves_count}, ignore_index=True)
-                    df = df.append({"Latency": latency, "Trickling Delay": delay,
-                                    "File Size": filesize,
+                    df = df.append({"Latency": latency + ' ms',
+                                    "Trickling Delay": delay,
+                                    "File Size": filesize + ' bytes',
                                     "Experiment Type": ex_type,
                                     "Type": "Blocks Received",
                                     "value": blks_rcvd / blks_rcvd_n,
                                     "Eaves Count": eaves_count}, ignore_index=True)
-                    df = df.append({"Latency": latency, "Trickling Delay": delay,
-                                    "File Size": filesize,
+                    df = df.append({"Latency": latency + ' ms',
+                                    "Trickling Delay": delay,
+                                    "File Size": filesize + ' bytes',
                                     "Experiment Type": ex_type,
                                     "Type": "Duplicate Blocks Received",
                                     "value": dup_blks_rcvd / dup_blks_rcvd_n,
                                     "Eaves Count": eaves_count}, ignore_index=True)
-                    df = df.append({"Latency": latency, "Trickling Delay": delay,
-                                    "File Size": filesize,
+                    df = df.append({"Latency": latency + ' ms',
+                                    "Trickling Delay": delay,
+                                    "File Size": filesize + ' bytes',
                                     "Experiment Type": ex_type,
                                     "Type": "Messages Received",
                                     "value": msgs_rcvd / msgs_rcvd_n,
@@ -108,6 +113,39 @@ def create_average_messages_dataframe_long(metrics, eaves_count):
     return df
 
 
+# Plots the average number of messages sent, received, and duplicate blocks received
+# comparing the baseline to trickle forwarding with 0 delay..
+def plot_messages_for_0_trickling(dataframe_compact):
+    # rename variable to make it shorter
+    df = dataframe_compact
+    df.sort_values(by=['Eaves Count'], inplace=True)
+
+    # Replace the experiment type with a more readable name
+    df['Experiment Type'] = df['Experiment Type'].replace({'baseline': 'Baseline', 'trickle': 'Forwarding'})
+
+    plt.figure(figsize=(15, 15))
+    sns.set_style("darkgrid", {"grid.color": ".6", "grid.linestyle": ":"})
+    # We only want to plot the 0 trickling delay
+    target = df[df["Trickling Delay"] == '0']
+
+    order = ['Forwarding', 'Baseline']
+    hue_order = ["Messages Received", "Blocks Sent", "Blocks Received", "Duplicate Blocks Received"]
+
+    g = sns.catplot(data=target, x="Experiment Type", y="value", hue="Type", col="File Size", row="Latency", kind="bar",
+                    order=order, hue_order=hue_order,
+                    margin_titles=True)
+    g.set_axis_labels("Experiment Type", "Average Number of Messages")
+    sns.despine(offset=10, trim=False)
+
+    # Draw height of bars on top of the bars
+    flatiter = g.axes.flat
+    for ax in flatiter:
+        for i in ax.containers:
+            ax.bar_label(i, fmt="%.2f", label_type='edge')
+
+
+# Plots the average number of messages sent, received, and duplicate blocks received
+# for each experiment type and for all trickling delays.
 def plot_messages_overall(dataframe_long):
     # rename variable to make it shorter
     df = dataframe_long
