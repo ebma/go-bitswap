@@ -73,6 +73,7 @@ func DialFixedTopologyCenteredLeech(
 		} else if typeIndex == 2 {
 			toDial = append(toDial, passives[4].Addr)
 		} else if typeIndex == 3 {
+			toDial = append(toDial, passives[4].Addr)
 			toDial = append(toDial, passives[5].Addr)
 		} else if typeIndex == 4 {
 			toDial = append(toDial, passives[7].Addr)
