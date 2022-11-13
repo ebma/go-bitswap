@@ -53,14 +53,13 @@ def analyse_ttf_for_all(metrics):
     ttf_analysis.plot_time_to_fetch_for_all_eavescounts(combined_frame, all_averages)
 
 
-def analyse_average_messages_comparing_0_delay(metrics, export_pdf):
+def analyse_average_messages_comparing_0_delay(metrics):
     metrics_by_eaves_count = process.groupBy(metrics, "eavesCount")
     # Only consider the metrics for 0 eavesdroppers
     metrics_for_eaves_count = metrics_by_eaves_count["0"]
     df = message_metrics_analysis.create_average_messages_dataframe_compact(metrics_for_eaves_count, 0)
 
     message_metrics_analysis.plot_messages_for_0_trickling(df)
-    export_pdf.savefig(pad_inches=0.4, bbox_inches='tight')
 
 def analyse_average_messages_per_ex_type_and_all_delays(metrics, export_pdf):
     metrics_by_eaves_count = process.groupBy(metrics, "eavesCount")
@@ -107,7 +106,8 @@ def create_pdfs():
     with PdfPages(target_dir + "/" + f"messages.pdf") as export_pdf_messages:
         # Pass metrics to analyse average messages (per type)
         # analyse_average_messages_per_ex_type_and_all_delays(metrics, export_pdf_messages)
-        analyse_average_messages_comparing_0_delay(metrics, export_pdf_messages)
+        analyse_average_messages_comparing_0_delay(metrics)
+        export_pdf_messages.savefig(pad_inches=0.4, bbox_inches='tight')
 
 if __name__ == '__main__':
     create_pdfs()

@@ -1,7 +1,9 @@
-import process
+import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
+
+import process
+
 
 def create_ttf_dataframe(metrics, eaves_count, filter_outliers=True):
     outlier_threshold = 2
@@ -87,8 +89,11 @@ def plot_time_to_fetch_per_extype(df, combined_averages):
     sns.set_style("darkgrid", {"grid.color": ".6", "grid.linestyle": ":"})
     # palette = sns.color_palette("bright", 10)
     palette = ['r', 'g']
-    g = sns.FacetGrid(df, hue='Experiment Type', col="File Size", palette=palette,
-                      row="Latency", margin_titles=True)
+    col_order = ['512 bytes', '153600 bytes', '1048576 bytes']
+    g = sns.FacetGrid(df, hue='Experiment Type', col="File Size", row="Latency",
+                      palette=palette,
+                      col_order=col_order,
+                      margin_titles=True)
     g.map(sns.scatterplot, "x", "y", alpha=0.5)
 
     # Draw the averages onto the plots

@@ -129,10 +129,11 @@ def plot_messages_for_0_trickling(dataframe_compact):
     target = df[df["Trickling Delay"] == '0']
 
     order = ['Forwarding', 'Baseline']
+    col_order = ['512 bytes', '153600 bytes', '1048576 bytes']
     hue_order = ["Messages Received", "Blocks Sent", "Blocks Received", "Duplicate Blocks Received"]
 
     g = sns.catplot(data=target, x="Experiment Type", y="value", hue="Type", col="File Size", row="Latency", kind="bar",
-                    order=order, hue_order=hue_order,
+                    order=order, hue_order=hue_order, col_order=col_order,
                     margin_titles=True)
     g.set_axis_labels("Experiment Type", "Average Number of Messages")
     sns.despine(offset=10, trim=False)
