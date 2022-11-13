@@ -8,6 +8,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 import first_timestamp_estimator
 import prediction_analysis
 import process
+import message_metrics_analysis
+import ttf_analysis
 
 
 def print_overview(metrics):
@@ -33,8 +35,8 @@ def analyse_ttf_for_0_eaves(metrics):
     # Only consider the metrics for 0 eavesdroppers
     metrics_for_eaves_count = metrics_by_eavescount["0"]
 
-    df, averages = process.create_ttf_dataframe(metrics_for_eaves_count, 0)
-    process.plot_time_to_fetch_per_extype(df, averages)
+    df, averages = ttf_analysis.create_ttf_dataframe(metrics_for_eaves_count, 0)
+    ttf_analysis.plot_time_to_fetch_per_extype(df, averages)
 
 
 def analyse_ttf_for_all(metrics):
@@ -44,20 +46,20 @@ def analyse_ttf_for_all(metrics):
     combined_frame = pd.DataFrame()
     all_averages = list()
     for eaves_count, metrics_for_eaves_count in metrics_by_eavescount.items():
-        df, averages = process.create_ttf_dataframe(metrics_for_eaves_count, eaves_count)
+        df, averages = ttf_analysis.create_ttf_dataframe(metrics_for_eaves_count, eaves_count)
         combined_frame = pd.concat([combined_frame, df])
         all_averages.append(averages)
 
-    process.plot_time_to_fetch_for_all_eavescounts(combined_frame, all_averages)
+    ttf_analysis.plot_time_to_fetch_for_all_eavescounts(combined_frame, all_averages)
 
 
 def analyse_average_messages_per_ex_type(metrics, export_pdf):
     metrics_by_eaves_count = process.groupBy(metrics, "eavesCount")
     # Only consider the metrics for 0 eavesdroppers
     metrics_for_eaves_count = metrics_by_eaves_count["0"]
-    df = process.create_average_messages_dataframe_long(metrics_for_eaves_count, 0)
+    df = message_metrics_analysis.create_average_messages_dataframe_long(metrics_for_eaves_count, 0)
 
-    process.plot_messages_overall(df)
+    message_metrics_analysis.plot_messages_overall(df)
     export_pdf.savefig(pad_inches=0.4, bbox_inches='tight')
 
 
@@ -84,17 +86,17 @@ def create_pdfs():
 
     # print_overview(metrics) # this somehow consumes some of the metrics items in the given list
 
-    # with PdfPages(target_dir + "/" + f"prediction_rates-overall.pdf") as export_pdf_prediction_rates:
-    # analyse_prediction_rates(message_items, info_items)
-    # export_pdf_prediction_rates.savefig(pad_inches=0.4, bbox_inches='tight')
+    with PdfPages(target_dir + "/" + f"prediction_rates-overall.pdf") as export_pdf_prediction_rates:
+        analyse_prediction_rates(message_items, info_items)
+        export_pdf_prediction_rates.savefig(pad_inches=0.4, bbox_inches='tight')
 
-    # with PdfPages(target_dir + "/" + f"time-to-fetch.pdf") as export_pdf_ttf:
-    # analyse_ttf_for_all(metrics)
-    # analyse_ttf_for_0_eaves(metrics)
-    # export_pdf_ttf.savefig(pad_inches=0.4, bbox_inches='tight')
+    with PdfPages(target_dir + "/" + f"time-to-fetch.pdf") as export_pdf_ttf:
+        # analyse_ttf_for_all(metrics)
+        analyse_ttf_for_0_eaves(metrics)
+        export_pdf_ttf.savefig(pad_inches=0.4, bbox_inches='tight')
 
     with PdfPages(target_dir + "/" + f"messages.pdf") as export_pdf_messages:
-        #     Pass metrics to analyse average messages (per type)
+        # Pass metrics to analyse average messages (per type)
         analyse_average_messages_per_ex_type(metrics, export_pdf_messages)
 
 
