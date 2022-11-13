@@ -64,11 +64,11 @@ func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig, runenv *
 	cfg.Identity.PeerID = nConfig.AddrInfo.ID.String()
 	cfg.Identity.PrivKey = base64.StdEncoding.EncodeToString(nConfig.PrivKey)
 
-	cfg.Experimental.FilestoreEnabled = false
-	cfg.Experimental.AcceleratedDHTClient = false
-	cfg.Experimental.GraphsyncEnabled = false
-	cfg.Experimental.StrategicProviding = false
-	cfg.Experimental.UrlstoreEnabled = false
+	//cfg.Experimental.FilestoreEnabled = false
+	//cfg.Experimental.AcceleratedDHTClient = false
+	//cfg.Experimental.GraphsyncEnabled = false
+	//cfg.Experimental.StrategicProviding = false
+	//cfg.Experimental.UrlstoreEnabled = false
 
 	// Repo structure that encapsulate the config and datastore for dependency injection.
 	buildRepo := &repo.Mock{
@@ -98,14 +98,12 @@ func CreateIPFSNodeWithConfig(ctx context.Context, nConfig *NodeConfig, runenv *
 }
 
 // ClearDatastore removes a block from the datastore.
+// Not called in the testplan, but useful for debugging.
 func (n *IPFSNode) ClearDatastore(ctx context.Context, rootCid cid.Cid) error {
 	err := n.Node.DAG.Remove(ctx, rootCid)
 	if err != nil {
 		return err
 	}
-
-	//(*n.Node).Blocks.
-	//return nil
 
 	_, pinned, err := n.API.Pin().IsPinned(ctx, path.IpfsPath(rootCid))
 	if err != nil {
@@ -136,17 +134,6 @@ func (n *IPFSNode) ClearDatastore(ctx context.Context, rootCid cid.Cid) error {
 		})
 	}
 	return g.Wait()
-
-	// this probably fails but try to find out with log statements
-	//var ng ipld.NodeGetter = merkledag.NewSession(ctx, n.Node.DAG)
-	//toDelete := cid.NewSet()
-	//err = merkledag.Walk(ctx, merkledag.GetLinksDirect(n.Node.DAG), rootCid, toDelete.Visit, merkledag.Concurrent())
-	//if err != nil {
-	//	return err
-	//}
-	//return toDelete.ForEach(func(c cid.Cid) error {
-	//	return n.API.Block().Rm(ctx, path.IpfsPath(c))
-	//})
 }
 
 // EmitMetrics emits node's metrics for the run
