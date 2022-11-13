@@ -278,9 +278,11 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 			panic("Unknown dialer type")
 		}
 		runenv.RecordMessage(
-			"%s Dialed %d other nodes",
+			"%s %d Dialed %d other nodes (%s)",
 			nodeTestData.NodeType.String(),
+			nodeTestData.TypeIndex,
 			len(dialed),
+			testVars.Dialer,
 		)
 		if err != nil {
 			return err

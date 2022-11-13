@@ -35,7 +35,7 @@ func initializeBaseNetwork(
 	ctx context.Context,
 	runenv *runtime.RunEnv,
 ) (*BaseTestData, error) {
-	client := sync.MustBoundClient(ctx, runenv)
+	client := sync.MustBoundClient(ctx, runenv) // this is the issue with the 1h timeout
 	nwClient := network.NewClient(client, runenv)
 
 	nConfig, err := utils.GenerateAddrInfo(nwClient.MustGetDataNetworkIP().String())
@@ -172,7 +172,7 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 	if err != nil {
 		return err
 	}
-	logging.SetLogLevel("bs:peermgr", "DEBUG")
+	//logging.SetLogLevel("bs:peermgr", "DEBUG")
 	logging.SetLogLevel("dagadder", "DEBUG")
 	logging.SetLogLevel("node", "DEBUG")
 	//logging.SetLogLevel("bitswap", "DEBUG")
@@ -218,6 +218,7 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 	// For each test permutation found in the test
 	for pIndex, testParams := range testVars.Permutations {
 		pctx, pcancel := context.WithTimeout(ctx, testVars.Timeout)
+		defer pcancel()
 
 		runenv.RecordMessage(
 			"Running test permutation %d, with latency %d and delay %d",
@@ -243,7 +244,7 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 		// Log node info
 		globalInfoRecorder.RecordNodeInfo(
 			fmt.Sprintf(
-				"\"topology\": \"%s\", \"nodeId\": \"%s\", \"nodeType\": \"%s\"",
+				"\"topology\": \"%s\", \"nodeId\": \"%s\", \"nodeType\": \"%s\", dialer: \"%s\", \"exType\": trickle",
 				CreateTopologyString(
 					runenv.TestInstanceCount,
 					testVars.LeechCount,
@@ -252,6 +253,7 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 				),
 				h.ID().String(),
 				nodeTestData.NodeType.String(),
+				testVars.Dialer,
 			),
 		)
 
@@ -364,17 +366,32 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 			}
 
 			if nodeTestData.NodeType != utils.Eavesdropper {
-				dialed, err := dialer.DialFixedTopology(
-					sctx,
-					transferNode.Host(),
-					nodeTestData.NodeType,
-					nodeTestData.TypeIndex,
-					nodeTestData.PeerInfos,
-				)
+				var dialed []peer.AddrInfo
+				if testVars.Dialer == "edge" {
+					dialed, err = dialer.DialFixedTopologyEdgeLeech(
+						sctx,
+						transferNode.Host(),
+						nodeTestData.NodeType,
+						nodeTestData.TypeIndex,
+						nodeTestData.PeerInfos,
+					)
+				} else if testVars.Dialer == "center" {
+					dialed, err = dialer.DialFixedTopologyCenteredLeech(
+						sctx,
+						transferNode.Host(),
+						nodeTestData.NodeType,
+						nodeTestData.TypeIndex,
+						nodeTestData.PeerInfos,
+					)
+				} else {
+					panic("Unknown dialer type")
+				}
 				runenv.RecordMessage(
-					"%s Dialed %d other nodes",
+					"%s %d Dialed %d other nodes (%s)",
 					nodeTestData.NodeType.String(),
+					nodeTestData.TypeIndex,
 					len(dialed),
+					testVars.Dialer,
 				)
 				if err != nil {
 					return err
@@ -439,7 +456,7 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 					testParams.File.Size(),
 					pIndex)
 				start := time.Now()
-				ctxFetch, fetchCancel := context.WithTimeout(sctx, testVars.RunTimeout/2)
+				ctxFetch, fetchCancel := context.WithTimeout(sctx, testVars.RunTimeout)
 				rcvFile, err := transferNode.Fetch(ctxFetch, rootCid, nodeTestData.PeerInfos)
 				if err != nil {
 					runenv.RecordMessage("Error fetching data: %v", err)
