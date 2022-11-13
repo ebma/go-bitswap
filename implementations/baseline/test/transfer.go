@@ -259,7 +259,7 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 
 		var dialed []peer.AddrInfo
 		if testVars.Dialer == "edge" {
-			dialed, err = dialer.DialFixedTopology(
+			dialed, err = dialer.DialFixedTopologyEdgeLeech(
 				sctx,
 				transferNode.Host(),
 				nodeTestData.NodeType,
@@ -267,7 +267,13 @@ func BitswapTransferBaselineTest(runenv *runtime.RunEnv, initCtx *run.InitContex
 				nodeTestData.PeerInfos,
 			)
 		} else if testVars.Dialer == "center" {
-			// TODO
+			dialed, err = dialer.DialFixedTopologyCenteredLeech(
+				sctx,
+				transferNode.Host(),
+				nodeTestData.NodeType,
+				nodeTestData.TypeIndex,
+				nodeTestData.PeerInfos,
+			)
 		} else {
 			panic("Unknown dialer type")
 		}
