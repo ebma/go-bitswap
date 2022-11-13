@@ -53,6 +53,7 @@ def process_info_line(line, experiment_id):
     item = line
     # assume trickle experiment by default
     item['exType'] = 'trickle'
+    item['dialer'] = 'edge'
     if 'meta' in line:
         name = line['meta'].split("/")
         for attr in name:
@@ -70,6 +71,7 @@ def process_message_line(line, experiment_id):
     item = line
     # assume trickle experiment by default
     item['exType'] = 'trickle'
+    item['dialer'] = 'edge'
     for attr in name:
         attr = attr.split(":")
         item[attr[0]] = attr[1]

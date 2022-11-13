@@ -6,9 +6,9 @@ import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 
 import first_timestamp_estimator
+import message_metrics_analysis
 import prediction_analysis
 import process
-import message_metrics_analysis
 import ttf_analysis
 
 
@@ -61,6 +61,7 @@ def analyse_average_messages_comparing_0_delay(metrics):
 
     message_metrics_analysis.plot_messages_for_0_trickling(df)
 
+
 def analyse_average_messages_per_ex_type_and_all_delays(metrics, export_pdf):
     metrics_by_eaves_count = process.groupBy(metrics, "eavesCount")
     # Only consider the metrics for 0 eavesdroppers
@@ -94,20 +95,32 @@ def create_pdfs():
 
     # print_overview(metrics) # this somehow consumes some of the metrics items in the given list
 
-    with PdfPages(target_dir + "/" + f"prediction_rates-overall.pdf") as export_pdf_prediction_rates:
-        analyse_prediction_rates(message_items, info_items)
-        export_pdf_prediction_rates.savefig(pad_inches=0.4, bbox_inches='tight')
+    # Create a PDF file for each dialer
+    dialers = ["center", "edge"]
+    for dialer in dialers:
+        # TODO check if these contain all data
+        message_items_for_dialer = [item for item in message_items if item["dialer"] == dialer]
+        info_items_for_dialer = [item for item in info_items if item["dialer"] == dialer]
+        metrics_for_dialer = [item for item in metrics if item["dialer"] == dialer]
 
-    with PdfPages(target_dir + "/" + f"time-to-fetch.pdf") as export_pdf_ttf:
-        # analyse_ttf_for_all(metrics)
-        analyse_ttf_for_0_eaves(metrics)
-        export_pdf_ttf.savefig(pad_inches=0.4, bbox_inches='tight')
+        with PdfPages(target_dir + "/" + f"prediction_rates-overall-{dialer}.pdf") as export_pdf_prediction_rates:
+            if len(message_items_for_dialer) > 0 and len(info_items_for_dialer) > 0:
+                analyse_prediction_rates(message_items_for_dialer, info_items_for_dialer)
+                export_pdf_prediction_rates.savefig(pad_inches=0.4, bbox_inches='tight')
 
-    with PdfPages(target_dir + "/" + f"messages.pdf") as export_pdf_messages:
-        # Pass metrics to analyse average messages (per type)
-        # analyse_average_messages_per_ex_type_and_all_delays(metrics, export_pdf_messages)
-        analyse_average_messages_comparing_0_delay(metrics)
-        export_pdf_messages.savefig(pad_inches=0.4, bbox_inches='tight')
+        with PdfPages(target_dir + "/" + f"time-to-fetch-{dialer}.pdf") as export_pdf_ttf:
+            if len(metrics_for_dialer) > 0:
+                # analyse_ttf_for_all(metrics)
+                analyse_ttf_for_0_eaves(metrics_for_dialer)
+                export_pdf_ttf.savefig(pad_inches=0.4, bbox_inches='tight')
+
+        with PdfPages(target_dir + "/" + f"average-messages-{dialer}.pdf") as export_pdf_messages:
+            if len(metrics_for_dialer) > 0:
+                # Pass metrics to analyse average messages (per type)
+                # analyse_average_messages_per_ex_type_and_all_delays(metrics, export_pdf_messages)
+                analyse_average_messages_comparing_0_delay(metrics_for_dialer)
+                export_pdf_messages.savefig(pad_inches=0.4, bbox_inches='tight')
+
 
 if __name__ == '__main__':
     create_pdfs()
