@@ -278,6 +278,16 @@ func (t *NetworkTestData) CleanupRun(
 			return fmt.Errorf("Error clearing datastore: %w", err)
 		}
 	}
+
+	if t.NodeType == utils.Passive {
+		// Passive nodes are reset to prevent pending messages from older runs being sent in the next run
+		runenv.RecordMessage("Passive node, closing instance")
+		err := t.Node.Instance().Close()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

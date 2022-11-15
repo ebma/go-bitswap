@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
-	logging "github.com/ipfs/go-log"
 	"github.com/ipfs/testground/plans/trickle-bitswap/test/utils"
 	"github.com/ipfs/testground/plans/trickle-bitswap/test/utils/dialer"
 	"github.com/libp2p/go-libp2p"
@@ -173,9 +172,7 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 		return err
 	}
 	//logging.SetLogLevel("bs:peermgr", "DEBUG")
-	logging.SetLogLevel("dagadder", "DEBUG")
-	logging.SetLogLevel("node", "DEBUG")
-	//logging.SetLogLevel("bitswap", "DEBUG")
+	//logging.SetLogLevel("node", "DEBUG")
 	//logging.SetLogLevel("*", "DEBUG")
 
 	/// --- Set up
@@ -324,6 +321,21 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 			sctx, scancel := context.WithTimeout(pctx, testVars.RunTimeout)
 			defer scancel()
 
+			if nodeTestData.NodeType == utils.Passive {
+				// Passive nodes are reset to prevent pending messages from older runs being sent in the next run
+				runenv.RecordMessage("Resetting passive node...")
+				nodeTestData, err = initializeBitswapNetwork(
+					pctx,
+					runenv,
+					testVars,
+					testData,
+					h,
+					tricklingDelay,
+					false,
+				)
+				transferNode = nodeTestData.Node
+				signalAndWaitForAll = nodeTestData.SignalAndWaitForAll
+			}
 			// Used for logging
 			meta := CreateMetaFromParams(
 				pIndex,
