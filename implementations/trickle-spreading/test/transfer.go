@@ -238,6 +238,12 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 		transferNode := nodeTestData.Node
 		signalAndWaitForAll := nodeTestData.SignalAndWaitForAll
 
+		//if nodeTestData.NodeType == utils.Leech || nodeTestData.NodeType == utils.Eavesdropper {
+		//	logging.SetLogLevel("mq", "DEBUG")
+		//	logging.SetLogLevel("bsize", "DEBUG")
+		//	logging.SetLogLevel("bitswap", "DEBUG")
+		//}
+
 		// Log node info
 		globalInfoRecorder.RecordNodeInfo(
 			fmt.Sprintf(
@@ -268,12 +274,12 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 		case utils.Seed:
 			rootCid, err = nodeTestData.AddPublishFile(
 				pctx,
-				pIndex,
+				string(rune(pIndex)),
 				testParams.File,
 				runenv,
 			)
 		case utils.Leech:
-			rootCid, err = nodeTestData.ReadFile(pctx, pIndex, runenv, testVars)
+			rootCid, err = nodeTestData.ReadFile(pctx, string(rune(pIndex)), runenv, testVars)
 		}
 		if err != nil {
 			return err
@@ -321,21 +327,52 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 			sctx, scancel := context.WithTimeout(pctx, testVars.RunTimeout)
 			defer scancel()
 
-			if nodeTestData.NodeType == utils.Passive {
-				// Passive nodes are reset to prevent pending messages from older runs being sent in the next run
-				runenv.RecordMessage("Resetting passive node...")
-				nodeTestData, err = initializeBitswapNetwork(
-					pctx,
-					runenv,
-					testVars,
-					testData,
-					h,
-					tricklingDelay,
-					false,
-				)
-				transferNode = nodeTestData.Node
-				signalAndWaitForAll = nodeTestData.SignalAndWaitForAll
+			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
+
+			// Reset every node here again to be sure that the network is clean and no old messages are still in the queue
+			// This is necessary because otherwise the pending messages from old runs interfere with the new run
+			runenv.RecordMessage("Resetting node...")
+			nodeTestData, err = initializeBitswapNetwork(
+				pctx,
+				runenv,
+				testVars,
+				testData,
+				h,
+				tricklingDelay,
+				testData.NodeType == utils.Eavesdropper,
+			)
+			transferNode = nodeTestData.Node
+			signalAndWaitForAll = nodeTestData.SignalAndWaitForAll
+
+			err = signalAndWaitForAll(fmt.Sprintf("start-file-%s", runID))
+			if err != nil {
+				return err
 			}
+
+			switch nodeTestData.NodeType {
+			case utils.Seed:
+				rootCid, err = nodeTestData.AddPublishFile(
+					pctx,
+					runID,
+					testParams.File,
+					runenv,
+				)
+			case utils.Leech:
+				rootCid, err = nodeTestData.ReadFile(pctx, runID, runenv, testVars)
+			}
+			if err != nil {
+				return err
+			}
+
+			runenv.RecordMessage("File injest complete...")
+			// Wait for all nodes to be ready to dial
+			err = signalAndWaitForAll(
+				fmt.Sprintf("injest-complete-%s", runID),
+			)
+			if err != nil {
+				return err
+			}
+
 			// Used for logging
 			meta := CreateMetaFromParams(
 				pIndex,
@@ -358,8 +395,6 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 
 			nodeTestData.Node.Instance().Server.Tracer = messageHistoryRecorder
 
-			runID := fmt.Sprintf("%d-%d", pIndex, runNum)
-
 			// Wait for all nodes to be ready to start the run
 			err = signalAndWaitForAll(
 				fmt.Sprintf("start-run-%s", runID),
@@ -370,10 +405,11 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 
 			if nodeTestData.NodeType == utils.Leech {
 				runenv.RecordMessage(
-					"Starting run %d / %d (%d bytes)",
+					"Starting run %d / %d (%d bytes) | Permutation %d",
 					runNum,
 					testVars.RunCount,
 					testParams.File.Size(),
+					pIndex,
 				)
 			}
 
@@ -508,12 +544,14 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 			if err != nil {
 				return err
 			}
+			// wait for all nodes to finish cleanup
+			err = signalAndWaitForAll(
+				fmt.Sprintf(
+					"cleanup-complete-%s",
+					runID,
+				),
+			)
 		}
-		err = nodeTestData.CleanupFile(pctx, rootCid)
-		if err != nil {
-			return err
-		}
-
 		// cancel permutation context
 		pcancel()
 	}

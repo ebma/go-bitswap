@@ -113,12 +113,12 @@ func GetEnvVars(runenv *runtime.RunEnv) (*TestVars, error) {
 
 func (t *TestData) publishFile(
 	ctx context.Context,
-	fIndex int,
+	topicID string,
 	cid *cid.Cid,
 	runenv *runtime.RunEnv,
 ) error {
 	// Create identifier for specific file size.
-	rootCidTopic := getRootCidTopic(fIndex)
+	rootCidTopic := getRootCidTopic(topicID)
 
 	runenv.RecordMessage("Published Added CID: %v", *cid)
 	// Inform other nodes of the root CID
@@ -130,12 +130,12 @@ func (t *TestData) publishFile(
 
 func (t *TestData) ReadFile(
 	ctx context.Context,
-	fIndex int,
+	topicID string,
 	runenv *runtime.RunEnv,
 	testvars *TestVars,
 ) (cid.Cid, error) {
 	// Create identifier for specific file size.
-	rootCidTopic := getRootCidTopic(fIndex)
+	rootCidTopic := getRootCidTopic(topicID)
 	// Get the root CID from a seed
 	rootCidCh := make(chan cid.Cid, 1)
 	// Not creating a new subcontext for the subscription seems to fix a bug of closed channels
@@ -237,7 +237,7 @@ type NetworkTestData struct {
 
 func (t *NetworkTestData) AddPublishFile(
 	ctx context.Context,
-	fIndex int,
+	topicID string,
 	f utils.TestFile,
 	runenv *runtime.RunEnv,
 ) (cid.Cid, error) {
@@ -252,7 +252,7 @@ func (t *NetworkTestData) AddPublishFile(
 	if err != nil {
 		return cid.Undef, err
 	}
-	return *c, t.publishFile(ctx, fIndex, c, runenv)
+	return *c, t.publishFile(ctx, topicID, c, runenv)
 }
 
 func (t *NetworkTestData) CleanupRun(
@@ -269,37 +269,18 @@ func (t *NetworkTestData) CleanupRun(
 	}
 	runenv.RecordMessage("Closed Connections")
 
-	if t.NodeType == utils.Leech || t.NodeType == utils.Passive ||
-		t.NodeType == utils.Eavesdropper {
-		// Clearing datastore
-		// Also clean passive nodes so they don't store blocks from
-		// previous runs.
-		if err := t.Node.ClearDatastore(ctx, rootCid); err != nil {
-			return fmt.Errorf("Error clearing datastore: %w", err)
-		}
+	// Clearing datastore
+	if err := t.Node.ClearDatastore(ctx, rootCid); err != nil {
+		return fmt.Errorf("Error clearing datastore: %w", err)
 	}
 
-	if t.NodeType == utils.Passive {
-		// Passive nodes are reset to prevent pending messages from older runs being sent in the next run
-		runenv.RecordMessage("Passive node, closing instance")
-		err := t.Node.Instance().Close()
-		if err != nil {
-			return err
-		}
+	// Reset all nodes here
+	runenv.RecordMessage("Closing instance")
+	err := t.Node.Instance().Close()
+	if err != nil {
+		return err
 	}
 
-	return nil
-}
-
-func (t *NetworkTestData) CleanupFile(ctx context.Context, rootCid cid.Cid) error {
-	if t.NodeType == utils.Seed {
-		// Between every file close the seed Node.
-		// ipfsNode.Close()
-		// runenv.RecordMessage("Closed Seed Node")
-		if err := t.Node.ClearDatastore(ctx, rootCid); err != nil {
-			return fmt.Errorf("Error clearing datastore: %w", err)
-		}
-	}
 	return nil
 }
 
@@ -466,8 +447,8 @@ func getLeafNodes(ctx context.Context, node ipld.Node, dserv ipld.DAGService) ([
 	return leaves, nil
 }
 
-func getRootCidTopic(id int) *sync.Topic {
-	return sync.NewTopic(fmt.Sprintf("root-cid-%d", id), &cid.Cid{})
+func getRootCidTopic(id string) *sync.Topic {
+	return sync.NewTopic(fmt.Sprintf("root-cid-%v", id), &cid.Cid{})
 }
 
 func getTCPAddrTopic(id int, run int) *sync.Topic {
