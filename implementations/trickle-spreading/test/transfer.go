@@ -247,16 +247,11 @@ func BitswapTransferTrickleTest(runenv *runtime.RunEnv, initCtx *run.InitContext
 		// Log node info
 		globalInfoRecorder.RecordNodeInfo(
 			fmt.Sprintf(
-				"\"topology\": \"%s\", \"nodeId\": \"%s\", \"nodeType\": \"%s\", \"dialer\": \"%s\", \"exType\": \"trickle\"",
-				CreateTopologyString(
-					runenv.TestInstanceCount,
-					testVars.LeechCount,
-					testVars.SeedCount,
-					testVars.EavesdropperCount,
-				),
+				"\"nodeId\": \"%s\", \"nodeType\": \"%s\", \"dialer\": \"%s\", \"exType\": \"trickle\", \"eavesCount\": \"%d\"",
 				h.ID().String(),
 				nodeTestData.NodeType.String(),
 				testVars.Dialer,
+				testVars.EavesdropperCount,
 			),
 		)
 
