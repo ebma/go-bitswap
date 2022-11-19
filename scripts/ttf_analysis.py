@@ -90,9 +90,11 @@ def plot_time_to_fetch_per_extype(df, combined_averages):
     # palette = sns.color_palette("bright", 10)
     palette = ['r', 'g']
     col_order = ['512 bytes', '153600 bytes', '1048576 bytes']
+    row_order = ["50 ms", "100 ms", "150 ms"]
     g = sns.FacetGrid(df, hue='Experiment Type', col="File Size", row="Latency",
                       palette=palette,
                       col_order=col_order,
+                      row_order=row_order,
                       margin_titles=True)
     g.map(sns.scatterplot, "x", "y", alpha=0.5)
 
@@ -110,10 +112,9 @@ def plot_time_to_fetch_per_extype(df, combined_averages):
             is_targeted = int(averages['latency']) == ax_latency and int(averages['filesize']) == ax_filesize
             if is_targeted:
                 average_to_draw = averages
-                color = get_color_for_index(idx, palette)
                 ax.plot(average_to_draw['x'], average_to_draw['avg_normal'],
-                        label=f"Protocol fetch - {average_to_draw['eaves_count']} eaves", color=color)
-                ax.plot(average_to_draw['x'], average_to_draw['avg_tc'], label="TCP fetch", color='k')
+                        label=f"Protocol fetch - {average_to_draw['eaves_count']} eaves", color='r')
+                ax.plot(average_to_draw['x'], average_to_draw['avg_tc'], label="TCP fetch", color='orange')
 
     g.set(xlabel='Trickling delay (ms)', ylabel='Time to Fetch (ms)')
     g.add_legend()

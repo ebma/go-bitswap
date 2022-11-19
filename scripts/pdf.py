@@ -32,8 +32,14 @@ def analyse_prediction_rates(message_items, info_items):
 def analyse_ttf_for_0_eaves(metrics):
     metrics_by_eavescount = process.groupBy(metrics, "eavesCount")
 
-    # Only consider the metrics for 0 eavesdroppers
-    metrics_for_eaves_count = metrics_by_eavescount["0"]
+    metrics_for_eaves_count = None
+    if "0" in metrics_by_eavescount:
+        # Only consider the metrics for 0 eavesdroppers
+        metrics_for_eaves_count = metrics_by_eavescount["0"]
+
+    if metrics_for_eaves_count is None:
+        print("No metrics for 0 eavesdroppers")
+        return
 
     df, averages = ttf_analysis.create_ttf_dataframe(metrics_for_eaves_count, 0)
     ttf_analysis.plot_time_to_fetch_per_extype(df, averages)
@@ -55,8 +61,17 @@ def analyse_ttf_for_all(metrics):
 
 def analyse_average_messages_comparing_0_delay(metrics):
     metrics_by_eaves_count = process.groupBy(metrics, "eavesCount")
+
     # Only consider the metrics for 0 eavesdroppers
-    metrics_for_eaves_count = metrics_by_eaves_count["0"]
+    metrics_for_eaves_count = None
+    if "0" in metrics_by_eaves_count:
+        # Only consider the metrics for 0 eavesdroppers
+        metrics_for_eaves_count = metrics_by_eaves_count["0"]
+
+    if metrics_for_eaves_count is None:
+        print("No metrics for 0 eavesdroppers")
+        return
+
     df = message_metrics_analysis.create_average_messages_dataframe_compact(metrics_for_eaves_count, 0)
 
     message_metrics_analysis.plot_messages_for_0_trickling(df)
@@ -75,7 +90,7 @@ def analyse_average_messages_per_ex_type_and_all_delays(metrics, export_pdf):
 def create_pdfs():
     dir_path = os.path.dirname(os.path.realpath(__file__))
 
-    results_dir = dir_path + "/../../experiments/results"
+    results_dir = dir_path + "/../experiments/results"
 
     if len(sys.argv) == 2:
         results_dir = sys.argv[1]

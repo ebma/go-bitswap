@@ -53,7 +53,8 @@ def analyse_prediction_rates_per_eaves(messages, info_items):
     df.sort_values(by=['Eavesdroppers', 'Delay'], ascending=True, inplace=True)
 
     # Maybe turn some cols to integer type
-    g = sns.FacetGrid(df, col="Eavesdroppers", hue="Latency", margin_titles=True)
+    hue_order = ["50 ms", "100 ms", "150 ms"]
+    g = sns.FacetGrid(df, col="Eavesdroppers", hue="Latency", hue_order=hue_order, margin_titles=True)
     g.map(sns.lineplot, "Delay", "Rate")
     g.set(xlabel='Trickling delay (ms)', ylabel='Prediction rate', ylim=(0, 1.1))
     g.add_legend()
