@@ -2,7 +2,7 @@
 
 RUNNER="local:docker"
 
-mkdir ../../experiments/results
+mkdir ./results
 
 source ../scripts/exec.sh
 
