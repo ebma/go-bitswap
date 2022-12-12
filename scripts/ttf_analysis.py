@@ -98,7 +98,13 @@ def plot_time_to_fetch_per_extype(df, combined_averages):
                       row_order=row_order,
                       hue_order=hue_order,
                       margin_titles=True)
-    g.map(sns.scatterplot, "x", "y", alpha=0.5)
+    # set log ticks for y axis
+    ticks = [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600]
+    labels = [str(i) for i in ticks]
+    g.map(sns.scatterplot, "x", "y", alpha=0.5).set(yscale="log")
+    g.set(yticks=ticks, yticklabels=labels)
+    # g.ax_joint.set_yscale("log")
+    # g.scale(y="log")
 
     # Draw the averages onto the plots
     # The flatiter is used to iterate over all axes in the facetgrid
