@@ -39,28 +39,28 @@ def create_average_messages_dataframe_compact(metrics, eaves_count):
 
                     df = df.append({"Latency": latency + ' ms',
                                     "Trickling Delay": delay,
-                                    "File Size": filesize + ' bytes',
+                                    "File Size": filesize + ' B',
                                     "Experiment Type": ex_type,
                                     "Type": "Blocks Sent",
                                     "value": blks_sent / blks_sent_n,
                                     "Eaves Count": eaves_count}, ignore_index=True)
                     df = df.append({"Latency": latency + ' ms',
                                     "Trickling Delay": delay,
-                                    "File Size": filesize + ' bytes',
+                                    "File Size": filesize + ' B',
                                     "Experiment Type": ex_type,
                                     "Type": "Blocks Received",
                                     "value": blks_rcvd / blks_rcvd_n,
                                     "Eaves Count": eaves_count}, ignore_index=True)
                     df = df.append({"Latency": latency + ' ms',
                                     "Trickling Delay": delay,
-                                    "File Size": filesize + ' bytes',
+                                    "File Size": filesize + ' B',
                                     "Experiment Type": ex_type,
                                     "Type": "Duplicate Blocks Received",
                                     "value": dup_blks_rcvd / dup_blks_rcvd_n,
                                     "Eaves Count": eaves_count}, ignore_index=True)
                     df = df.append({"Latency": latency + ' ms',
                                     "Trickling Delay": delay,
-                                    "File Size": filesize + ' bytes',
+                                    "File Size": filesize + ' B',
                                     "Experiment Type": ex_type,
                                     "Type": "Messages Received",
                                     "value": msgs_rcvd / msgs_rcvd_n,
@@ -129,14 +129,14 @@ def plot_messages_for_0_trickling(dataframe_compact):
     target = df[df["Trickling Delay"] == '0']
 
     order = ['Forwarding', 'Baseline']
-    col_order = ['512 bytes', '153600 bytes', '1048576 bytes']
+    col_order = ['512 B', '153600 B', '1048576 B']
     row_order = ['50 ms', '100 ms', '150 ms']
     hue_order = ["Messages Received", "Blocks Sent", "Blocks Received", "Duplicate Blocks Received"]
 
     g = sns.catplot(data=target, x="Experiment Type", y="value", hue="Type", col="File Size", row="Latency", kind="bar",
                     order=order, hue_order=hue_order, col_order=col_order, row_order=row_order,
                     margin_titles=True)
-    g.set_axis_labels("Experiment Type", "Average Number of Messages")
+    g.set_axis_labels("Experiment Type", "Average Number of Type")
     sns.despine(offset=10, trim=False)
 
     # Draw height of bars on top of the bars

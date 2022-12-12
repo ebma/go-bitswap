@@ -66,7 +66,7 @@ def create_ttf_dataframe(metrics, eaves_count, filter_outliers=True):
 
                     test = pd.DataFrame({'x': [int(last_delay)] * len(scaled_y), 'y': scaled_y, 'tc': scaled_tc,
                                          'Latency': [latency + ' ms'] * len(scaled_y),
-                                         'File Size': [filesize + ' bytes'] * len(scaled_y),
+                                         'File Size': [filesize + ' B'] * len(scaled_y),
                                          'Experiment Type': [ex_type] * len(scaled_y),
                                          'Eaves Count': [eaves_count] * len(scaled_y)})
                     overall_frame = pd.concat([overall_frame, test])
@@ -89,7 +89,7 @@ def plot_time_to_fetch_per_extype(df, combined_averages):
     sns.set_style("darkgrid", {"grid.color": ".6", "grid.linestyle": ":"})
     # palette = sns.color_palette("bright", 10)
     palette = ['g', 'r']
-    col_order = ['512 bytes', '153600 bytes', '1048576 bytes']
+    col_order = ['512 B', '153600 B', '1048576 B']
     row_order = ["50 ms", "100 ms", "150 ms"]
     hue_order = ["trickle", "baseline"]
     g = sns.FacetGrid(df, hue='Experiment Type', col="File Size", row="Latency",
@@ -248,7 +248,7 @@ def plot_time_to_fetch_grouped_with_filesize(eaves_count, by_latency, filter_out
 
             ax.set_xlabel('Trickling Delay (ms)')
             ax.set_ylabel('Time-to-Fetch (ms)')
-            ax.set_title("Latency: " + latency + "ms , File Size: " + filesize + " bytes")
+            ax.set_title("Latency: " + latency + "ms , File Size: " + filesize + " B")
             ax.set_xticks(x)
             ax.set_xticklabels(labels)
             ax.grid()

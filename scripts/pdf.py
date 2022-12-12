@@ -4,6 +4,7 @@ import sys
 
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
+from numpy import sqrt
 
 import first_timestamp_estimator
 import message_metrics_analysis
@@ -11,6 +12,23 @@ import prediction_analysis
 import process
 import ttf_analysis
 
+import matplotlib
+import matplotlib.pyplot as plt
+
+fig_width_pt = 246.0  # Get this from LaTeX using \showthe\columnwidth
+inches_per_pt = 1.0/72.27               # Convert pt to inch
+golden_mean = (sqrt(5)-1.0)/2.0         # Aesthetic ratio
+fig_width = fig_width_pt*inches_per_pt  # width in inches
+fig_height = fig_width*golden_mean      # height in inches
+fig_size =  [fig_width,fig_height]
+params = {'backend': 'ps',
+          'axes.labelsize': 10,
+          'legend.fontsize': 10,
+          'xtick.labelsize': 8,
+          'ytick.labelsize': 8,
+          'text.usetex': False,
+          'figure.figsize': fig_size}
+plt.rcParams.update(params)
 
 def print_overview(metrics):
     # Print out an overview of how many experiments were done for which parameters

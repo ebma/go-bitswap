@@ -173,7 +173,7 @@ def plot_estimate(results_dir):
     unique_topologies = list(set([item['topology'] for item in leech_target_items]))
     unique_topologies.sort(reverse=True)
 
-    fig, axs = plt.subplots(1, len(unique_topologies), figsize=(10, 5), sharey=True)
+    fig, axs = plt.subplots(1, len(unique_topologies), sharey=True)
     if len(unique_topologies) > 1:
         for index, topology in enumerate(unique_topologies):
             prediction_results = list()
