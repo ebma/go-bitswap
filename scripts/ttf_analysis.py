@@ -67,7 +67,7 @@ def create_ttf_dataframe(metrics, eaves_count, filter_outliers=True):
                     test = pd.DataFrame({'x': [int(last_delay)] * len(scaled_y), 'y': scaled_y, 'tc': scaled_tc,
                                          # 'Latency': [latency + ' ms'] * len(scaled_y),
                                          'File Size': [filesize + ' B'] * len(scaled_y),
-                                         'Experiment Type': [ex_type + ' | ' + latency + ' ms'] * len(scaled_y),
+                                         'Experiment Type | Latency': [ex_type + ' | ' + latency + ' ms'] * len(scaled_y),
                                          # 'Eaves Count': [eaves_count] * len(scaled_y)
                                          })
                     overall_frame = pd.concat([overall_frame, test])
@@ -84,9 +84,8 @@ def get_color_for_index(index, palette):
 
 
 def plot_time_to_fetch_per_extype(df, combined_averages):
-    # df.sort_values(by=['Eaves Count'], inplace=True)
-
-    plt.figure(figsize=(15, 15))
+    # plt.figure(figsize=(15, 15))
+    plt.figure(figsize=(10, 5))
     sns.set_style("darkgrid", {"grid.color": ".6", "grid.linestyle": ":"})
     # palette = sns.color_palette("bright", 10)
     # palette = ['g', 'r']
@@ -107,13 +106,10 @@ def plot_time_to_fetch_per_extype(df, combined_averages):
     # g.map(sns.scatterplot, "x", "y", alpha=0.5).set(yscale="log")
     # g.map(sns.swarmplot, "x", "y", alpha=0.5, dodge=True).set(yscale="log")
     # g.map(sns.stripplot, "x", "y", alpha=0.5).set(yscale="log")
-    hue = df[['Legendary', 'Stage']].apply(
-        lambda row: f"{row.Legendary}, {row.Stage}", axis=1)
-    hue.name = 'Legendary, Stage'
-
-    g = sns.catplot(data=df, x="x", y="y", hue="Experiment Type", col="File Size", col_order=col_order,
+    g = sns.catplot(data=df, x="x", y="y", hue="Experiment Type | Latency", col="File Size", col_order=col_order,
                     hue_order=hue_order).set(yscale="log")
     g.set(yticks=ticks, yticklabels=labels)
+    # g.set_titles("{col_name}")
     # g.ax_joint.set_yscale("log")
     # g.scale(y="log")
 
@@ -136,7 +132,7 @@ def plot_time_to_fetch_per_extype(df, combined_averages):
     #             ax.plot(average_to_draw['x'], average_to_draw['avg_tc'], label="TCP fetch", color='orange')
 
     g.set(xlabel='Trickling delay (ms)', ylabel='Time to Fetch (ms)')
-    g.add_legend()
+    # g.add_legend()
 
     sns.despine(offset=10, trim=False)
 
