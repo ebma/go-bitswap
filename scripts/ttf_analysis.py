@@ -9,7 +9,7 @@ def create_ttf_dataframe(metrics, eaves_count, filter_outliers=True):
     outlier_threshold = 2
 
     overall_frame = pd.DataFrame(columns=['x', 'y', 'tc'])
-    averages = list()
+    averages = pd.DataFrame(columns=['x', 'avg_normal', 'avg_tc', 'latency', 'filesize'])
 
     by_ex_type = process.groupBy(metrics, 'exType')
     for ex_type, ex_type_items in by_ex_type.items():
@@ -73,9 +73,11 @@ def create_ttf_dataframe(metrics, eaves_count, filter_outliers=True):
                                          })
                     overall_frame = pd.concat([overall_frame, test])
 
-                averages.append(
-                    {'x': x, 'avg_normal': avg, 'avg_tc': avg_tc, 'eaves_count': eaves_count, 'latency': latency,
-                     'filesize': filesize})
+
+                average = pd.DataFrame({'x': x,
+                                        'avg_normal': avg, 'avg_tc': avg_tc,
+                                        'eaves_count': eaves_count, 'latency': latency, 'filesize': filesize})
+                averages = pd.concat([averages, average])
 
     return overall_frame, averages
 
@@ -103,13 +105,13 @@ def plot_time_to_fetch_per_extype(df, combined_averages):
     #                   # hue_order=hue_order,
     #                   margin_titles=True, height=3, aspect=1.5)
     # set log ticks for y axis
-    ticks = [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600]
+    ticks = [400, 800, 1600, 3200, 6400, 12800, 25600]
     labels = [str(i) for i in ticks]
     # g.map(sns.scatterplot, "x", "y", alpha=0.5).set(yscale="log")
     # g.map(sns.swarmplot, "x", "y", alpha=0.5, dodge=True).set(yscale="log")
     # g.map(sns.stripplot, "x", "y", alpha=0.5).set(yscale="log")
     g = sns.catplot(data=df, x="x", y="y", hue="Experiment Type | Latency",
-                    kind="strip", dodge=True, s=3,
+                    kind="strip", dodge=True, s=3, height=4,
                     col="File Size", col_order=col_order,
                     hue_order=hue_order).set(yscale="log")
     g.set(yticks=ticks, yticklabels=labels)
@@ -117,23 +119,7 @@ def plot_time_to_fetch_per_extype(df, combined_averages):
     # g.ax_joint.set_yscale("log")
     # g.scale(y="log")
 
-    # Draw the averages onto the plots
-    # The flatiter is used to iterate over all axes in the facetgrid
-    # flatiter = g.axes.flat
-    # for ax in flatiter:
-    #     index = flatiter.index - 1
-    #     for idx, averages in enumerate(combined_averages):
-    #         ax_latency, ax_filesize = list(g.axes_dict.keys())[index]
-    #         # convert to ints for comparison
-    #         ax_latency = int(ax_latency.split(' ')[0])
-    #         ax_filesize = int(ax_filesize.split(' ')[0])
-    #         # check if the current plot is the one we want to draw the averages on
-    #         is_targeted = int(averages['latency']) == ax_latency and int(averages['filesize']) == ax_filesize
-    #         if is_targeted:
-    #             average_to_draw = averages
-    #             # ax.plot(average_to_draw['x'], average_to_draw['avg_normal'],
-    #             #         label=f"Protocol fetch - {average_to_draw['eaves_count']} eaves", color='g')
-    #             ax.plot(average_to_draw['x'], average_to_draw['avg_tc'], label="TCP fetch", color='orange')
+    # sns.lineplot(data=combined_averages, x="x", y="avg_tc", hue="latency", color="black", label="baseline")
 
     g.set(xlabel='Trickling delay (ms)', ylabel='Time to Fetch (ms)')
     # g.add_legend()

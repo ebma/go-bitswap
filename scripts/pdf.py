@@ -11,6 +11,7 @@ import message_metrics_analysis
 import prediction_analysis
 import process
 import ttf_analysis
+import seaborn as sns
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -130,6 +131,9 @@ def create_pdfs():
 
     # Create a PDF file for each dialer
     dialers = ["center", "edge"]
+
+    sns.set(font_scale=1.1)
+
     for dialer in dialers:
         # TODO check if these contain all data
         message_items_for_dialer = [item for item in message_items if item["dialer"] == dialer]
@@ -146,6 +150,7 @@ def create_pdfs():
                 # analyse_ttf_for_all(metrics)
                 analyse_ttf_for_0_eaves(metrics_for_dialer)
                 export_pdf_ttf.savefig(pad_inches=0.4, bbox_inches='tight')
+                # export_pdf_ttf.savefig()
 
         with PdfPages(target_dir + "/" + f"average-messages-{dialer}.pdf") as export_pdf_messages:
             if len(metrics_for_dialer) > 0:
