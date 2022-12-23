@@ -1,0 +1,49 @@
+name = "trickle-bitswap"
+
+[defaults]
+builder = "docker:go"
+runner = "local:docker"
+
+[builders."docker:generic"]
+enabled = true
+
+[builders."docker:generic".build_args]
+#build_image = "golang:alpine"
+build_image = "golang:1.17.9-buster"
+run_image = "scratch"
+
+# For all options see https://github.com/testground/testground/blob/master/pkg/build/docker_go.go
+[builders."docker:go"]
+enabled = true
+skip_runtime_image = true
+build_base_image = "golang:1.18.8-buster"
+
+[builders."docker:go".dockerfile_extensions]
+# Copy local version of go-bitswap to the build container.
+# More info here https://docs.testground.ai/builder-library/docker-go#customizing-the-build
+pre_mod_download = "COPY /plan/go-bitswap ${PLAN_DIR}/go-bitswap"
+
+[builders."exec:go"]
+enabled = true
+
+[runners."local:docker"]
+enabled = true
+run_timeout_min = 120
+
+[runners."local:exec"]
+enabled = true
+run_timeout_min = 120
+
+[[testcases]]
+name = "transfer"
+instances = { min = 1, max = 200, default = 2 }
+[testcases.params]
+dialer = { type = "string", desc = "network topology between nodes", default = "edge" }
+eavesdropper_count = { type = "int", desc = "number of eavesdropper nodes", unit = "peers", default = 1 }
+enable_tcp = { type = "bool", desc = "Enable TCP comparison", default = false }
+file_size = { type = "int", desc = "file size", unit = "bytes", default = 4194304 }
+latency_ms = { type = "int", desc = "latency", unit = "ms", default = 50 }
+run_count = { type = "int", desc = "number of iterations of the test", unit = "iteration", default = 1 }
+run_timeout_secs = { type = "int", desc = "timeout for an individual run", unit = "seconds", default = 9000000000 }
+timeout_secs = { type = "int", desc = "timeout for overall test", unit = "seconds", default = 40000000000 }
+trickling_delay_ms = { type = "int array", desc = "trickling delay", unit = "ms", default = "0,50,100" }

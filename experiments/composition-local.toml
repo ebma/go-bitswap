@@ -1,0 +1,31 @@
+[metadata]
+name = "trickle-performance-test"
+author = "Marcel Ebert"
+
+[global]
+plan = "trickle-spreading"
+case = "transfer"
+builder = "exec:go"
+runner = "local:exec"
+
+total_instances = 12
+
+[[groups]]
+id = "nodes"
+instances = { count = 12 }
+
+[groups.build]
+skip_runtime_image = "true"
+
+[groups.run]
+[groups.run.test_params]
+file_size = "512"
+run_timeout_secs = "60"
+timeout_secs = "3600"
+run_count = "20"
+eavesdropper_count = "1"
+latency_ms = "50"
+trickling_delay_ms = "0,50,100"
+enable_tcp = "true"
+dialer = "edge"
+#dialer = "center"

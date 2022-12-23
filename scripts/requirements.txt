@@ -1,0 +1,7 @@
+toml
+pandas == 1.5.0
+numpy == 1.23.2
+matplotlib == 3.5.3
+durations
+pandas-sets
+seaborn == 0.11.2
