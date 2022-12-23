@@ -1,0 +1,32 @@
+name = "baseline-go-bitswap"
+
+[defaults]
+builder = "docker:go"
+runner = "local:docker"
+
+# For all options see https://github.com/testground/testground/blob/master/pkg/build/docker_go.go
+[builders."docker:go"]
+enabled = true
+skip_runtime_image = true
+build_base_image = "golang:1.18.8-buster"
+
+[builders."exec:go"]
+enabled = true
+
+[runners."local:docker"]
+enabled = true
+run_timeout_min = 120
+
+[runners."local:exec"]
+enabled = true
+
+[[testcases]]
+name = "transfer"
+instances = { min = 1, max = 200, default = 2 }
+[testcases.params]
+dialer = { type = "string", desc = "network topology between nodes", default = "edge" }
+file_size = { type = "int", desc = "file size", unit = "bytes", default = 512 }
+latency_ms = { type = "int", desc = "latency", unit = "ms", default = 50 }
+run_count = { type = "int", desc = "number of iterations of the test", unit = "iteration", default = 1 }
+run_timeout_secs = { type = "int", desc = "timeout for an individual run", unit = "seconds", default = 120 }
+timeout_secs = { type = "int", desc = "timeout for overall test", unit = "seconds", default = 3600 }
