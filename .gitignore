@@ -1,5 +1,7 @@
 tmp
-**/**/*.out
+#**/**/*.out
 **/**/*.log
 **/**/*.err
+**/**/diagnostics.out
+**/**/run.out
 *.pyc
