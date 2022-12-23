@@ -455,22 +455,6 @@ func getTCPAddrTopic(id int, run int) *sync.Topic {
 	return sync.NewTopic(fmt.Sprintf("tcp-addr-%d-%d", id, run), "")
 }
 
-func CreateTopologyString(
-	totalInstances,
-	leechCount int,
-	seedCount int,
-	eavesdropperCount int,
-) string {
-	// (seeder-count:leech-count:passive-count:eavesdropper-count)
-	return fmt.Sprintf(
-		"(%d-%d-%d-%d)",
-		totalInstances-leechCount-seedCount-eavesdropperCount,
-		leechCount,
-		seedCount,
-		eavesdropperCount,
-	)
-}
-
 func CreateMetaFromParams(
 	pIndex int,
 	runNum int,
