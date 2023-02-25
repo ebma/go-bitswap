@@ -389,7 +389,7 @@ func (s *Session) broadcast(ctx context.Context, wants []cid.Cid) {
 // randomly chosen CID in the sesssion.
 func (s *Session) handlePeriodicSearch(ctx context.Context) {
 	// Periodic broadcast disabled in relay sessions
-	if s.relay {
+	if !s.relay {
 		randomWant := s.sw.RandomLiveWant()
 		if !randomWant.Defined() {
 			return

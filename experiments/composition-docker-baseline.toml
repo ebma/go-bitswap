@@ -19,14 +19,14 @@ skip_runtime_image = "true"
 
 [groups.run]
 [groups.run.test_params]
-file_size = "512"
+#file_size = "512"
 #file_size = "153600" # 150 kib
-#file_size = "1048576" # 1 mib
+file_size = "1048576" # 1 mib
 run_timeout_secs = "60"
 timeout_secs = "800" # enough for 100 runs
 run_count = "100"
-#latency_ms = "50"
+latency_ms = "50"
 #latency_ms = "100"
-latency_ms = "150"
+#latency_ms = "150"
 #dialer = "edge"
 dialer = "center"

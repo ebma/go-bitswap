@@ -20,7 +20,7 @@ skip_runtime_image = "true"
 [groups.run]
 [groups.run.test_params]
 file_size = "512"
-run_timeout_secs = "30" # set low timeout here because it is not important for that the fetch is successful
+run_timeout_secs = "30" # set low timeout here because it is not important for that the fetch finishes
 timeout_secs = "3400"
 #run_count = "50"
 run_count = "40"

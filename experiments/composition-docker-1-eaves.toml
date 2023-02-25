@@ -20,14 +20,14 @@ skip_runtime_image = "true"
 [groups.run]
 [groups.run.test_params]
 file_size = "512"
-run_timeout_secs = "30" # can be quite low because we don't care if the leech succeeds
+run_timeout_secs = "30" # set low timeout here because it is not important for that the fetch finishes
 timeout_secs = "3400"
 run_count = "50"
 eavesdropper_count = "1"
 trickling_delay_ms = "0,50,100,150,200,250,300"
-#latency_ms = "50"
+latency_ms = "50"
 #latency_ms = "100"
-latency_ms = "150"
+#latency_ms = "150"
 enable_tcp = "true"
-dialer = "edge"
-#dialer = "center"
+#dialer = "edge"
+dialer = "center"
